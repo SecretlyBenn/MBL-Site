@@ -29,6 +29,62 @@
       "when": 1785649754034,
       "tag": "0003_seed_historical",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785710804510,
+      "tag": "0004_conscious_thundra",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1785712412123,
+      "tag": "0005_faulty_the_liberteens",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1785712870039,
+      "tag": "0006_slimy_the_hood",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1785726948152,
+      "tag": "0007_panoramic_nehzno",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1785754574031,
+      "tag": "0008_normal_fallen_one",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1785755917736,
+      "tag": "0009_conscious_ravenous",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1785756075277,
+      "tag": "0010_petite_maelstrom",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1785982237036,
+      "tag": "0011_purple_thunderbird",
+      "breakpoints": true
     }
   ]
 }

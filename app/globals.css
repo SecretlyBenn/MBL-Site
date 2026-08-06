@@ -24,3 +24,407 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Everything below lives in the components layer so Tailwind utility classes
+   written on a cell (text-emerald-400, text-sky-400) still win. Unlayered CSS
+   beats every layered utility regardless of specificity. */
+@layer components {
+  /* ---------------------------------------------------------------------------
+     Data tables. Single source of truth for how every stats, standings, roster
+     and box-score table looks: geometry, alignment, colour and emphasis live
+     here so pages never restyle cells themselves.
+     --------------------------------------------------------------------------- */
+
+  table {
+    width: 100%;
+  }
+
+  th,
+  td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .data-table-shell {
+    overflow: hidden;
+    border: 1px solid rgb(51 65 85 / 0.7);
+    border-radius: 0.75rem;
+    background: rgb(9 12 18);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04), 0 18px 40px rgb(0 0 0 / 0.35);
+  }
+
+  .data-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.8125rem;
+  }
+
+  /* Header ------------------------------------------------------------------ */
+
+  .data-table thead th {
+    height: 2.5rem;
+    padding: 0 0.6rem;
+    border-bottom: 1px solid rgb(51 65 85 / 0.9);
+    background: rgb(17 22 31);
+    color: rgb(148 163 184);
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .data-table thead th button {
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+  }
+
+  .data-table thead th button:hover {
+    color: rgb(226 232 240);
+  }
+
+  /* Body -------------------------------------------------------------------- */
+
+  .data-table tbody td {
+    height: 2.4rem;
+    padding: 0 0.6rem;
+    border-top: 1px solid rgb(51 65 85 / 0.35);
+    color: rgb(203 213 225);
+    white-space: nowrap;
+  }
+
+  .data-table tbody tr:first-child td {
+    border-top: 0;
+  }
+
+  .data-table tbody tr:nth-child(even) {
+    background: rgb(30 41 59 / 0.22);
+  }
+
+  .data-table tbody tr:hover {
+    background: rgb(56 189 248 / 0.08);
+  }
+
+  /* Alignment: the first column identifies the row, the rest are figures. */
+
+  .data-table th:first-child,
+  .data-table td:first-child {
+    padding-left: 0.85rem;
+    text-align: left;
+  }
+
+  .data-table th:last-child,
+  .data-table td:last-child {
+    padding-right: 0.85rem;
+  }
+
+  .data-table th:not(:first-child),
+  .data-table td:not(:first-child) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .data-table tbody td:first-child {
+    color: rgb(241 245 249);
+    font-weight: 600;
+  }
+
+  /* Tables whose second column is also a label (player, then team). */
+
+  .data-table.has-two-labels th:nth-child(2),
+  .data-table.has-two-labels td:nth-child(2) {
+    text-align: left;
+  }
+
+  /* Stat tables get the full page width, so their type and rows scale up to
+     use it rather than leaving a band of empty cell around every figure. */
+  .data-table.stat-table {
+    font-size: 0.9375rem;
+  }
+
+  .data-table.stat-table thead th {
+    height: 2.75rem;
+    font-size: 0.75rem;
+  }
+
+  .data-table.stat-table tbody td,
+  .data-table.stat-table tfoot td {
+    height: 2.9rem;
+  }
+
+  /* Figure columns still run tighter than the roomier standings cells. */
+  /* Stat tables are the densest on the site: 17 columns and a full page of
+     players. Their rows run shorter than elsewhere so a whole page fits the
+     viewport without scrolling. */
+  .data-table.stat-table thead th {
+    height: 2.1rem;
+  }
+
+  .data-table.stat-table tbody td {
+    height: 1.95rem;
+  }
+
+  .data-table.stat-table th:not(:first-child):not(:nth-child(2)),
+  .data-table.stat-table td:not(:first-child):not(:nth-child(2)),
+  .data-table.stat-table:not(.has-two-labels) th:nth-child(2),
+  .data-table.stat-table:not(.has-two-labels) td:nth-child(2) {
+    padding-left: 0.3rem;
+    padding-right: 0.3rem;
+  }
+
+  .data-table.has-two-labels tbody td:nth-child(2) {
+    color: rgb(148 163 184);
+    font-weight: 400;
+  }
+
+  /* Footer (league-average rows and similar totals). */
+
+  .data-table tfoot td {
+    height: 2.5rem;
+    padding: 0 0.6rem;
+    border-top: 2px solid rgb(51 65 85 / 0.9);
+    background: rgb(17 22 31);
+    color: rgb(226 232 240);
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .data-table tfoot td:not(:first-child) {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Links in tables inherit the cell's weight rather than the accent style. */
+
+  .data-table a {
+    color: inherit;
+    font-weight: inherit;
+    transition: color 120ms ease;
+  }
+
+  .data-table a:hover {
+    color: rgb(56 189 248);
+  }
+
+  /* ---------------------------------------------------------------------------
+     Shared UI primitives. Defined once here so tables, dropdowns, cards and
+     links look the same on every page rather than being restyled per file.
+     --------------------------------------------------------------------------- */
+
+  /* Dropdowns: native select, restyled with a custom chevron. */
+  .ui-select {
+    appearance: none;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    border: 1px solid rgb(71 85 105 / 0.55);
+    border-radius: 0.5rem;
+    background-color: rgb(15 23 42);
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='%2394a3b8'%3E%3Cpath d='M6 8.5 1.5 4h9z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.65rem center;
+    background-size: 0.7rem;
+    color: rgb(226 232 240);
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: border-color 120ms ease, background-color 120ms ease;
+  }
+
+  .ui-select:hover {
+    border-color: rgb(100 116 139 / 0.8);
+  }
+
+  .ui-select:focus {
+    outline: none;
+    border-color: rgb(56 189 248 / 0.7);
+    box-shadow: 0 0 0 3px rgb(56 189 248 / 0.15);
+  }
+
+  .ui-field-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: rgb(148 163 184);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  /* Panels used for leader boards, stat tiles and any boxed content. */
+  .ui-card {
+    border: 1px solid rgb(71 85 105 / 0.42);
+    border-radius: 0.65rem;
+    background: linear-gradient(180deg, rgb(15 18 24 / 0.96), rgb(9 11 16 / 0.96));
+  }
+
+  /* Section heading with its rule and trailing action link. */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgb(71 85 105 / 0.42);
+  }
+
+  .section-head h2,
+  .section-head h3 {
+    color: rgb(203 213 225);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* The one accent link treatment used across the site. */
+  .ui-link {
+    color: rgb(56 189 248);
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: color 120ms ease;
+  }
+
+  .ui-link:hover {
+    color: rgb(125 211 252);
+  }
+
+  /* Pagination / small action buttons. */
+  .ui-button {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid rgb(71 85 105 / 0.55);
+    border-radius: 0.4rem;
+    color: rgb(203 213 225);
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+
+  .ui-button:hover:not(:disabled) {
+    border-color: rgb(100 116 139 / 0.85);
+    background: rgb(30 41 59 / 0.6);
+    color: white;
+  }
+
+  .ui-button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
+  /* Numeric emphasis inside tables. */
+  .data-table td.is-key,
+  .data-table th.is-key {
+    color: rgb(241 245 249);
+    font-weight: 700;
+  }
+
+  /* ---------------------------------------------------------------------------
+     Ranked tables: a rank number, then the thing being ranked, then figures.
+     Standings and every leaderboard share this so a leaders card and a
+     standings card sitting side by side line up column for column.
+     --------------------------------------------------------------------------- */
+
+  .data-table.ranked th:first-child,
+  .data-table.ranked td:first-child {
+    width: 2.5rem;
+    padding-left: 0;
+    padding-right: 0;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: rgb(100 116 139);
+  }
+
+  .data-table.ranked th:nth-child(2),
+  .data-table.ranked td:nth-child(2) {
+    padding-left: 0.25rem;
+    text-align: left;
+    font-weight: 600;
+    color: rgb(241 245 249);
+  }
+
+  .data-table.ranked thead th:nth-child(2) {
+    font-weight: 700;
+    color: rgb(148 163 184);
+  }
+
+  /* The leader keeps a left accent rail instead of only a coloured numeral, so
+     the top row reads at a glance in both cards. */
+  .data-table.ranked tbody tr:first-child td:first-child {
+    box-shadow: inset 3px 0 0 rgb(56 189 248);
+    color: rgb(56 189 248);
+  }
+
+  .data-table.ranked tbody tr:first-child {
+    background: rgb(56 189 248 / 0.06);
+  }
+
+  /* ---------------------------------------------------------------------------
+     Line score: the small inning-by-inning grid beside a game's final score.
+     Fixed layout with one width for every inning cell, so the digits sit in a
+     column under their inning number and R/H/E line up with them.
+     --------------------------------------------------------------------------- */
+
+  .line-score {
+    width: auto;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .line-score th,
+  .line-score td {
+    width: 1.5rem;
+    height: 1.5rem;
+    padding: 0;
+    text-align: center;
+    font-weight: inherit;
+  }
+
+  .line-score thead th {
+    color: rgb(100 116 139);
+    font-size: 0.65rem;
+    font-weight: 700;
+  }
+
+  .line-score tbody th[scope="row"] {
+    width: 2.75rem;
+    padding-right: 0.5rem;
+    text-align: right;
+    color: rgb(148 163 184);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .line-score tbody td {
+    color: rgb(203 213 225);
+  }
+
+  /* R/H/E are the totals, so they read brighter and sit apart from the innings. */
+  .line-score .is-total {
+    width: 1.75rem;
+    color: rgb(226 232 240);
+    font-weight: 700;
+  }
+
+  .line-score .is-total-start {
+    border-left: 1px solid rgb(51 65 85 / 0.8);
+  }
+
+  /* Section eyebrow: a short accent rule under the leading word, matching the
+     reference site's header treatment. */
+  .section-title {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 2px solid rgb(56 189 248);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(226 232 240);
+  }
+}

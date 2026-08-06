@@ -17,7 +17,7 @@ export default async function SeasonsPage() {
             <li key={season.id}>
               <Link
                 href={`/seasons/${season.id}`}
-                className="flex items-center justify-between rounded border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10"
+                className="flex items-center justify-between rounded border border-slate-800/80 bg-slate-900/40 px-4 py-3 hover:bg-slate-800/60"
               >
                 <span className="font-medium">{season.name}</span>
                 {season.isPlayoffs && (

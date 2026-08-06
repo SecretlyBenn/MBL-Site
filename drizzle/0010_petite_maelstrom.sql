@@ -1,0 +1,1 @@
+ALTER TABLE `historical_games` ADD `source_game_id` text;

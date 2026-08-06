@@ -149,15 +149,20 @@ export const historicalTeams = sqliteTable("historical_teams", {
     .notNull()
     .references(() => historicalSeasons.id),
   // Display name with the abbreviation prefix stripped, expanded to the full
-  // franchise name where known (e.g. "EXTExpos" -> "Montreal Expos").
+  // franchise name where known (e.g. "EXTExpos" -> "Toronto Expos").
   name: text("name").notNull(),
   abbreviation: text("abbreviation"),
   // Exactly as it appeared in the source export, so a re-import can still match.
   sourceName: text("source_name").notNull(),
   sourceTeamId: text("source_team_id").notNull(),
+  // "AMERICAN" | "NATIONAL", derived from which of the source's two standings
+  // tables the team appeared in. Null when the season's standings are missing.
+  league: text("league"),
   wins: integer("wins"),
   losses: integer("losses"),
   ties: integer("ties"),
+  runsScored: integer("runs_scored"),
+  runsAllowed: integer("runs_allowed"),
 });
 
 // One row per player per team per season. Batting and pitching columns are
@@ -171,6 +176,13 @@ export const historicalPlayerStats = sqliteTable("historical_player_stats", {
     .notNull()
     .references(() => historicalTeams.id),
   playerName: text("player_name").notNull(),
+  // True when this is the team the player finished the season on. Derived from
+  // the source's "current roster" view, which lists each player under their
+  // final team - the only chronological signal the export carries. Used to
+  // label a multi-team player's aggregated season line.
+  isSeasonEndTeam: integer("is_season_end_team", { mode: "boolean" })
+    .notNull()
+    .default(false),
   // Batting
   games: integer("games"),
   atBats: integer("at_bats"),
@@ -188,6 +200,17 @@ export const historicalPlayerStats = sqliteTable("historical_player_stats", {
   sluggingPct: real("slugging_pct"),
   ops: real("ops"),
   totalBases: integer("total_bases"),
+  singles: integer("singles"),
+  // Plate appearances as the source counts them, rather than AB + BB, which
+  // misses sacrifices.
+  plateAppearances: integer("plate_appearances"),
+  caughtStealing: integer("caught_stealing"),
+  sacFlies: integer("sac_flies"),
+  leftOnBase: integer("left_on_base"),
+  // Fielding travels with the batting line in the source.
+  putouts: integer("putouts"),
+  errors: integer("errors"),
+  fieldingPct: real("fielding_pct"),
   // Pitching
   pitchingGames: integer("pitching_games"),
   gamesStarted: integer("games_started"),
@@ -203,6 +226,100 @@ export const historicalPlayerStats = sqliteTable("historical_player_stats", {
   walksAllowed: integer("walks_allowed"),
   era: real("era"),
   whip: real("whip"),
+  completeGames: integer("complete_games"),
+  shutouts: integer("shutouts"),
+  blownSaves: integer("blown_saves"),
+  pitchCount: integer("pitch_count"),
+  // Walks and strikeouts per game, as the source publishes them.
+  walksPerGame: real("walks_per_game"),
+  strikeoutsPerGame: real("strikeouts_per_game"),
+});
+
+/**
+ * The team's listed roster for a season, as opposed to who actually recorded a
+ * stat line. Carries jersey number and position, which the stat tables don't,
+ * and can include players who never appeared in a game.
+ */
+export const historicalRosterEntries = sqliteTable("historical_roster_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => historicalSeasons.id),
+  historicalTeamId: integer("historical_team_id")
+    .notNull()
+    .references(() => historicalTeams.id),
+  playerName: text("player_name").notNull(),
+  jerseyNumber: text("jersey_number"),
+  positions: text("positions"),
+});
+
+/**
+ * Completed games from the archive. Scores are nullable because the source
+ * lists scheduled-but-unplayed games too. `playedOn` is kept as the source's
+ * display string rather than a parsed date - the export has no year-safe
+ * format and nothing here needs date arithmetic.
+ */
+export const historicalGames = sqliteTable("historical_games", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  // Source system id, so per-game stats can be attached without relying on
+  // row ordering.
+  sourceGameId: text("source_game_id"),
+  seasonId: integer("season_id")
+    .notNull()
+    .references(() => historicalSeasons.id),
+  playedOn: text("played_on"),
+  startTime: text("start_time"),
+  awayTeamId: integer("away_team_id").references(() => historicalTeams.id),
+  homeTeamId: integer("home_team_id").references(() => historicalTeams.id),
+  awayScore: integer("away_score"),
+  homeScore: integer("home_score"),
+  // e.g. "7th" when a game was called early.
+  note: text("note"),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+/**
+ * Runs per inning for one team in one game, plus the R/H/E summary. `innings`
+ * is a comma-separated list because game length varies (and the source uses
+ * blanks for innings a team didn't bat in).
+ */
+export const historicalLineScores = sqliteTable("historical_line_scores", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  gameId: integer("game_id")
+    .notNull()
+    .references(() => historicalGames.id),
+  isHome: integer("is_home", { mode: "boolean" }).notNull(),
+  teamLabel: text("team_label").notNull(),
+  innings: text("innings"),
+  runs: integer("runs"),
+  hits: integer("hits"),
+  errors: integer("errors"),
+});
+
+/** One player's batting or pitching line for a single game. */
+export const historicalGameStats = sqliteTable("historical_game_stats", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  gameId: integer("game_id")
+    .notNull()
+    .references(() => historicalGames.id),
+  isHome: integer("is_home", { mode: "boolean" }).notNull(),
+  kind: text("kind").notNull(), // "BATTING" | "PITCHING"
+  playerName: text("player_name").notNull(),
+  atBats: integer("at_bats"),
+  runs: integer("runs"),
+  hits: integer("hits"),
+  doubles: integer("doubles"),
+  triples: integer("triples"),
+  homeRuns: integer("home_runs"),
+  rbis: integer("rbis"),
+  walks: integer("walks"),
+  strikeouts: integer("strikeouts"),
+  inningsPitched: real("innings_pitched"),
+  earnedRuns: integer("earned_runs"),
+  hitsAllowed: integer("hits_allowed"),
+  runsAllowed: integer("runs_allowed"),
+  strikeoutsPitched: integer("strikeouts_pitched"),
+  walksAllowed: integer("walks_allowed"),
 });
 
 // Append-only trail for anything correction-worthy: scorecard approvals and

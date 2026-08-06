@@ -1,0 +1,1 @@
+ALTER TABLE `historical_player_stats` ADD `is_season_end_team` integer DEFAULT false NOT NULL;

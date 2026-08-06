@@ -29,6 +29,11 @@ if (!dbFile) {
 console.log(`Using local D1 file: ${dbFile}`);
 const db = new DatabaseSync(dbFile);
 
+// Seed files clear parent tables before their children (and older seed
+// migrations predate tables that now reference them), so enforcement has to
+// stand down for the bulk reload. Re-enabled below once everything is loaded.
+db.exec("PRAGMA foreign_keys = OFF");
+
 /** Splits a .sql file into individual statements, ignoring drizzle's breakpoints. */
 function statementsFrom(file) {
   return fs
@@ -54,7 +59,7 @@ for (const migration of migrations) {
       applied += 1;
     } catch (error) {
       // Re-running a migration is fine; anything else is a real failure.
-      if (String(error.message).includes("already exists")) {
+      if (String(error.message).includes("already exists") || String(error.message).includes("duplicate column name")) {
         skipped += 1;
         continue;
       }
@@ -65,8 +70,10 @@ for (const migration of migrations) {
   console.log(`  ${migration}: ${applied} applied, ${skipped} already present`);
 }
 
-const seedFile = path.join("drizzle", "seed-historical.sql");
-if (fs.existsSync(seedFile)) {
+// Order matters: box scores reference games created by the historical seed.
+for (const name of ["seed-historical.sql", "seed-boxscores.sql"]) {
+  const seedFile = path.join("drizzle", name);
+  if (!fs.existsSync(seedFile)) continue;
   let count = 0;
   db.exec("BEGIN");
   for (const statement of statementsFrom(seedFile)) {
@@ -74,12 +81,30 @@ if (fs.existsSync(seedFile)) {
     count += 1;
   }
   db.exec("COMMIT");
-  console.log(`  seed-historical.sql: ${count} statements`);
+  console.log(`  ${name}: ${count} statements`);
 }
 
-for (const table of ["historical_seasons", "historical_teams", "historical_player_stats"]) {
+for (const table of [
+  "historical_seasons",
+  "historical_teams",
+  "historical_player_stats",
+  "historical_games",
+  "historical_line_scores",
+  "historical_game_stats",
+]) {
   const [row] = db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).all();
   console.log(`  ${table}: ${row.n} rows`);
+}
+
+// Surface any referential damage the reload introduced rather than leaving it
+// to fail later at query time.
+db.exec("PRAGMA foreign_keys = ON");
+const violations = db.prepare("PRAGMA foreign_key_check").all();
+if (violations.length > 0) {
+  console.error(`  FOREIGN KEY violations after reload: ${violations.length}`);
+  console.error(violations.slice(0, 5));
+} else {
+  console.log("  foreign keys: clean");
 }
 
 db.close();

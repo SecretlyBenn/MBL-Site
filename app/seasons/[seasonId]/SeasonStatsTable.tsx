@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
+import { formatInnings } from "@/app/formatStats";
+import { HistoricalTeamLink, PlayerProfileLink } from "@/app/EntityLinks";
 
 export type SeasonStatRow = {
   playerName: string;
@@ -19,22 +20,61 @@ export type SeasonStatRow = {
   whip: number | null;
 };
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 15;
+type SortKey = keyof SeasonStatRow;
+type SortDirection = "asc" | "desc";
 
 function avg(value: number | null) {
   return value === null ? "-" : value.toFixed(3).replace(/^0/, "");
 }
 
-export function SeasonStatsTable({ rows, kind }: { rows: SeasonStatRow[]; kind: "batting" | "pitching" }) {
+export function SeasonStatsTable({ rows, kind, seasonId, teamIds }: { rows: SeasonStatRow[]; kind: "batting" | "pitching"; seasonId: number; teamIds: Record<string, number> }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
-  const filtered = useMemo(() => {
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const sorted = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return needle ? rows.filter((row) => row.playerName.toLowerCase().includes(needle)) : rows;
-  }, [query, rows]);
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    const result = needle
+      ? rows.filter((row) => row.playerName.toLowerCase().includes(needle))
+      : [...rows];
+    if (!sortKey) return result;
+    return result.sort((a, b) => {
+      const left = a[sortKey];
+      const right = b[sortKey];
+      if (left === null) return 1;
+      if (right === null) return -1;
+      const comparison = typeof left === "string"
+        ? left.localeCompare(String(right), undefined, { sensitivity: "base" })
+        : left - Number(right);
+      return sortDirection === "desc" ? -comparison : comparison;
+    });
+  }, [query, rows, sortDirection, sortKey]);
+
+  const pages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
   const current = Math.min(page, pages);
-  const visible = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const visible = sorted.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+
+  function sortBy(key: SortKey) {
+    setSortDirection(sortKey === key && sortDirection === "desc" ? "asc" : "desc");
+    setSortKey(key);
+    setPage(1);
+  }
+
+  function SortHeader({ column, children, align = "right", padded = false }: { column: SortKey; children: React.ReactNode; align?: "left" | "right"; padded?: boolean }) {
+    const active = sortKey === column;
+    return (
+      <th className={`${padded ? "" : ""} ${align === "right" ? "" : ""}`}>
+        <button type="button" onClick={() => sortBy(column)} className="inline-flex items-center gap-1 hover:text-white">
+          {children}
+          <span aria-hidden="true" className={active ? "text-white" : "text-slate-600"}>
+            {active ? (sortDirection === "desc" ? "↓" : "↑") : "↕"}
+          </span>
+        </button>
+      </th>
+    );
+  }
 
   return (
     <div>
@@ -46,30 +86,54 @@ export function SeasonStatsTable({ rows, kind }: { rows: SeasonStatRow[]; kind: 
           value={query}
           onChange={(event) => { setQuery(event.target.value); setPage(1); }}
           placeholder="Search player username…"
-          className="w-full max-w-xs rounded border border-white/15 bg-white/5 px-3 py-2 text-sm text-white outline-none placeholder:text-white/35 focus:border-white/40"
+          className="ui-select w-full max-w-xs"
         />
-        <span className="text-xs text-white/40">{filtered.length} players · Page {current} of {pages}</span>
+        <span className="text-xs text-slate-500">{sorted.length} players · Page {current} of {pages}</span>
       </div>
-      <div className="overflow-x-auto rounded border border-white/10">
-        <table className="w-full min-w-[700px] border-collapse text-sm">
-          <thead className="bg-neutral-900">
-            <tr className="border-b border-white/15 text-left text-xs uppercase tracking-wide text-white/50">
-              <th className="py-2 pl-3 pr-3">Player</th><th className="py-2 pr-3">Team</th>
-              {kind === "batting" ? <><th className="py-2 pr-3 text-right">G</th><th className="py-2 pr-3 text-right">AB</th><th className="py-2 pr-3 text-right">H</th><th className="py-2 pr-3 text-right">HR</th><th className="py-2 pr-3 text-right">RBI</th><th className="py-2 pr-3 text-right">AVG</th><th className="py-2 pr-3 text-right">OPS</th></> : <><th className="py-2 pr-3 text-right">IP</th><th className="py-2 pr-3 text-right">SO</th><th className="py-2 pr-3 text-right">ERA</th><th className="py-2 pr-3 text-right">WHIP</th></>}
+      <div className="data-table-shell">
+        <table className="data-table w-full table-fixed">
+          <colgroup>
+            <col style={{ width: "26%" }} /><col style={{ width: "24%" }} />
+            {Array.from({ length: kind === "batting" ? 7 : 4 }, (_, index) => <col key={index} />)}
+          </colgroup>
+          <thead className="bg-slate-900">
+            <tr className="border-b border-slate-700/60 text-left text-xs uppercase tracking-wide text-slate-400">
+              <SortHeader column="playerName" align="left" padded>Player</SortHeader>
+              <SortHeader column="teamName" align="left">Team</SortHeader>
+              {kind === "batting" ? <>
+                <SortHeader column="games">G</SortHeader><SortHeader column="atBats">AB</SortHeader>
+                <SortHeader column="hits">H</SortHeader><SortHeader column="homeRuns">HR</SortHeader>
+                <SortHeader column="rbis">RBI</SortHeader><SortHeader column="battingAverage">AVG</SortHeader>
+                <SortHeader column="ops">OPS</SortHeader>
+              </> : <>
+                <SortHeader column="inningsPitched">IP</SortHeader><SortHeader column="strikeoutsPitched">SO</SortHeader>
+                <SortHeader column="era">ERA</SortHeader><SortHeader column="whip">WHIP</SortHeader>
+              </>}
             </tr>
           </thead>
           <tbody>
             {visible.map((row, index) => (
-              <tr key={`${row.playerName}-${row.teamName}-${index}`} className="border-b border-white/5">
-                <td className="py-2 pl-3 pr-3"><Link className="hover:underline" href={`/players/history/${encodeURIComponent(row.playerName)}`}>{row.playerName}</Link></td>
-                <td className="py-2 pr-3 text-white/50">{row.teamName}</td>
-                {kind === "batting" ? <><td className="py-2 pr-3 text-right">{row.games ?? "-"}</td><td className="py-2 pr-3 text-right">{row.atBats ?? "-"}</td><td className="py-2 pr-3 text-right">{row.hits ?? "-"}</td><td className="py-2 pr-3 text-right">{row.homeRuns ?? "-"}</td><td className="py-2 pr-3 text-right">{row.rbis ?? "-"}</td><td className="py-2 pr-3 text-right">{avg(row.battingAverage)}</td><td className="py-2 pr-3 text-right">{avg(row.ops)}</td></> : <><td className="py-2 pr-3 text-right">{row.inningsPitched ?? "-"}</td><td className="py-2 pr-3 text-right">{row.strikeoutsPitched ?? "-"}</td><td className="py-2 pr-3 text-right">{row.era === null ? "-" : row.era.toFixed(2)}</td><td className="py-2 pr-3 text-right">{row.whip === null ? "-" : row.whip.toFixed(2)}</td></>}
+              <tr key={`${row.playerName}-${row.teamName}-${index}`} className="border-b border-slate-800/60">
+                <td><PlayerProfileLink name={row.playerName} /></td>
+                <td>{teamIds[row.teamName] ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} /> : row.teamName}</td>
+                {kind === "batting" ? <>
+                  <td>{row.games ?? "-"}</td><td>{row.atBats ?? "-"}</td>
+                  <td>{row.hits ?? "-"}</td><td>{row.homeRuns ?? "-"}</td>
+                  <td>{row.rbis ?? "-"}</td><td>{avg(row.battingAverage)}</td>
+                  <td>{avg(row.ops)}</td>
+                </> : <>
+                  <td>{formatInnings(row.inningsPitched)}</td><td>{row.strikeoutsPitched ?? "-"}</td>
+                  <td>{row.era === null ? "-" : row.era.toFixed(2)}</td><td>{row.whip === null ? "-" : row.whip.toFixed(2)}</td>
+                </>}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      {pages > 1 && <div className="mt-3 flex items-center justify-end gap-2"><button type="button" disabled={current === 1} onClick={() => setPage(current - 1)} className="rounded border border-white/15 px-3 py-1.5 text-sm disabled:opacity-30">Previous</button><button type="button" disabled={current === pages} onClick={() => setPage(current + 1)} className="rounded border border-white/15 px-3 py-1.5 text-sm disabled:opacity-30">Next</button></div>}
+      {pages > 1 && <div className="mt-3 flex items-center justify-end gap-2">
+        <button type="button" disabled={current === 1} onClick={() => setPage(current - 1)} className="rounded border border-slate-700/60 px-3 py-1.5 text-sm disabled:opacity-30">Previous</button>
+        <button type="button" disabled={current === pages} onClick={() => setPage(current + 1)} className="rounded border border-slate-700/60 px-3 py-1.5 text-sm disabled:opacity-30">Next</button>
+      </div>}
     </div>
   );
 }

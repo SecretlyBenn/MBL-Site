@@ -1,0 +1,1 @@
+ALTER TABLE `historical_teams` ADD `league` text;

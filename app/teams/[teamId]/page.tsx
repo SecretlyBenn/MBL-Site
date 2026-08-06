@@ -46,7 +46,7 @@ export default async function TeamPage({
       <TeamLogo teamName={team.name} className="mb-6 h-32 w-32" />
       <div className="grid gap-8 md:grid-cols-2">
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/50">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
             Active roster
           </h2>
           {roster.length === 0 ? (
@@ -57,7 +57,7 @@ export default async function TeamPage({
                 <li key={player.id}>
                   <Link
                     href={`/players/${player.id}`}
-                    className="block rounded border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10"
+                    className="block rounded border border-slate-800/80 bg-slate-900/40 px-3 py-2 hover:bg-slate-800/60"
                   >
                     {player.displayName}
                   </Link>
@@ -68,7 +68,7 @@ export default async function TeamPage({
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-white/50">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
             Recent results
           </h2>
           {recentResults.length === 0 ? (
@@ -84,13 +84,13 @@ export default async function TeamPage({
                 return (
                   <li
                     key={game.id}
-                    className="flex items-center justify-between rounded border border-white/10 bg-white/5 px-3 py-2"
+                    className="flex items-center justify-between rounded border border-slate-800/80 bg-slate-900/40 px-3 py-2"
                   >
                     <span>
                       <span className={won ? "text-green-400" : "text-red-400"}>
                         {won ? "W" : "L"}
                       </span>{" "}
-                      {isHome ? "vs" : "@"} {opponent?.name ?? "Unknown"}
+                      {isHome ? "vs" : "@"} {opponent ? <Link href={`/teams/${opponent.id}`} className="hover:underline">{opponent.name}</Link> : "Unknown"}
                     </span>
                     <span className="font-mono">
                       {us}-{them}
