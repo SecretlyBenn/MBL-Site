@@ -36,6 +36,37 @@ const SEASON_XII_SERIES = [
 /** Between series 5 and 6. Shown so the gap in play reads as intentional. */
 const ALL_STAR_BREAK_AFTER_SERIES = 5;
 
+/**
+ * "June 15" plus the season's year, as a date. Accepts either a bare day or a
+ * full "Monday June 15, 2026" - stripping a leading weekday has to name the
+ * weekdays, or it eats the month off a bare day instead.
+ */
+const WEEKDAY = /^(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day,?\s*/;
+
+function dayOf(value: string | null, year: number) {
+  const text = value?.replace(WEEKDAY, "").replace(/,\s*\d{4}$/, "");
+  if (!text) return null;
+  const parsed = new Date(`${text}, ${year}`);
+  return Number.isNaN(parsed.valueOf()) ? null : parsed;
+}
+
+/**
+ * Whether a published window actually contains the games assigned to it. The
+ * back half of Season XII ran past its schedule, and a window play never
+ * reached would misdescribe when those games happened.
+ */
+function windowCovers(window: string, block: { playedOn: string | null }[]) {
+  const year = Number(block[0]?.playedOn?.match(/(\d{4})$/)?.[1]);
+  if (!Number.isFinite(year)) return false;
+  const [openText, closeText] = window.split(" – ");
+  const open = dayOf(openText, year);
+  const close = dayOf(closeText, year);
+  const first = dayOf(block[0]?.playedOn ?? null, year);
+  const last = dayOf(block.at(-1)?.playedOn ?? null, year);
+  if (!open || !close || !first || !last) return false;
+  return first >= open && last <= close;
+}
+
 export default async function SchedulePage({
   searchParams,
 }: {
@@ -71,7 +102,18 @@ export default async function SchedulePage({
       const block = games.slice(cursor, cursor + series.games);
       cursor += series.games;
       if (block.length === 0) continue;
-      groups.push({ label: `Series ${index + 1}`, detail: series.window, games: block });
+      // The published window is the scheduling window, which is what a reader
+      // wants - but the back half of the season ran well past its schedule, so
+      // a window that play never touched would be a lie. Fall back to the dates
+      // the games were actually played on.
+      const from = shortDate(block[0]?.playedOn);
+      const to = shortDate(block.at(-1)?.playedOn);
+      const played = from === to ? from : `${from} – ${to}`;
+      groups.push({
+        label: `Series ${index + 1}`,
+        detail: windowCovers(series.window, block) ? series.window : played,
+        games: block,
+      });
     }
     if (cursor < games.length) {
       groups.push({ label: "Additional games", detail: "", games: games.slice(cursor) });
