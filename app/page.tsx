@@ -4,10 +4,12 @@ import {
   getHistoricalSchedule,
   getHistoricalSeasonStandings,
   getHistoricalSeasons,
+  getPlayerAvatars,
 } from "@/db/queries";
 import { EmptyState, SiteNav } from "@/app/SiteNav";
 import { StandingsTable } from "@/app/standings/StandingsTable";
 import { PlayerProfileLink } from "@/app/EntityLinks";
+import { PlayerHead } from "@/app/PlayerHead";
 import { ScoresStrip } from "@/app/ScoresStrip";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +27,7 @@ export default async function Home() {
   const seasons = await getHistoricalSeasons();
   const latestSeason = seasons[0] ?? null;
 
-  const [standings, leaders, seasonGames] = await Promise.all([
+  const [standings, leaders, seasonGames, avatars] = await Promise.all([
     latestSeason ? getHistoricalSeasonStandings(latestSeason.id) : Promise.resolve([]),
     Promise.all(
       LEADER_BOARDS.map(async (board) => ({
@@ -34,6 +36,7 @@ export default async function Home() {
       })),
     ),
     latestSeason ? getHistoricalSchedule(latestSeason.id) : Promise.resolve([]),
+    getPlayerAvatars(),
   ]);
 
   // Archived games carry no status flag; a missing score marks one as unplayed.
@@ -167,7 +170,10 @@ export default async function Home() {
                           <tr key={row.playerName}>
                             <td>{index + 1}</td>
                             <td>
-                              <PlayerProfileLink name={row.playerName} />
+                              <span className="flex min-w-0 items-center gap-2">
+                                <PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={18} />
+                                <PlayerProfileLink name={row.playerName} className="truncate" />
+                              </span>
                             </td>
                             <td>{row.total}</td>
                           </tr>

@@ -336,3 +336,20 @@ export const auditLog = sqliteTable("audit_log", {
   detail: text("detail"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+/**
+ * Minecraft identity for a name that appears in the archive. Stat rows record
+ * whatever username a player used at the time, and usernames change - the UUID
+ * does not, so avatars keep resolving after a rename.
+ *
+ * Keyed by the archived name rather than by player, because the archive has no
+ * player table: a name is all a historical stat line carries.
+ */
+export const minecraftProfiles = sqliteTable("minecraft_profiles", {
+  playerName: text("player_name").primaryKey(),
+  uuid: text("uuid").notNull(),
+  /** The account's name today, which may differ from playerName. */
+  currentName: text("current_name").notNull(),
+  /** How the mapping was established: "mojang", "namemc" or "user". */
+  source: text("source").notNull(),
+});

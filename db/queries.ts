@@ -14,6 +14,7 @@ import {
   scorecardLines,
   scorecards,
   teams,
+  minecraftProfiles,
 } from "./schema";
 
 export type StandingsRow = {
@@ -793,4 +794,17 @@ export async function getTeamRoster(teamId: number) {
     .select()
     .from(players)
     .where(and(eq(players.teamId, teamId), eq(players.status, "ACTIVE")));
+}
+
+/**
+ * Archived name -> Minecraft account UUID, for rendering player heads. Returned
+ * as a plain object so it can cross the server/client boundary into the stat
+ * tables without a second query per row.
+ */
+export async function getPlayerAvatars(): Promise<Record<string, string>> {
+  const db = getDb();
+  const rows = await db
+    .select({ playerName: minecraftProfiles.playerName, uuid: minecraftProfiles.uuid })
+    .from(minecraftProfiles);
+  return Object.fromEntries(rows.map((row) => [row.playerName, row.uuid]));
 }

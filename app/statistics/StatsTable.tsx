@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { TeamLogo } from "../TeamLogo";
 import { formatInnings } from "../formatStats";
 import { HistoricalTeamLink, PlayerProfileLink } from "../EntityLinks";
+import { PlayerHead } from "../PlayerHead";
 
 export type StatRow = Record<string, string | number | null | undefined> & { playerName: string; teamName: string };
 type Column = {
@@ -87,7 +88,7 @@ function leagueAverage(rows: StatRow[], kind: "batting" | "pitching") {
   return result;
 }
 
-export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, toolbar }: { rows: StatRow[]; kind: "batting" | "pitching"; team?: boolean; seasonId?: number; teamIds?: Record<string, number>; toolbar?: React.ReactNode }) {
+export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, toolbar, avatars = {} }: { rows: StatRow[]; kind: "batting" | "pitching"; team?: boolean; seasonId?: number; teamIds?: Record<string, number>; toolbar?: React.ReactNode; avatars?: Record<string, string> }) {
   const columns = (kind === "batting" ? BATTING : PITCHING).filter((column) => !(team && column.playerOnly));
   const [query, setQuery] = useState("");
   // Alphabetical by name is the default: an unsorted dump has no order the
@@ -165,7 +166,7 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
           {columns.map((column) => <th key={column.key}><button onClick={() => sort(column.key)} className="hover:text-white">{column.label} {arrow(column.key)}</button></th>)}
         </tr></thead>
         <tbody>{paged.map((row, index) => <tr key={`${row.playerName}-${row.teamName}-${index}`} className="border-b border-slate-800/60">
-          <td><span className="flex min-w-0 items-center gap-2">{team && <TeamLogo teamName={row.teamName} className="h-7 w-7 shrink-0" />}{team ? (seasonId && teamIds[row.teamName] ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} className="truncate" /> : row.teamName) : <PlayerProfileLink name={row.playerName} className="truncate" />}</span></td>
+          <td><span className="flex min-w-0 items-center gap-2">{team && <TeamLogo teamName={row.teamName} className="h-7 w-7 shrink-0" />}{team ? (seasonId && teamIds[row.teamName] ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} className="truncate" /> : row.teamName) : <><PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={18} /><PlayerProfileLink name={row.playerName} className="truncate" /></>}</span></td>
           {/* The team cell carries the crest of the team the player ended the
               span with - for a career row that is their most recent club. */}
           {!team && <td>{(() => { const rosterName = row.teamName.replace(/ \(\+\d+\)$/, ""); const id = teamIds[rosterName]; return <span className="flex min-w-0 items-center gap-2"><TeamLogo teamName={rosterName} className="h-5 w-5 shrink-0" />{seasonId && id ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={id} className="truncate" /> : <span className="truncate">{row.teamName}</span>}</span>; })()}</td>}
