@@ -113,6 +113,21 @@ export function ScoringBoard({
     }
   }
 
+  async function finish() {
+    if (!confirm("Finish the game and send it to the head umpire? Scoring stops here.")) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/scorecards/${scorecardId}/finish`, { method: "POST" });
+      const body = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Could not finish the game.");
+      router.push("/umpire");
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "Something went wrong.");
+      setBusy(false);
+    }
+  }
+
   async function undo() {
     setBusy(true);
     setError("");
@@ -274,6 +289,15 @@ export function ScoringBoard({
               Undo last
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={finish}
+            disabled={busy || appearances.length === 0}
+            className="mt-3 w-full rounded-md border border-emerald-600/50 bg-emerald-600/10 px-4 py-2 text-sm font-bold text-emerald-300 transition-colors hover:bg-emerald-600/20 disabled:opacity-40"
+          >
+            Finish game and send for review
+          </button>
         </div>
       </div>
 

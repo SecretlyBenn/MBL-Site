@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { games, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
+import { publishScorecard } from "@/db/publish";
 
 type ReviewPayload = {
   decision: "APPROVE" | "RETURN";
@@ -63,6 +64,10 @@ export async function POST(
           awayScore: scorecard.awayScore,
         })
         .where(eq(games.id, scorecard.gameId));
+
+      // Publishing writes the game into the historical tables the public site
+      // reads, so standings, statistics and leaders pick it up together.
+      await publishScorecard(scorecardId);
     }
 
     await logAudit({
