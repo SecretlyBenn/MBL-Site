@@ -355,3 +355,75 @@ export const minecraftProfiles = sqliteTable("minecraft_profiles", {
   /** How the mapping was established: "mojang", "namemc" or "user". */
   source: text("source").notNull(),
 });
+
+/**
+ * Who is in a game and where they play. One row per player involved, for both
+ * sides of one scorecard.
+ *
+ * A pitcher who bats holds a battingOrder like anyone else. Under a DH the
+ * pitcher gets a row with no battingOrder - they field but never hit - and the
+ * DH's row carries dhForPlayerId pointing at them, which is the extra entry the
+ * scoresheet asks for.
+ */
+export const scorecardLineups = sqliteTable("scorecard_lineups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scorecardId: integer("scorecard_id")
+    .notNull()
+    .references(() => scorecards.id),
+  isHome: integer("is_home", { mode: "boolean" }).notNull(),
+  playerId: integer("player_id")
+    .notNull()
+    .references(() => players.id),
+  /** 1-9, or null for someone who fields but does not bat. */
+  battingOrder: integer("batting_order"),
+  /** Scorekeeping position: P, C, 1B, 2B, 3B, SS, LF, CF, RF, DH. */
+  position: text("position").notNull(),
+  /** The fielder this DH bats for. Only set on a DH row. */
+  dhForPlayerId: integer("dh_for_player_id").references(() => players.id),
+  /** False for anyone who entered as a substitute. */
+  isStarter: integer("is_starter", { mode: "boolean" }).notNull().default(true),
+  /** Order pitchers took the mound: 1 for the starter, then 2, 3 ... */
+  pitchingOrder: integer("pitching_order"),
+});
+
+/**
+ * One plate appearance. This is the source of truth for a scored game - every
+ * batting and pitching total is derived from these rows, so a correction here
+ * fixes the box score, the player's season line and the standings at once.
+ *
+ * `fielders` holds the scorekeeping digits ("7" for a fly to left, "4-3" for
+ * second to first), which is how the sheet already credits a putout.
+ */
+export const plateAppearances = sqliteTable("plate_appearances", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scorecardId: integer("scorecard_id")
+    .notNull()
+    .references(() => scorecards.id),
+  /** Ordering within the game; gaps are fine, ties are not. */
+  sequence: integer("sequence").notNull(),
+  inning: integer("inning").notNull(),
+  /** True while the home team bats - the bottom of the inning. */
+  isHomeBatting: integer("is_home_batting", { mode: "boolean" }).notNull(),
+  batterPlayerId: integer("batter_player_id")
+    .notNull()
+    .references(() => players.id),
+  pitcherPlayerId: integer("pitcher_player_id")
+    .notNull()
+    .references(() => players.id),
+  /** K, BB, HBP, 1B, 2B, 3B, HR, GO, FO, LO, PO, FC, DP, SF, SH, E, OTHER. */
+  result: text("result").notNull(),
+  fielders: text("fielders"),
+  rbis: integer("rbis").notNull().default(0),
+  /** Whether the batter themselves came round to score. */
+  batterScored: integer("batter_scored", { mode: "boolean" }).notNull().default(false),
+  /** Runners other than the batter who scored on this play. */
+  otherRunsScored: integer("other_runs_scored").notNull().default(0),
+  /** Runs on this play that were unearned, for the pitcher's ERA. */
+  unearnedRuns: integer("unearned_runs").notNull().default(0),
+  outsRecorded: integer("outs_recorded").notNull().default(0),
+  /** Position number charged with an error on this play, if any. */
+  errorPosition: integer("error_position"),
+  errorPlayerId: integer("error_player_id").references(() => players.id),
+  stolenBases: integer("stolen_bases").notNull().default(0),
+  note: text("note"),
+});
