@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SignInButton } from "./SignInButton";
 
 const GROUPS = [
   {
@@ -77,6 +78,7 @@ export function SiteNav() {
             </div>
           </div>
         ))}
+        <SignInButton />
       </nav>
     </header>
   );

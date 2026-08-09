@@ -24,7 +24,9 @@ export type ScorecardStatus = (typeof SCORECARD_STATUSES)[number];
 // itself grant any access.
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  email: text("email").notNull().unique(),
+  // Discord's numeric user id. The stable identity - usernames change, and
+  // the league identifies people by their Discord account.
+  discordId: text("discord_id").notNull().unique(),
   displayName: text("display_name").notNull(),
   role: text("role").notNull(),
   // Only meaningful (and required) for GM role - which team they manage.

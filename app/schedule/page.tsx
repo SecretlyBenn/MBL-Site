@@ -87,7 +87,7 @@ export default async function SchedulePage({
   type Game = (typeof games)[number];
 
   /** "June 15" from "Monday June 15, 2026". */
-  const shortDate = (value: string | null) =>
+  const shortDate = (value: string | null | undefined) =>
     value?.replace(/^\w+,?\s*/, "").replace(/,\s*\d{4}$/, "") ?? "";
 
   const groups: { label: string; detail: string; games: Game[] }[] = [];

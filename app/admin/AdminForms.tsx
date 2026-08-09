@@ -129,7 +129,7 @@ export function CreatePlayerForm() {
 
 export function CreateUserForm({ teams }: { teams: Team[] }) {
   const { submit, status, error } = useSubmit("/api/users");
-  const [email, setEmail] = useState("");
+  const [discordId, setDiscordId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<RoleOption>("UMPIRE");
   const [teamId, setTeamId] = useState<number | "">("");
@@ -137,9 +137,9 @@ export function CreateUserForm({ teams }: { teams: Team[] }) {
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     submit(
-      { email, displayName, role, teamId: role === "GM" ? teamId : undefined },
+      { discordId, displayName, role, teamId: role === "GM" ? teamId : undefined },
       () => {
-        setEmail("");
+        setDiscordId("");
         setDisplayName("");
       },
     );
@@ -150,10 +150,10 @@ export function CreateUserForm({ teams }: { teams: Team[] }) {
       <h3 className="font-semibold">Add league account</h3>
       <input
         className="w-full rounded border p-2 text-sm"
-        placeholder="Email (must match their ChatGPT sign-in email)"
-        type="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
+        placeholder="Discord user ID (18-19 digits)"
+        inputMode="numeric"
+        value={discordId}
+        onChange={(event) => setDiscordId(event.target.value)}
         required
       />
       <input

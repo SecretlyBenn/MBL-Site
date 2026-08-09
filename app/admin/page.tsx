@@ -57,7 +57,7 @@ export default async function AdminPage() {
         <ul className="space-y-1 text-sm">
           {allUsers.map((user) => (
             <li key={user.id}>
-              {user.displayName} ({user.email}) - {user.role}
+              {user.displayName} ({user.discordId}) - {user.role}
               {user.teamId ? ` - ${teamNameById.get(user.teamId) ?? "unknown team"}` : ""}
             </li>
           ))}

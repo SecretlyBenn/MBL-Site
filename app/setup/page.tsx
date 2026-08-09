@@ -31,7 +31,7 @@ export default function SetupPage() {
       <h1 className="text-2xl font-bold">First-time setup</h1>
       <p className="text-gray-500">
         No league accounts exist yet. If this is the first time this site is
-        being set up, sign in with ChatGPT above, then claim the admin role
+        being set up, sign in with Discord above, then claim the admin role
         below. This only works once - it does nothing if any account already
         exists.
       </p>

@@ -4,7 +4,7 @@ import { ROLES, users, type Role } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 
 type UserPayload = {
-  email: string;
+  discordId: string;
   displayName: string;
   role: Role;
   teamId?: number;
@@ -15,11 +15,11 @@ export async function POST(request: Request) {
     const leagueUser = await requireRoleForApi(["ADMIN"]);
     const payload = (await request.json()) as UserPayload;
 
-    const email = payload.email?.trim().toLowerCase();
+    const discordId = payload.discordId?.trim();
     const displayName = payload.displayName?.trim();
-    if (!email || !displayName) {
+    if (!discordId || !displayName) {
       return Response.json(
-        { error: "email and displayName are required" },
+        { error: "discordId and displayName are required" },
         { status: 400 },
       );
     }
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const [user] = await db
       .insert(users)
       .values({
-        email,
+        discordId,
         displayName,
         role: payload.role,
         teamId: payload.role === "GM" ? payload.teamId : null,
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       action: "user.create",
       entityType: "user",
       entityId: user.id,
-      detail: { email, role: payload.role, teamId: payload.teamId ?? null },
+      detail: { discordId, role: payload.role, teamId: payload.teamId ?? null },
     });
 
     return Response.json({ user }, { status: 201 });
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     const message = error instanceof Error ? error.message : "Unexpected error";
     if (message.includes("UNIQUE constraint")) {
       return Response.json(
-        { error: "A user with that email already exists." },
+        { error: "A user with that Discord ID already exists." },
         { status: 409 },
       );
     }
