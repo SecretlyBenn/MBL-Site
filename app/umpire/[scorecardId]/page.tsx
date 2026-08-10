@@ -68,6 +68,23 @@ export default async function ScorecardPage({
             pitchingOrder: row.pitchingOrder,
             name: roster.find((player) => player.id === row.playerId)?.displayName ?? "Unknown",
           }))}
+          nameOf={Object.fromEntries(roster.map((player) => [player.id, player.displayName]))}
+          atBats={appearances.map((row) => ({
+            id: row.id,
+            sequence: row.sequence,
+            inning: row.inning,
+            isHomeBatting: row.isHomeBatting,
+            batterPlayerId: row.batterPlayerId,
+            result: row.result,
+            fielders: row.fielders,
+            rbis: row.rbis,
+            batterScored: row.batterScored,
+            otherRunsScored: row.otherRunsScored,
+            unearnedRuns: row.unearnedRuns,
+            outsRecorded: row.outsRecorded,
+            errorPosition: row.errorPosition,
+            note: row.note,
+          }))}
           appearances={appearances.map((row) => ({
             sequence: row.sequence,
             inning: row.inning,

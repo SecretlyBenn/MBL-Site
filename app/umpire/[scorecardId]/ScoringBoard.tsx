@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { RESULTS, RESULT_BY_CODE, type ResultCode } from "@/app/scoring";
 import { gameState, type StoredPlateAppearance } from "@/app/derive-box-score";
+import { AtBatLog, type LoggedAtBat } from "./AtBatLog";
 
 type LineupRow = {
   playerId: number;
@@ -20,12 +21,16 @@ export function ScoringBoard({
   homeName,
   lineups,
   appearances,
+  atBats,
+  nameOf,
 }: {
   scorecardId: number;
   awayName: string;
   homeName: string;
   lineups: LineupRow[];
   appearances: StoredPlateAppearance[];
+  atBats: LoggedAtBat[];
+  nameOf: Record<number, string>;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -320,28 +325,16 @@ export function ScoringBoard({
         </div>
 
         <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Last plays</p>
-          {appearances.length === 0 ? (
-            <p className="text-xs text-slate-600">Nothing scored yet.</p>
-          ) : (
-            <ol className="space-y-1.5 text-xs">
-              {[...appearances].slice(-8).reverse().map((pa) => {
-                const name = lineups.find((row) => row.playerId === pa.batterPlayerId)?.name ?? "?";
-                return (
-                  <li key={pa.sequence} className="flex justify-between gap-2">
-                    <span className="truncate text-slate-400">
-                      <span className="text-slate-600">{pa.isHomeBatting ? "B" : "T"}{pa.inning}</span> {name}
-                    </span>
-                    <span className="shrink-0 font-semibold text-slate-200">
-                      {pa.result}
-                      {pa.fielders ? pa.fielders : ""}
-                      {pa.rbis > 0 ? ` · ${pa.rbis} RBI` : ""}
-                    </span>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            All at-bats — click Edit to correct any of them
+          </p>
+          <AtBatLog
+            scorecardId={scorecardId}
+            atBats={atBats}
+            nameOf={nameOf}
+            awayName={awayName}
+            homeName={homeName}
+          />
         </div>
       </div>
     </div>

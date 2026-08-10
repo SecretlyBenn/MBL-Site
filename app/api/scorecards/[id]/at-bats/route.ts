@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { games, plateAppearances, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { deriveBoxScore, gameState } from "@/app/derive-box-score";
+import { resequenceInnings } from "@/db/resequence";
 import { validatePlateAppearance, type PlateAppearanceInput } from "@/app/scoring";
 
 async function open(scorecardId: number) {
@@ -73,6 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       note: body.note?.trim() || null,
     });
 
+    await resequenceInnings(scorecardId);
     const box = await syncScore(scorecardId, scorecard.gameId);
     return Response.json({ ok: true, score: { home: box.homeScore, away: box.awayScore } });
   } catch (error) {
@@ -100,6 +102,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     if (!last) return Response.json({ error: "Nothing to undo." }, { status: 400 });
 
     await db.delete(plateAppearances).where(eq(plateAppearances.id, last.id));
+    await resequenceInnings(scorecardId);
     const box = await syncScore(scorecardId, scorecard.gameId);
     return Response.json({ ok: true, score: { home: box.homeScore, away: box.awayScore } });
   } catch (error) {
