@@ -10,6 +10,8 @@ export type LoggedAtBat = {
   inning: number;
   isHomeBatting: boolean;
   batterPlayerId: number;
+  /** Derived from the lineup - the order slot this at-bat belongs to. */
+  battingSlot: number;
   result: string;
   fielders: string | null;
   rbis: number;

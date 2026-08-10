@@ -427,3 +427,32 @@ export const plateAppearances = sqliteTable("plate_appearances", {
   stolenBases: integer("stolen_bases").notNull().default(0),
   note: text("note"),
 });
+
+/**
+ * Where each fielder stood, recorded as changes rather than as a running
+ * lineup. The starting positions come from scorecard_lineups; every later
+ * rearrangement is one row here, applied in order.
+ *
+ * Storing changes rather than a current alignment means the card can answer
+ * "who was at short in the fourth?" after the fact - which a single mutable
+ * position column could not.
+ */
+export const fieldingChanges = sqliteTable("fielding_changes", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scorecardId: integer("scorecard_id")
+    .notNull()
+    .references(() => scorecards.id),
+  /** The fielding team, not the batting one. */
+  isHome: integer("is_home", { mode: "boolean" }).notNull(),
+  /** The inning the change took effect in. */
+  inning: integer("inning").notNull(),
+  /**
+   * The at-bat count when the change was confirmed. Changes mid-inning are
+   * real, so an inning number alone cannot order them.
+   */
+  appliedAtSequence: integer("applied_at_sequence").notNull(),
+  playerId: integer("player_id")
+    .notNull()
+    .references(() => players.id),
+  position: text("position").notNull(),
+});

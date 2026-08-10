@@ -47,6 +47,13 @@ export default async function ScorecardPage({
       .map((player) => ({ id: player.id, name: player.displayName }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
+  const slotOf = new Map(lineups.filter((row) => row.battingOrder !== null).map((row) => [row.playerId, row.battingOrder ?? 0]));
+  const inLineup = new Set(lineups.map((row) => row.playerId));
+  const benchFor = (teamId: number | undefined) =>
+    roster
+      .filter((player) => player.teamId === teamId && !inLineup.has(player.id))
+      .map((player) => ({ id: player.id, name: player.displayName }));
+
   const awayLineup = lineups.filter((row) => !row.isHome);
   const homeLineup = lineups.filter((row) => row.isHome);
   const ready = awayLineup.length > 0 && homeLineup.length > 0;
@@ -69,12 +76,14 @@ export default async function ScorecardPage({
             name: roster.find((player) => player.id === row.playerId)?.displayName ?? "Unknown",
           }))}
           nameOf={Object.fromEntries(roster.map((player) => [player.id, player.displayName]))}
+          bench={{ away: benchFor(game.awayTeamId), home: benchFor(game.homeTeamId) }}
           atBats={appearances.map((row) => ({
             id: row.id,
             sequence: row.sequence,
             inning: row.inning,
             isHomeBatting: row.isHomeBatting,
             batterPlayerId: row.batterPlayerId,
+            battingSlot: slotOf.get(row.batterPlayerId) ?? 0,
             result: row.result,
             fielders: row.fielders,
             rbis: row.rbis,
