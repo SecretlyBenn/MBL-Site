@@ -26,11 +26,12 @@ function Table({ teams, seasonId, compact = false, label = "Team" }: { teams: St
   return <div className="data-table-shell flex-1"><table className="data-table ranked h-full w-full table-fixed"><colgroup>
     <col style={{ width: "2.75rem" }} /><col style={{ width: compact ? "50%" : "38%" }} />
     {!compact && <col style={{ width: "12%" }} />}
-    {Array.from({ length: compact ? 4 : 6 }, (_, index) => <col key={index} />)}
+    {Array.from({ length: compact ? 3 : 5 }, (_, index) => <col key={index} />)}
   </colgroup><thead><tr>
     <th>RNK</th><th>{label}</th>
     {!compact && <th>Abbr.</th>}
-    <th>W</th><th>L</th><th>PCT</th>
+    {/* Record reads as one figure, the way a standings page is scanned. */}
+    <th title="Wins and losses">W-L</th><th>PCT</th>
     {!compact && <><th>RS</th><th>RA</th></>}
     <th title="Run differential">Run diff</th>
   </tr></thead><tbody>{sorted(teams).map((team, index) => {
@@ -39,8 +40,9 @@ function Table({ teams, seasonId, compact = false, label = "Team" }: { teams: St
     return <tr key={team.id}><td>{index + 1}</td>
       <td><span className="flex min-w-0 items-center gap-2"><TeamLogo teamName={team.name} className={compact ? "h-6 w-6" : "h-8 w-8"} /><HistoricalTeamLink name={team.name} seasonId={seasonId} teamId={team.id} className="truncate" /></span></td>
       {!compact && <td className="text-slate-400">{team.abbreviation ?? "—"}</td>}
-      <td>{team.wins ?? "-"}</td>
-      <td>{team.losses ?? "-"}</td>
+      <td className="whitespace-nowrap">
+        {team.wins === null && team.losses === null ? "-" : `${wins}-${losses}`}
+      </td>
       <td>{games ? (wins / games).toFixed(3).replace(/^0/, "") : "-"}</td>
       {!compact && <><td>{team.runsScored ?? "-"}</td><td>{team.runsAllowed ?? "-"}</td></>}
       <td className={diff !== null && diff > 0 ? "text-emerald-400" : diff !== null && diff < 0 ? "text-rose-400" : ""}>{diff === null ? "-" : `${diff > 0 ? "+" : ""}${diff}`}</td>

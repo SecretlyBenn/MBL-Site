@@ -26,8 +26,12 @@ import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/deriv
  * instead of double-counting.
  */
 
-/** The season live games are published into. */
-export const CURRENT_SEASON_NAME = "MBL Season XIII";
+/**
+ * The season live games are published into. Season XII is still being played -
+ * roughly half its schedule is in the archive as unplayed rows - so scored
+ * games belong to it, not to a new season standing on its own.
+ */
+export const CURRENT_SEASON_NAME = "MBL Season XII";
 
 /**
  * D1 caps the bound parameters in a single statement, and a multi-row insert
@@ -112,8 +116,9 @@ export async function publishScorecard(scorecardId: number) {
   const awayTeamId = await seasonTeamId(seasonId, game.awayTeamId);
   const homeTeamId = await seasonTeamId(seasonId, game.homeTeamId);
 
-  const sourceGameId = `live-${game.id}`;
-  const playedOn = new Date(game.scheduledAt).toDateString();
+  // A fixture carried over from the archive keeps the archive's id, so it
+  // publishes into the row already sitting on the schedule as unplayed.
+  const sourceGameId = game.sourceGameId ?? `live-${game.id}`;
 
   // Replacing rather than inserting keeps re-publishing a corrected game
   // idempotent.
@@ -126,18 +131,20 @@ export async function publishScorecard(scorecardId: number) {
     await db.delete(historicalGames).where(eq(historicalGames.id, existingGame.id));
   }
 
+  // A carried-over fixture keeps its place in the schedule and the date the
+  // league published, rather than jumping to the end on the day it was scored.
   const allGames = await db.select({ id: historicalGames.id }).from(historicalGames);
   const [published] = await db
     .insert(historicalGames)
     .values({
-      seasonId,
+      seasonId: existingGame?.seasonId ?? seasonId,
       sourceGameId,
-      playedOn,
+      playedOn: existingGame?.playedOn ?? new Date(game.scheduledAt).toDateString(),
       awayTeamId,
       homeTeamId,
       awayScore: box.awayScore,
       homeScore: box.homeScore,
-      sortOrder: allGames.length + 1,
+      sortOrder: existingGame?.sortOrder ?? allGames.length + 1,
     })
     .returning();
 
@@ -260,9 +267,29 @@ export async function recomputeSeason(seasonId: number) {
     .from(historicalGameStats)
     .where(inArray(historicalGameStats.gameId, gameIds));
 
+  /**
+   * Season stats that were scraped rather than scored carry columns a box score
+   * has no room for - putouts, errors, fielding percentage, stolen bases,
+   * caught stealing, sacrifice flies, saves, complete games. Recomputing from
+   * game stats can only rebuild the counting lines, so the scraped row is kept
+   * underneath and the derived fields are laid over it. Without this,
+   * publishing one live game into an archived season silently thins every
+   * player's line in it.
+   */
+  const existing = await db
+    .select()
+    .from(historicalPlayerStats)
+    .where(inArray(historicalPlayerStats.historicalTeamId, teamIds));
+  const priorByKey = new Map(
+    existing.map(({ id: _id, ...row }) => [`${row.playerName}::${row.historicalTeamId}`, row]),
+  );
+
   const gameById = new Map(seasonGames.map((game) => [game.id, game]));
   type Totals = Record<string, number>;
-  const byPlayerTeam = new Map<string, { playerName: string; teamId: number; totals: Totals }>();
+  const byPlayerTeam = new Map<
+    string,
+    { playerName: string; teamId: number; totals: Totals; batted: boolean; pitched: boolean }
+  >();
 
   for (const row of stats) {
     const game = gameById.get(row.gameId);
@@ -270,7 +297,15 @@ export async function recomputeSeason(seasonId: number) {
     const teamId = row.isHome ? game.homeTeamId : game.awayTeamId;
     if (teamId === null) continue;
     const key = `${row.playerName}::${teamId}`;
-    const entry = byPlayerTeam.get(key) ?? { playerName: row.playerName, teamId, totals: {} };
+    const entry = byPlayerTeam.get(key) ?? {
+      playerName: row.playerName,
+      teamId,
+      totals: {},
+      batted: false,
+      pitched: false,
+    };
+    if (row.kind === "BATTING") entry.batted = true;
+    else entry.pitched = true;
     const add = (field: string, value: number | null) => {
       if (value === null || value === undefined) return;
       entry.totals[field] = (entry.totals[field] ?? 0) + value;
@@ -312,6 +347,7 @@ export async function recomputeSeason(seasonId: number) {
     const onBase = atBats + walks;
 
     return {
+      ...priorByKey.get(`${playerName}::${teamId}`),
       seasonId,
       historicalTeamId: teamId,
       playerName,
@@ -345,5 +381,14 @@ export async function recomputeSeason(seasonId: number) {
     };
   });
 
-  await insertInChunks((chunk) => db.insert(historicalPlayerStats).values(chunk), rows);
+  // A player with a scraped line but no box score in any counted game - a
+  // forfeit-only appearance, or a season imported before per-game data - keeps
+  // the line they already had rather than disappearing from the season.
+  const rebuilt = new Set(rows.map((row) => `${row.playerName}::${row.historicalTeamId}`));
+  const untouched = [...priorByKey].filter(([key]) => !rebuilt.has(key)).map(([, row]) => row);
+
+  await insertInChunks(
+    (chunk) => db.insert(historicalPlayerStats).values(chunk),
+    [...rows, ...untouched] as typeof rows,
+  );
 }

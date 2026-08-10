@@ -80,6 +80,10 @@ export const games = sqliteTable("games", {
     .references(() => teams.id),
   scheduledAt: text("scheduled_at").notNull(),
   status: text("status").notNull().default("SCHEDULED"),
+  // Set when this fixture already exists in the archive as an unplayed row -
+  // the remaining Season XII schedule. Publishing then fills that row in
+  // instead of adding a second copy of the same game.
+  sourceGameId: text("source_game_id"),
   // Set only once an approved scorecard exists for this game.
   homeScore: integer("home_score"),
   awayScore: integer("away_score"),

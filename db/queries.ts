@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, like, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
 import {
@@ -482,40 +482,12 @@ export async function getHistoricalSeason(seasonId: number) {
 export async function getHistoricalSeasonPlayerStats(seasonId: number) {
   const db = getDb();
   return db
+    // Every stored column, rather than a hand-kept list: a column left out here
+    // reads as blank on the season pages instead of failing, so the list drifts
+    // silently as the schema grows.
     .select({
-      playerName: historicalPlayerStats.playerName,
+      ...getTableColumns(historicalPlayerStats),
       teamName: historicalTeams.name,
-      games: historicalPlayerStats.games,
-      atBats: historicalPlayerStats.atBats,
-      runs: historicalPlayerStats.runs,
-      hits: historicalPlayerStats.hits,
-      homeRuns: historicalPlayerStats.homeRuns,
-      rbis: historicalPlayerStats.rbis,
-      walks: historicalPlayerStats.walks,
-      strikeouts: historicalPlayerStats.strikeouts,
-      battingAverage: historicalPlayerStats.battingAverage,
-      ops: historicalPlayerStats.ops,
-      inningsPitched: historicalPlayerStats.inningsPitched,
-      era: historicalPlayerStats.era,
-      whip: historicalPlayerStats.whip,
-      strikeoutsPitched: historicalPlayerStats.strikeoutsPitched,
-      wins: historicalPlayerStats.wins,
-      losses: historicalPlayerStats.losses,
-      // Needed to rebuild rate stats when merging a player's multi-team lines.
-      isSeasonEndTeam: historicalPlayerStats.isSeasonEndTeam,
-      totalBases: historicalPlayerStats.totalBases,
-      onBasePct: historicalPlayerStats.onBasePct,
-      sluggingPct: historicalPlayerStats.sluggingPct,
-      walksAllowed: historicalPlayerStats.walksAllowed,
-      hitsAllowed: historicalPlayerStats.hitsAllowed,
-      earnedRuns: historicalPlayerStats.earnedRuns,
-      gamesStarted: historicalPlayerStats.gamesStarted,
-      pitchingGames: historicalPlayerStats.pitchingGames,
-      saves: historicalPlayerStats.saves,
-      doubles: historicalPlayerStats.doubles,
-      triples: historicalPlayerStats.triples,
-      stolenBases: historicalPlayerStats.stolenBases,
-      homeRunsAllowed: historicalPlayerStats.homeRunsAllowed,
     })
     .from(historicalPlayerStats)
     .innerJoin(
@@ -525,86 +497,67 @@ export async function getHistoricalSeasonPlayerStats(seasonId: number) {
     .where(eq(historicalPlayerStats.seasonId, seasonId));
 }
 
-export type HistoricalStatViewRow = {
-  seasonId: number;
-  historicalTeamId: number;
-  playerName: string;
+/**
+ * A stored stat line with its team name and where its season falls in league
+ * history. Derived from the table so every column comes along automatically -
+ * a column missing from a hand-kept list shows up as a blank in the merged
+ * tables rather than as an error, so the list is not hand-kept.
+ */
+export type HistoricalStatViewRow = typeof historicalPlayerStats.$inferSelect & {
   teamName: string;
-  games: number | null;
-  atBats: number | null;
-  runs: number | null;
-  hits: number | null;
-  doubles: number | null;
-  triples: number | null;
-  homeRuns: number | null;
-  rbis: number | null;
-  walks: number | null;
-  strikeouts: number | null;
-  stolenBases: number | null;
-  battingAverage: number | null;
-  onBasePct: number | null;
-  sluggingPct: number | null;
-  ops: number | null;
-  totalBases: number | null;
-  pitchingGames: number | null;
-  gamesStarted: number | null;
-  wins: number | null;
-  losses: number | null;
-  saves: number | null;
-  inningsPitched: number | null;
-  hitsAllowed: number | null;
-  runsAllowed: number | null;
-  earnedRuns: number | null;
-  homeRunsAllowed: number | null;
-  strikeoutsPitched: number | null;
-  walksAllowed: number | null;
-  era: number | null;
-  whip: number | null;
+  /**
+   * Season ordering. Not the same as `seasonId` - the archive was imported
+   * oldest-first under one numbering and the current season carries id 1, so
+   * "most recent" has to come from here.
+   */
+  seasonSort: number | null;
 };
 
 async function getHistoricalStatLines(seasonId?: number): Promise<HistoricalStatViewRow[]> {
   const db = getDb();
   const query = db
     .select({
-      seasonId: historicalPlayerStats.seasonId,
-      historicalTeamId: historicalTeams.id,
-      playerName: historicalPlayerStats.playerName,
+      ...getTableColumns(historicalPlayerStats),
       teamName: historicalTeams.name,
-      games: historicalPlayerStats.games,
-      atBats: historicalPlayerStats.atBats,
-      runs: historicalPlayerStats.runs,
-      hits: historicalPlayerStats.hits,
-      doubles: historicalPlayerStats.doubles,
-      triples: historicalPlayerStats.triples,
-      homeRuns: historicalPlayerStats.homeRuns,
-      rbis: historicalPlayerStats.rbis,
-      walks: historicalPlayerStats.walks,
-      strikeouts: historicalPlayerStats.strikeouts,
-      stolenBases: historicalPlayerStats.stolenBases,
-      battingAverage: historicalPlayerStats.battingAverage,
-      onBasePct: historicalPlayerStats.onBasePct,
-      sluggingPct: historicalPlayerStats.sluggingPct,
-      ops: historicalPlayerStats.ops,
-      totalBases: historicalPlayerStats.totalBases,
-      pitchingGames: historicalPlayerStats.pitchingGames,
-      gamesStarted: historicalPlayerStats.gamesStarted,
-      wins: historicalPlayerStats.wins,
-      losses: historicalPlayerStats.losses,
-      saves: historicalPlayerStats.saves,
-      inningsPitched: historicalPlayerStats.inningsPitched,
-      hitsAllowed: historicalPlayerStats.hitsAllowed,
-      runsAllowed: historicalPlayerStats.runsAllowed,
-      earnedRuns: historicalPlayerStats.earnedRuns,
-      homeRunsAllowed: historicalPlayerStats.homeRunsAllowed,
-      strikeoutsPitched: historicalPlayerStats.strikeoutsPitched,
-      walksAllowed: historicalPlayerStats.walksAllowed,
-      era: historicalPlayerStats.era,
-      whip: historicalPlayerStats.whip,
-      isSeasonEndTeam: historicalPlayerStats.isSeasonEndTeam,
+      seasonSort: historicalSeasons.sortOrder,
     })
     .from(historicalPlayerStats)
-    .innerJoin(historicalTeams, eq(historicalPlayerStats.historicalTeamId, historicalTeams.id));
+    .innerJoin(historicalTeams, eq(historicalPlayerStats.historicalTeamId, historicalTeams.id))
+    .innerJoin(historicalSeasons, eq(historicalPlayerStats.seasonId, historicalSeasons.id));
   return seasonId === undefined ? query : query.where(eq(historicalPlayerStats.seasonId, seasonId));
+}
+
+/**
+ * Every column that is a running total rather than a rate, so it can be summed
+ * across a player's per-team lines. Rates (AVG, OBP, SLG, OPS, ERA, WHIP,
+ * FPCT, BB/G, SO/G) are deliberately absent - they are recomputed from these
+ * sums, because averaging an average weights a three-at-bat line the same as a
+ * full season.
+ *
+ * A column missing from this list silently becomes blank in every merged
+ * table, so it is kept in step with the schema rather than trimmed to whatever
+ * a particular page happened to need.
+ */
+const COUNTING_STATS = [
+  // Batting
+  "games", "atBats", "runs", "hits", "doubles", "triples", "homeRuns", "rbis", "walks",
+  "strikeouts", "stolenBases", "totalBases", "singles", "plateAppearances", "caughtStealing",
+  "sacFlies", "leftOnBase", "putouts", "errors",
+  // Pitching
+  "pitchingGames", "gamesStarted", "wins", "losses", "saves", "inningsPitched", "hitsAllowed",
+  "runsAllowed", "earnedRuns", "homeRunsAllowed", "strikeoutsPitched", "walksAllowed",
+  "completeGames", "shutouts", "blownSaves", "pitchCount",
+] as const;
+
+/**
+ * The line from the latest season a player appears in, preferring the team
+ * they finished that season with. Seasons are ordered by `seasonSort`, not by
+ * id - the archive numbering does not run in chronological order.
+ */
+function mostRecentTeam(lines: HistoricalStatViewRow[]) {
+  const latest = Math.max(...lines.map((line) => line.seasonSort ?? 0));
+  const inLatest = lines.filter((line) => (line.seasonSort ?? 0) === latest);
+  return inLatest.find((line) => line.isSeasonEndTeam) ?? inLatest[0];
 }
 
 /**
@@ -635,12 +588,8 @@ function mergePlayerLines(
   );
 }
 
-const TOTAL_FIELDS = [
-  "games", "atBats", "runs", "hits", "doubles", "triples", "homeRuns", "rbis", "walks",
-  "strikeouts", "stolenBases", "totalBases", "pitchingGames", "gamesStarted", "wins", "losses",
-  "saves", "inningsPitched", "hitsAllowed", "runsAllowed", "earnedRuns", "homeRunsAllowed",
-  "strikeoutsPitched", "walksAllowed",
-] as const;
+/** Merging per-team lines sums the same columns a season total does. */
+const TOTAL_FIELDS = COUNTING_STATS;
 
 function recalculateRates(row: HistoricalStatViewRow) {
   const atBats = row.atBats ?? 0;
@@ -674,10 +623,10 @@ export async function getIndividualHistoricalStats(seasonId?: number) {
     });
   }
 
-  return mergePlayerLines(lines, (grouped) => {
-    const names = new Set(grouped.map((line) => line.teamName));
-    return names.size === 1 ? [...names][0] : "Multiple teams";
-  });
+  // Career totals show the team the player most recently played for, rather
+  // than "Multiple teams" - the current club is what identifies someone at a
+  // glance, and a career line covering four teams named none of them.
+  return mergePlayerLines(lines, (grouped) => mostRecentTeam(grouped).teamName);
 }
 
 export type HistoricalTeamStatRow = HistoricalStatViewRow & { isLeagueAverage?: boolean };
@@ -699,11 +648,6 @@ export async function getHistoricalTeamStats(seasonId: number): Promise<Historic
 
 type SeasonStatLine = Awaited<ReturnType<typeof getHistoricalSeasonPlayerStats>>[number];
 
-const COUNTING_STATS = [
-  "games", "atBats", "runs", "hits", "homeRuns", "rbis", "walks", "strikeouts",
-  "inningsPitched", "strikeoutsPitched", "walksAllowed", "wins", "losses",
-  "hitsAllowed", "earnedRuns", "totalBases",
-] as const;
 
 /**
  * Collapses a player's per-team lines into one season total.
@@ -729,7 +673,10 @@ export function aggregateSeasonLines(rows: SeasonStatLine[]) {
     const anyValue = (key: (typeof COUNTING_STATS)[number]) =>
       lines.some((line) => line[key] !== null && line[key] !== undefined);
 
-    const totals: Record<string, number | null> = {};
+    // Keyed by the stat list rather than `string`, so spreading these below
+    // keeps every column visible to callers instead of collapsing to an index
+    // signature.
+    const totals = {} as Record<(typeof COUNTING_STATS)[number], number | null>;
     for (const key of COUNTING_STATS) totals[key] = anyValue(key) ? sum(key) : null;
 
     const atBats = totals.atBats ?? 0;
@@ -763,7 +710,7 @@ export async function getHistoricalSeasonPlayerTotals(seasonId: number) {
 
 /** Season leaderboard from the imported archive (e.g. most home runs all-time). */
 export async function getHistoricalLeaders(
-  column: "homeRuns" | "hits" | "rbis" | "strikeoutsPitched",
+  column: "homeRuns" | "hits" | "runs" | "rbis" | "wins" | "strikeoutsPitched",
   limit = 10,
   seasonId?: number,
 ) {
@@ -807,4 +754,66 @@ export async function getPlayerAvatars(): Promise<Record<string, string>> {
     .select({ playerName: minecraftProfiles.playerName, uuid: minecraftProfiles.uuid })
     .from(minecraftProfiles);
   return Object.fromEntries(rows.map((row) => [row.playerName, row.uuid]));
+}
+
+/**
+ * Every game a player appears in, newest first, with the opponent and whether
+ * their side won. Feeds the game log on a player's profile.
+ *
+ * Batting and pitching lines are separate rows in the archive, so both are
+ * returned and the caller shows whichever tab is open.
+ */
+export async function getPlayerGameLog(playerName: string) {
+  const db = getDb();
+  const away = alias(historicalTeams, "away_team");
+  const home = alias(historicalTeams, "home_team");
+
+  const rows = await db
+    .select({
+      gameId: historicalGames.id,
+      playedOn: historicalGames.playedOn,
+      sortOrder: historicalGames.sortOrder,
+      seasonName: historicalSeasons.name,
+      isHome: historicalGameStats.isHome,
+      kind: historicalGameStats.kind,
+      awayName: away.name,
+      homeName: home.name,
+      awayScore: historicalGames.awayScore,
+      homeScore: historicalGames.homeScore,
+      atBats: historicalGameStats.atBats,
+      runs: historicalGameStats.runs,
+      hits: historicalGameStats.hits,
+      doubles: historicalGameStats.doubles,
+      triples: historicalGameStats.triples,
+      homeRuns: historicalGameStats.homeRuns,
+      rbis: historicalGameStats.rbis,
+      walks: historicalGameStats.walks,
+      strikeouts: historicalGameStats.strikeouts,
+      inningsPitched: historicalGameStats.inningsPitched,
+      hitsAllowed: historicalGameStats.hitsAllowed,
+      runsAllowed: historicalGameStats.runsAllowed,
+      earnedRuns: historicalGameStats.earnedRuns,
+      strikeoutsPitched: historicalGameStats.strikeoutsPitched,
+      walksAllowed: historicalGameStats.walksAllowed,
+    })
+    .from(historicalGameStats)
+    .innerJoin(historicalGames, eq(historicalGameStats.gameId, historicalGames.id))
+    .innerJoin(historicalSeasons, eq(historicalGames.seasonId, historicalSeasons.id))
+    .leftJoin(away, eq(historicalGames.awayTeamId, away.id))
+    .leftJoin(home, eq(historicalGames.homeTeamId, home.id))
+    .where(eq(historicalGameStats.playerName, playerName));
+
+  return rows
+    .map((row) => {
+      const own = row.isHome ? row.homeScore : row.awayScore;
+      const other = row.isHome ? row.awayScore : row.homeScore;
+      return {
+        ...row,
+        opponent: row.isHome ? row.awayName : row.homeName,
+        // Null rather than a guess when a game has no recorded score.
+        won: own === null || other === null ? null : own > other,
+        scoreLine: own === null || other === null ? null : `${own}-${other}`,
+      };
+    })
+    .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0));
 }
