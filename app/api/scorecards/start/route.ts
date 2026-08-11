@@ -4,11 +4,16 @@ import { logAudit } from "@/db/audit";
 import { games, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 
-type StartPayload = { gameId?: number; awayTeamId?: number; homeTeamId?: number; playedOn?: string };
+type StartPayload = { gameId?: number };
 
 /**
- * Opens a scorecard for a game, creating the game first if the umpire is
- * scoring one that was never on the schedule.
+ * Opens a scorecard for a game already on the schedule.
+ *
+ * Only a scheduled fixture can be scored. A game invented here would carry no
+ * link back to the season's schedule, so publishing it could only append a
+ * duplicate at the end of the archive rather than filling in the fixture it was
+ * meant to be - which is exactly what happened when this route accepted a pair
+ * of team ids instead.
  */
 export async function POST(request: Request) {
   try {
@@ -16,26 +21,20 @@ export async function POST(request: Request) {
     const payload = (await request.json()) as StartPayload;
     const db = getDb();
 
-    let gameId = payload.gameId ?? null;
-
+    const gameId = payload.gameId ?? null;
     if (!gameId) {
-      const { awayTeamId, homeTeamId } = payload;
-      if (!awayTeamId || !homeTeamId) {
-        return Response.json({ error: "Pick both teams." }, { status: 400 });
-      }
-      if (awayTeamId === homeTeamId) {
-        return Response.json({ error: "A team cannot play itself." }, { status: 400 });
-      }
-      const [created] = await db
-        .insert(games)
-        .values({
-          awayTeamId,
-          homeTeamId,
-          scheduledAt: payload.playedOn ?? new Date().toISOString(),
-          status: "IN_PROGRESS",
-        })
-        .returning();
-      gameId = created.id;
+      return Response.json({ error: "Pick a game from the schedule." }, { status: 400 });
+    }
+
+    const game = await db.query.games.findFirst({ where: eq(games.id, gameId) });
+    if (!game) {
+      return Response.json({ error: "That game is not on the schedule." }, { status: 404 });
+    }
+    if (game.status === "FINAL") {
+      return Response.json(
+        { error: "That game is already final. Ask a head umpire to reopen it." },
+        { status: 409 },
+      );
     }
 
     // Rejoin an open scorecard rather than starting a second one for the same

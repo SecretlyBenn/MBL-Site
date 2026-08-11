@@ -1,10 +1,10 @@
 import Link from "next/link";
-import { desc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, scorecards, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
-import { StartGameForm } from "./StartGameForm";
+import { ScheduledGames, type Fixture } from "./ScheduledGames";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +33,31 @@ export default async function UmpirePage() {
     .where(inArray(scorecards.status, ["IN_PROGRESS", "PENDING"]))
     .orderBy(desc(scorecards.id))
     .limit(20);
+
+  // Only games still to be played, oldest first: the next game to be called is
+  // at the top, and one already scored cannot be started a second time.
+  const scheduled = await db
+    .select({
+      id: games.id,
+      scheduledAt: games.scheduledAt,
+      awayTeamId: games.awayTeamId,
+      homeTeamId: games.homeTeamId,
+    })
+    .from(games)
+    .where(eq(games.status, "SCHEDULED"))
+    .orderBy(asc(games.scheduledAt));
+
+  const fixtures: Fixture[] = scheduled.map((game) => ({
+    id: game.id,
+    scheduledAt: game.scheduledAt,
+    awayName: teamById.get(game.awayTeamId)?.name ?? "Away",
+    homeName: teamById.get(game.homeTeamId)?.name ?? "Home",
+    day: new Date(game.scheduledAt).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    }),
+  }));
 
   return (
     <PageShell
@@ -71,8 +96,8 @@ export default async function UmpirePage() {
       </section>
 
       <section>
-        <h2 className="section-title mb-3">Start a game</h2>
-        <StartGameForm teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
+        <h2 className="section-title mb-3">Schedule</h2>
+        <ScheduledGames fixtures={fixtures} />
       </section>
     </PageShell>
   );
