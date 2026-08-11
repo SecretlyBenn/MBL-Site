@@ -427,4 +427,49 @@ body {
     text-transform: uppercase;
     color: rgb(226 232 240);
   }
+  /* The umpire's scorecard. Columns are sized in ch by the markup; these rules
+     keep the cells tight and the notation centred, and pin the batter's name
+     so it stays readable when the innings scroll sideways. */
+  .score-grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-grid th,
+  .score-grid td {
+    border-bottom: 1px solid rgb(30 41 59 / 0.8);
+    border-right: 1px solid rgb(30 41 59 / 0.8);
+    padding: 0;
+    text-align: center;
+  }
+
+  .score-grid thead th {
+    background: rgb(15 23 42 / 0.7);
+    padding: 0.35rem 0;
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+  }
+
+  .score-grid .is-name {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    max-width: 18ch;
+    overflow: hidden;
+    padding-left: 0.5rem;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: rgb(2 6 23);
+  }
+
+  .score-grid tbody tr:hover .is-name {
+    background: rgb(15 23 42);
+  }
+
 }

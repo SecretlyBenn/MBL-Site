@@ -190,39 +190,11 @@ export function ScoringBoard({
       {notice && <p className="text-xs text-amber-400">{notice}</p>}
       {error && <p className="text-xs text-rose-400">{error}</p>}
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_20rem]">
-        <div className="space-y-4">
-          {/* Both scorecards stay on screen; the side at bat is live and the
-              other is dimmed, so the game reads as one card rather than two. */}
-          {[false, true].map((isHome) => (
-            <section key={String(isHome)}>
-              <h3 className="mb-1.5 flex items-baseline gap-2 text-xs font-bold uppercase tracking-wider">
-                <span className={isHome === state.isHomeBatting ? "text-sky-400" : "text-slate-500"}>
-                  {isHome ? homeName : awayName}
-                </span>
-                {isHome === state.isHomeBatting && (
-                  <span className="text-[10px] font-medium normal-case text-slate-500">
-                    batting — the highlighted cell is next
-                  </span>
-                )}
-              </h3>
-              <div className={isHome === state.isHomeBatting ? "" : "opacity-50"}>
-                <ScoreGrid
-                  order={orderFor(isHome)}
-                  atBats={atBats.filter((atBat) => atBat.isHomeBatting === isHome)}
-                  innings={innings}
-                  activeSlot={batter?.battingOrder ?? null}
-                  activeInning={state.inning}
-                  isActive={isHome === state.isHomeBatting}
-                  onPick={(atBat) => pick(atBat)}
-                />
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
+      {/* The entry panel sits above the scorecards rather than beside them.
+          Sharing the row left the grid too narrow for nine innings, and the
+          cells squeezed until the notation was unreadable. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,22rem)_1fr]">
+        <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
             <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
               {editing ? "Editing an earlier at-bat" : "Now batting"}
             </p>
@@ -256,7 +228,7 @@ export function ScoringBoard({
             )}
           </div>
 
-          <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
+        <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
             <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pitching</p>
             <select
               value={activePitcher ?? ""}
@@ -269,16 +241,45 @@ export function ScoringBoard({
             </select>
           </div>
 
-          <DefensePanel
-            scorecardId={scorecardId}
-            isHome={!state.isHomeBatting}
-            teamName={state.isHomeBatting ? awayName : homeName}
-            fielders={fielderList}
-            bench={state.isHomeBatting ? bench.away : bench.home}
-            inning={state.inning}
-          />
-        </div>
+        <DefensePanel
+          scorecardId={scorecardId}
+          isHome={!state.isHomeBatting}
+          teamName={state.isHomeBatting ? awayName : homeName}
+          fielders={fielderList}
+          bench={state.isHomeBatting ? bench.away : bench.home}
+          inning={state.inning}
+        />
       </div>
+
+      {/* Both scorecards stay on screen; the side at bat is live and the other
+          is dimmed, so the game reads as one card rather than two. Each grid
+          gets the full width and scrolls sideways once the innings run past
+          it. */}
+      {[false, true].map((isHome) => (
+        <section key={String(isHome)}>
+          <h3 className="mb-1.5 flex items-baseline gap-2 text-xs font-bold uppercase tracking-wider">
+            <span className={isHome === state.isHomeBatting ? "text-sky-400" : "text-slate-500"}>
+              {isHome ? homeName : awayName}
+            </span>
+            {isHome === state.isHomeBatting && (
+              <span className="text-[10px] font-medium normal-case text-slate-500">
+                batting — the highlighted cell is next
+              </span>
+            )}
+          </h3>
+          <div className={isHome === state.isHomeBatting ? "" : "opacity-50"}>
+            <ScoreGrid
+              order={orderFor(isHome)}
+              atBats={atBats.filter((atBat) => atBat.isHomeBatting === isHome)}
+              innings={innings}
+              activeSlot={batter?.battingOrder ?? null}
+              activeInning={state.inning}
+              isActive={isHome === state.isHomeBatting}
+              onPick={(atBat) => pick(atBat)}
+            />
+          </div>
+        </section>
+      ))}
     </div>
   );
 }

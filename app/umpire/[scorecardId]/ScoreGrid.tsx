@@ -36,14 +36,26 @@ export function ScoreGrid({
 
   return (
     <div className="data-table-shell overflow-x-auto">
-      <table className="data-table w-full text-xs">
+      {/* Sized in ch rather than stretched to the container: a scorecard has a
+          natural width, and forcing nine innings into whatever space is left
+          squeezes the cells until the notation is unreadable. Past that width
+          the grid scrolls sideways, which is how a paper scorecard behaves. */}
+      <table className="score-grid">
+        <colgroup>
+          <col style={{ width: "2.5ch" }} />
+          <col style={{ width: "18ch" }} />
+          <col style={{ width: "4ch" }} />
+          {Array.from({ length: innings }, (_, index) => (
+            <col key={index} style={{ width: "7ch" }} />
+          ))}
+        </colgroup>
         <thead>
           <tr>
-            <th className="w-8">#</th>
-            <th className="min-w-40">Batter</th>
-            <th className="w-10">Pos</th>
+            <th>#</th>
+            <th className="is-name">Batter</th>
+            <th>Pos</th>
             {Array.from({ length: innings }, (_, index) => (
-              <th key={index} className="w-16">{index + 1}</th>
+              <th key={index}>{index + 1}</th>
             ))}
           </tr>
         </thead>
@@ -53,7 +65,7 @@ export function ScoreGrid({
             return (
               <tr key={batter.playerId}>
                 <td className="text-slate-500">{slot}</td>
-                <td className="truncate font-semibold text-slate-100">{batter.name}</td>
+                <td className="is-name truncate font-semibold text-slate-100">{batter.name}</td>
                 <td className="text-slate-500">{batter.position}</td>
                 {Array.from({ length: innings }, (_, index) => {
                   const inning = index + 1;
@@ -66,7 +78,7 @@ export function ScoreGrid({
                         type="button"
                         onClick={() => onPick(entries[0] ?? null, slot, inning)}
                         disabled={entries.length === 0 && !waiting}
-                        className={`h-8 w-full px-1 text-center transition-colors ${
+                        className={`flex h-9 w-full items-center justify-center gap-0.5 px-1 transition-colors ${
                           waiting
                             ? "bg-sky-500/20 font-bold text-sky-300 ring-1 ring-inset ring-sky-500/60"
                             : entries.length > 0
@@ -76,12 +88,18 @@ export function ScoreGrid({
                         title={entries.map((entry) => entry.note ?? "").filter(Boolean).join(" · ")}
                       >
                         {entries.length > 0
-                          ? entries
-                              .map((entry) =>
-                                scoreNotation(entry.result as ResultCode, entry.fielders) +
-                                (entry.rbis > 0 ? `·${entry.rbis}` : ""),
-                              )
-                              .join(" ")
+                          ? entries.map((entry) => (
+                              // The RBI count rides small and beside the play,
+                              // so it never widens the column.
+                              <span key={entry.id} className="whitespace-nowrap">
+                                {scoreNotation(entry.result as ResultCode, entry.fielders)}
+                                {entry.rbis > 0 && (
+                                  <span className="ml-0.5 align-super text-[9px] font-bold text-amber-400">
+                                    {entry.rbis}
+                                  </span>
+                                )}
+                              </span>
+                            ))
                           : waiting
                             ? "•"
                             : ""}
