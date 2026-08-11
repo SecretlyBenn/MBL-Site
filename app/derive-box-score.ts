@@ -1,4 +1,4 @@
-import { RESULT_BY_CODE, type ResultCode } from "./scoring";
+import { isSkip, RESULT_BY_CODE, type ResultCode } from "./scoring";
 
 /**
  * Turns plate appearances into a box score. Everything public about a scored
@@ -94,6 +94,11 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
   const errors = { away: 0, home: 0 };
 
   for (const pa of ordered) {
+    // A skipped batter never came to the plate. The order moved past them, but
+    // nothing is charged to them or to the pitcher - counting it would give a
+    // player who was not there a plate appearance and inflate batters faced.
+    if (isSkip(pa.result)) continue;
+
     const definition = RESULT_BY_CODE.get(pa.result as ResultCode);
     const side = pa.isHomeBatting ? "home" : "away";
     // The pitcher belongs to the fielding side, which is the other one.

@@ -429,6 +429,19 @@ export const plateAppearances = sqliteTable("plate_appearances", {
   errorPosition: integer("error_position"),
   errorPlayerId: integer("error_player_id").references(() => players.id),
   stolenBases: integer("stolen_bases").notNull().default(0),
+  /**
+   * Who stood on first, second and third when this play ended, as a JSON array
+   * of three player ids or nulls.
+   *
+   * Storing the runners rather than a count of runs is what lets the scorer
+   * infer instead of ask: with nobody on, a single cannot drive anyone in, so
+   * there is no RBI question. It also lets the diamond show real names, and
+   * makes an edited at-bat recoverable, since the next play's starting bases
+   * are simply the previous play's ending ones.
+   */
+  basesAfter: text("bases_after"),
+  /** Player ids of runners who scored on this play, excluding the batter. */
+  runnersScored: text("runners_scored"),
   note: text("note"),
 });
 

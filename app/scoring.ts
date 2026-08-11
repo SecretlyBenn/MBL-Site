@@ -17,6 +17,7 @@ export type ResultCode =
   | "FC" | "DP" | "TP"
   | "SF" | "SH"
   | "E" | "CI"
+  | "SKIP"
   | "OTHER";
 
 export type ResultDefinition = {
@@ -60,11 +61,19 @@ export const RESULTS: ResultDefinition[] = [
   { code: "SF", label: "Sacrifice fly", group: "Out", defaultOuts: 1, isAtBat: false, isHit: false, bases: 0, wantsFielders: true },
   { code: "SH", label: "Sacrifice bunt", group: "Out", defaultOuts: 1, isAtBat: false, isHit: false, bases: 0, wantsFielders: true },
 
+  // A batter who is not there yet. The order moves on with no out and no
+  // plate appearance charged - being late is not a time at bat, and an umpire
+  // who has to invent an out to get past them would corrupt the inning.
+  { code: "SKIP", label: "Skip — batter not here", group: "Other", defaultOuts: 0, isAtBat: false, isHit: false, bases: 0, wantsFielders: false },
+
   // The escape hatch. Anything the list above cannot express - a runner tagged
   // out between bases, an appeal, an interference call - is recorded here with
   // the outs and runs set by hand and a note describing what happened.
   { code: "OTHER", label: "Other (describe)", group: "Other", defaultOuts: 0, isAtBat: false, isHit: false, bases: 0, wantsFielders: true },
 ];
+
+/** A skipped batter is a placeholder, not a plate appearance. */
+export const isSkip = (result: string) => result === "SKIP";
 
 export const RESULT_BY_CODE = new Map(RESULTS.map((result) => [result.code, result]));
 
