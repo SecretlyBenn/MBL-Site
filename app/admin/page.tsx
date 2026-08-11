@@ -2,6 +2,7 @@ import { getDb } from "@/db";
 import { games, players, teams, users } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { CreatePlayerForm, CreateTeamForm, CreateUserForm, ScheduleGameForm } from "./AdminForms";
+import { UserRoleRow } from "./UserRoleRow";
 
 export const dynamic = "force-dynamic";
 
@@ -54,12 +55,13 @@ export default async function AdminPage() {
 
       <section className="mb-8">
         <h2 className="mb-2 font-semibold">League accounts ({allUsers.length})</h2>
-        <ul className="space-y-1 text-sm">
+        <ul className="space-y-2">
           {allUsers.map((user) => (
-            <li key={user.id}>
-              {user.displayName} ({user.discordId}) - {user.role}
-              {user.teamId ? ` - ${teamNameById.get(user.teamId) ?? "unknown team"}` : ""}
-            </li>
+            <UserRoleRow
+              key={user.id}
+              user={user}
+              teams={allTeams.map((team) => ({ id: team.id, name: team.name }))}
+            />
           ))}
         </ul>
       </section>

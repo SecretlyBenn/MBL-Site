@@ -1,23 +1,36 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { players, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { RosterActionButton } from "./RosterActions";
+import { TeamPicker } from "./TeamPicker";
 
 export const dynamic = "force-dynamic";
 
-export default async function GmPage() {
+export default async function GmPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ team?: string }>;
+}) {
   const leagueUser = await requireRole(["GM", "ADMIN"], "/gm");
 
   const db = getDb();
-  const allTeams = await db.select().from(teams);
-  const teamId = leagueUser.teamId ?? allTeams[0]?.id ?? null;
+  const allTeams = await db.select().from(teams).orderBy(asc(teams.name));
+
+  // A GM manages their own club. An admin has no club of their own, so they
+  // choose one - previously they were silently given whichever team sorted
+  // first, with no way to reach any other roster.
+  const isAdmin = leagueUser.role === "ADMIN";
+  const chosen = Number((await searchParams).team);
+  const teamId = isAdmin
+    ? (allTeams.some((row) => row.id === chosen) ? chosen : allTeams[0]?.id ?? null)
+    : leagueUser.teamId;
   const team = allTeams.find((row) => row.id === teamId);
 
   if (!teamId) {
     return (
       <main className="mx-auto max-w-3xl p-8">
-        <p className="text-red-600">Your account has no team assigned. Contact an admin.</p>
+        <p className="text-rose-400">Your account has no team assigned. Contact an admin.</p>
       </main>
     );
   }
@@ -29,6 +42,15 @@ export default async function GmPage() {
 
   return (
     <main className="mx-auto max-w-3xl p-8">
+      {isAdmin && (
+        <div className="mb-5">
+          <TeamPicker
+            teams={allTeams.map((row) => ({ id: row.id, name: row.name }))}
+            teamId={teamId}
+          />
+        </div>
+      )}
+
       <h1 className="mb-1 text-2xl font-bold">{team?.name ?? "Your team"} roster</h1>
       <p className="mb-6 text-sm text-gray-500">
         Signed in as {leagueUser.displayName} ({leagueUser.role})
