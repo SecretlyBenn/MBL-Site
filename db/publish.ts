@@ -216,6 +216,52 @@ export async function publishScorecard(scorecardId: number) {
 }
 
 /**
+ * Takes a published game back out of the public record, so a head umpire can
+ * un-approve a game that was approved too early and the site stops counting it
+ * until it is fixed and approved again.
+ *
+ * A fixture that came from the archive is returned to the schedule as unplayed
+ * rather than deleted - it is still a game the league intends to play, and
+ * deleting it would leave a hole in the season. A game with no archive origin
+ * has nothing to return to, so its row goes.
+ *
+ * Season totals are recomputed afterwards, which is what actually removes the
+ * game's stats from every player and team line.
+ */
+export async function unpublishScorecard(scorecardId: number) {
+  const db = getDb();
+
+  const scorecard = await db.query.scorecards.findFirst({ where: eq(scorecards.id, scorecardId) });
+  if (!scorecard) throw new Error("No such scorecard.");
+  const game = await db.query.games.findFirst({ where: eq(games.id, scorecard.gameId) });
+  if (!game) throw new Error("No such game.");
+
+  const sourceGameId = game.sourceGameId ?? `live-${game.id}`;
+  const published = await db.query.historicalGames.findFirst({
+    where: eq(historicalGames.sourceGameId, sourceGameId),
+  });
+
+  // Nothing published means nothing to withdraw - un-approving a game that
+  // never reached the site is not an error.
+  if (!published) return { seasonId: null };
+
+  await db.delete(historicalGameStats).where(eq(historicalGameStats.gameId, published.id));
+  await db.delete(historicalLineScores).where(eq(historicalLineScores.gameId, published.id));
+
+  if (game.sourceGameId) {
+    await db
+      .update(historicalGames)
+      .set({ awayScore: null, homeScore: null })
+      .where(eq(historicalGames.id, published.id));
+  } else {
+    await db.delete(historicalGames).where(eq(historicalGames.id, published.id));
+  }
+
+  await recomputeSeason(published.seasonId);
+  return { seasonId: published.seasonId };
+}
+
+/**
  * Rebuilds a season's player and team totals from its published games. Derived
  * rather than accumulated: correcting one game cannot leave a stale total
  * behind, because every total is recalculated from the same source.

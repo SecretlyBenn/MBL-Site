@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, players, plateAppearances, scorecards, teams, users } from "@/db/schema";
 import { requireRole } from "@/app/roles";
@@ -18,6 +18,14 @@ export default async function HeadUmpirePage() {
     .from(scorecards)
     .where(eq(scorecards.status, "PENDING"))
     .orderBy(asc(scorecards.submittedAt));
+
+  // Already on the site, newest first - these are what a reopen acts on.
+  const approved = await db
+    .select()
+    .from(scorecards)
+    .where(eq(scorecards.status, "APPROVED"))
+    .orderBy(desc(scorecards.reviewedAt))
+    .limit(25);
 
   const allGames = await db.select().from(games);
   const allTeams = await db.select().from(teams);
@@ -43,6 +51,8 @@ export default async function HeadUmpirePage() {
       title="Scorecard review"
       subtitle={`${leagueUser.displayName} · ${leagueUser.role.replace("_", " ").toLowerCase()}`}
     >
+      <h2 className="section-title mb-3">Waiting for review</h2>
+      <h2 className="section-title mb-3">Waiting for review</h2>
       {pending.length === 0 ? (
         <EmptyState>No scorecards waiting for review.</EmptyState>
       ) : (
@@ -157,6 +167,36 @@ export default async function HeadUmpirePage() {
 
                 <ReviewActions scorecardId={scorecard.id} />
               </section>
+            );
+          })}
+        </div>
+      )}
+
+      <h2 className="section-title mb-3 mt-10">On the site</h2>
+      {approved.length === 0 ? (
+        <EmptyState>No approved games yet.</EmptyState>
+      ) : (
+        <div className="grid gap-2">
+          {approved.map((scorecard) => {
+            const game = gameById.get(scorecard.gameId);
+            const away = game ? teamNameById.get(game.awayTeamId) : undefined;
+            const home = game ? teamNameById.get(game.homeTeamId) : undefined;
+
+            return (
+              <div
+                key={scorecard.id}
+                className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3"
+              >
+                <span className="min-w-0">
+                  <span className="font-semibold">
+                    {away ?? "Away"} <span className="text-slate-500">at</span> {home ?? "Home"}
+                  </span>
+                  <span className="ml-3 tabular-nums text-slate-300">
+                    {scorecard.awayScore} – {scorecard.homeScore}
+                  </span>
+                </span>
+                <ReviewActions scorecardId={scorecard.id} mode="approved" />
+              </div>
             );
           })}
         </div>
