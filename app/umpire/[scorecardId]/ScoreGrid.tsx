@@ -18,6 +18,7 @@ export function ScoreGrid({
   activeSlot,
   activeInning,
   isActive,
+  selectedId,
   onPick,
 }: {
   order: { playerId: number; battingOrder: number | null; name: string; position: string }[];
@@ -27,6 +28,13 @@ export function ScoreGrid({
   activeInning: number;
   /** False while the other side is batting, which greys the grid. */
   isActive: boolean;
+  /**
+   * The at-bat open in the entry panel. Lit differently from the cell the game
+   * is waiting on: one is where the game is, the other is what the umpire is
+   * typing into, and confusing them is how a correction lands on the wrong
+   * play.
+   */
+  selectedId?: number | null;
   onPick: (atBat: LoggedAtBat | null, slot: number, inning: number) => void;
 }) {
   // A slot can bat more than once in an inning; the grid shows them stacked in
@@ -71,6 +79,7 @@ export function ScoreGrid({
                   const inning = index + 1;
                   const entries = cellFor(slot, inning);
                   const waiting = isActive && slot === activeSlot && inning === activeInning;
+                  const selected = entries.some((entry) => entry.id === selectedId);
 
                   return (
                     <td key={inning} className="p-0">
@@ -79,11 +88,13 @@ export function ScoreGrid({
                         onClick={() => onPick(entries[0] ?? null, slot, inning)}
                         disabled={entries.length === 0 && !waiting}
                         className={`flex h-9 w-full items-center justify-center gap-0.5 px-1 transition-colors ${
-                          waiting
-                            ? "bg-sky-500/20 font-bold text-sky-300 ring-1 ring-inset ring-sky-500/60"
-                            : entries.length > 0
-                              ? "text-slate-200 hover:bg-slate-700/50"
-                              : "text-slate-700"
+                          selected
+                            ? "bg-amber-400/25 font-bold text-amber-200 ring-2 ring-inset ring-amber-400"
+                            : waiting
+                              ? "bg-sky-500/25 font-bold text-sky-200 ring-2 ring-inset ring-sky-400"
+                              : entries.length > 0
+                                ? "text-slate-200 hover:bg-slate-700/50"
+                                : "text-slate-700"
                         }`}
                         title={entries.map((entry) => entry.note ?? "").filter(Boolean).join(" · ")}
                       >

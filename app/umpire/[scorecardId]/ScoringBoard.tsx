@@ -8,6 +8,8 @@ import { AtBatDialog, EMPTY_DRAFT, type AtBatDraft } from "./AtBatDialog";
 import { ScoreGrid } from "./ScoreGrid";
 import { DefensePanel } from "./DefensePanel";
 import { BaseDiamond } from "./BaseDiamond";
+import { LivePitching } from "./LivePitching";
+import { SubstitutionPanel } from "./SubstitutionPanel";
 import type { LoggedAtBat } from "./AtBatLog";
 import type { ResultCode } from "@/app/scoring";
 
@@ -219,15 +221,28 @@ export function ScoringBoard({
       {notice && <p className="text-xs text-amber-400">{notice}</p>}
       {error && <p className="text-xs text-rose-400">{error}</p>}
 
-      {/* The entry panel sits above the scorecards rather than beside them.
-          Sharing the row left the grid too narrow for nine innings, and the
-          cells squeezed until the notation was unreadable. */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,22rem)_1fr]">
-        <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+      {/* One row of panels, all the same shell, then the scorecards beneath at
+          full width. Entry, the bases, the pitching lines and the bench are
+          each their own box rather than one long column, so the umpire is not
+          scrolling to reach the thing they need next. */}
+      <div className="grid gap-3 xl:grid-cols-4">
+        <section className="panel">
+          <div className="panel-head">
+            <h3 className="panel-title">
               {editing ? "Editing an earlier at-bat" : "Now batting"}
-            </p>
-            <p className="mb-3 text-lg font-black">
+            </h3>
+            {editing && (
+              <button
+                type="button"
+                onClick={() => { setEditing(null); setDraft(EMPTY_DRAFT); }}
+                className="text-[11px] font-semibold text-sky-400 hover:text-sky-300"
+              >
+                Back to live
+              </button>
+            )}
+          </div>
+          <div className="p-3">
+            <p className="mb-3 text-base font-black leading-tight">
               {editing
                 ? `${nameOf[editing.batterPlayerId] ?? "?"} · ${editing.isHomeBatting ? "Bot" : "Top"} ${editing.inning}`
                 : batter
@@ -257,19 +272,7 @@ export function ScoringBoard({
               </button>
             )}
           </div>
-
-        <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pitching</p>
-            <select
-              value={activePitcher ?? ""}
-              onChange={(event) => setPitcherId(Number(event.target.value))}
-              className="ui-select w-full"
-            >
-              {fieldingSide.map((row) => (
-                <option key={row.playerId} value={row.playerId}>{row.name}</option>
-              ))}
-            </select>
-          </div>
+        </section>
 
         <BaseDiamond
           bases={bases}
@@ -280,14 +283,53 @@ export function ScoringBoard({
           }
         />
 
-        <DefensePanel
-          scorecardId={scorecardId}
-          isHome={!state.isHomeBatting}
-          teamName={state.isHomeBatting ? awayName : homeName}
-          fielders={fielderList}
-          bench={state.isHomeBatting ? bench.away : bench.home}
-          inning={state.inning}
-        />
+        <div className="space-y-3">
+          <section className="panel">
+            <div className="panel-head">
+              <h3 className="panel-title">On the mound</h3>
+            </div>
+            <div className="p-3">
+              <select
+                value={activePitcher ?? ""}
+                onChange={(event) => setPitcherId(Number(event.target.value))}
+                className="ui-select w-full"
+              >
+                {fieldingSide.map((row) => (
+                  <option key={row.playerId} value={row.playerId}>{row.name}</option>
+                ))}
+              </select>
+            </div>
+          </section>
+
+          <LivePitching
+            awayName={awayName}
+            homeName={homeName}
+            away={state.awayPitching}
+            home={state.homePitching}
+            nameOf={nameOf}
+            activePitcherId={activePitcher}
+          />
+        </div>
+
+        <div className="space-y-3">
+          <SubstitutionPanel
+            scorecardId={scorecardId}
+            awayName={awayName}
+            homeName={homeName}
+            lineups={lineups}
+            bench={bench}
+            busy={busy}
+          />
+
+          <DefensePanel
+            scorecardId={scorecardId}
+            isHome={!state.isHomeBatting}
+            teamName={state.isHomeBatting ? awayName : homeName}
+            fielders={fielderList}
+            bench={state.isHomeBatting ? bench.away : bench.home}
+            inning={state.inning}
+          />
+        </div>
       </div>
 
       {/* Both scorecards stay on screen; the side at bat is live and the other
@@ -314,6 +356,7 @@ export function ScoringBoard({
               activeSlot={batter?.battingOrder ?? null}
               activeInning={state.inning}
               isActive={isHome === state.isHomeBatting}
+              selectedId={editing?.id ?? null}
               onPick={(atBat) => pick(atBat)}
             />
           </div>

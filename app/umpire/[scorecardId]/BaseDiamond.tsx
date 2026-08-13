@@ -68,10 +68,19 @@ export function BaseDiamond({
   }
 
   const baseStyle = (base: BaseName | "home") => {
-    const active = over === base;
-    return `absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 rotate-45 items-center justify-center rounded-md border-2 transition-colors ${
-      active ? "border-sky-400 bg-sky-500/30" : "border-slate-700 bg-slate-900"
-    }`;
+    const hovered = over === base;
+    // An occupied bag is lit. The umpire should be able to read the state of
+    // the bases from across the room, without stopping to find the names.
+    const occupied = base !== "home" && runnerAt(base) !== null;
+    return [
+      "absolute flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 rotate-45 items-center",
+      "justify-center rounded-md border-2 transition-colors",
+      hovered
+        ? "border-sky-300 bg-sky-500/40 ring-2 ring-sky-400/60"
+        : occupied
+          ? "border-amber-400 bg-amber-400/20 shadow-[0_0_20px_-2px_rgba(251,191,36,0.5)]"
+          : "border-slate-700 bg-slate-900",
+    ].join(" ");
   };
 
   const label = (base: BaseName | "home") => {
@@ -88,7 +97,7 @@ export function BaseDiamond({
         draggable={!busy}
         onDragStart={() => setDragging(runner.playerId)}
         onDragEnd={() => { setDragging(null); setOver(null); }}
-        className="-rotate-45 cursor-grab px-0.5 text-center text-[10px] font-bold leading-tight text-sky-300 active:cursor-grabbing"
+        className="-rotate-45 cursor-grab px-0.5 text-center text-[10px] font-bold leading-tight text-amber-200 active:cursor-grabbing"
         title={`${runner.name} on ${runner.base}`}
       >
         {runner.name.slice(0, 8)}

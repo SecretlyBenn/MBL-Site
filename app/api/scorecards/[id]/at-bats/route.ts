@@ -1,6 +1,6 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, plateAppearances, scorecards } from "@/db/schema";
+import { games, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore, gameState } from "@/app/derive-box-score";
 import { advance, decodeRunners, encodeBases } from "@/app/bases";
@@ -67,6 +67,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       scored,
     });
 
+    // The slot is pinned to the play now, while the lineup still describes
+    // this batter. A substitution later hands the slot to someone else, and
+    // this at-bat must stay where it happened.
+    const slot = await db.query.scorecardLineups.findFirst({
+      where: and(
+        eq(scorecardLineups.scorecardId, scorecardId),
+        eq(scorecardLineups.playerId, body.batterPlayerId),
+      ),
+    });
+
     await db.insert(plateAppearances).values({
       scorecardId,
       sequence,
@@ -75,6 +85,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       inning: state.inning,
       isHomeBatting: state.isHomeBatting,
       batterPlayerId: body.batterPlayerId,
+      battingSlot: slot?.battingOrder ?? null,
       pitcherPlayerId: body.pitcherPlayerId,
       result: body.result,
       fielders: body.fielders?.trim() || null,

@@ -83,7 +83,10 @@ export default async function ScorecardPage({
             inning: row.inning,
             isHomeBatting: row.isHomeBatting,
             batterPlayerId: row.batterPlayerId,
-            battingSlot: slotOf.get(row.batterPlayerId) ?? 0,
+                        // The slot stored with the play, so a substitution never moves an
+            // at-bat out of the row it was scored in. Plays recorded before the
+            // column existed fall back to the lineup.
+            battingSlot: row.battingSlot ?? slotOf.get(row.batterPlayerId) ?? 0,
             result: row.result,
             fielders: row.fielders,
             rbis: row.rbis,

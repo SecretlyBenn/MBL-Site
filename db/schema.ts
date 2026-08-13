@@ -411,6 +411,13 @@ export const plateAppearances = sqliteTable("plate_appearances", {
   batterPlayerId: integer("batter_player_id")
     .notNull()
     .references(() => players.id),
+  /**
+   * The order slot this play belongs to, fixed when it is recorded. Looking it
+   * up from the lineup by the batter id only holds while the lineup never
+   * changes: a substitution takes the slot with it, and every at-bat the
+   * replaced player had already taken would fall out of the scorecard.
+   */
+  battingSlot: integer("batting_slot"),
   pitcherPlayerId: integer("pitcher_player_id")
     .notNull()
     .references(() => players.id),

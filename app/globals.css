@@ -520,4 +520,32 @@ body {
     background: rgb(20 26 34);
   }
 
+  /* The umpire panels. One shell for every box on the scoring screen, so the
+     entry form, the diamond, the pitching lines and the substitution box all
+     read as parts of one card rather than four separate designs. */
+  .panel {
+    overflow: hidden;
+    border: 1px solid rgb(28 36 48 / 0.8);
+    border-radius: 0.625rem;
+    background: rgb(20 26 34 / 0.6);
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgb(28 36 48 / 0.8);
+    background: rgb(28 36 48 / 0.35);
+  }
+
+  .panel-title {
+    font-size: 0.625rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgb(139 149 161);
+  }
+
 }
