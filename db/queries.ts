@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, getTableColumns, like, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
+import { playedOnValue } from "@/app/formatStats";
 import {
   games,
   historicalGameStats,
@@ -775,6 +776,10 @@ export async function getPlayerGameLog(playerName: string) {
       gameId: historicalGames.id,
       playedOn: historicalGames.playedOn,
       sortOrder: historicalGames.sortOrder,
+      // Game order restarts at zero each season, so ordering the log needs the
+      // season's place in league history as well - without it a game from
+      // Season XII sorts among games from Season IV.
+      seasonSort: historicalSeasons.sortOrder,
       seasonName: historicalSeasons.name,
       isHome: historicalGameStats.isHome,
       kind: historicalGameStats.kind,
@@ -817,7 +822,17 @@ export async function getPlayerGameLog(playerName: string) {
         scoreLine: own === null || other === null ? null : `${own}-${other}`,
       };
     })
-    .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0));
+    // Newest first, by the date the log actually shows. Within a season the
+    // game order is the schedule order, and Season XII schedules a series
+    // window rather than a day - the two clubs meet whenever they can inside
+    // it, so schedule order and the order games were played come apart. A game
+    // the archive left undated falls back to the schedule.
+    .sort(
+      (a, b) =>
+        (b.seasonSort ?? 0) - (a.seasonSort ?? 0) ||
+        (playedOnValue(b.playedOn) ?? 0) - (playedOnValue(a.playedOn) ?? 0) ||
+        (b.sortOrder ?? 0) - (a.sortOrder ?? 0),
+    );
 }
 
 /**

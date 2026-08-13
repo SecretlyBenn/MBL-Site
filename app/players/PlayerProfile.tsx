@@ -52,6 +52,21 @@ const PITCHING_LOG: Column[] = [
   { key: "walksAllowed", label: "BB" }, { key: "strikeoutsPitched", label: "SO" },
 ];
 
+/**
+ * "Thursday June 17, 2026" as "Jun 17". The weekday is matched by name rather
+ * than stripped as a leading word - a bare "June 15" would otherwise lose its
+ * month to the same expression.
+ */
+const WEEKDAY = /^(Mon|Tues|Wednes|Thurs|Fri|Satur|Sun)day,?\s*/;
+
+function shortDate(playedOn: string | null | undefined) {
+  if (!playedOn) return "–";
+  return playedOn
+    .replace(WEEKDAY, "")
+    .replace(/,\s*\d{4}$/, "")
+    .replace(/^([A-Z][a-z]{2})[a-z]*/, "$1");
+}
+
 function show(value: unknown, column: Column) {
   if (value === null || value === undefined) return "–";
   if (column.innings) return formatInnings(Number(value));
@@ -116,9 +131,20 @@ export function PlayerProfile({
       const merged = rows.length === 1 ? rows[0] : { ...careerTotals(rows, columns), ...{
         seasonId, seasonName: ended.seasonName, teamName: ended.teamName,
       } } as SeasonRow;
-      return { seasonId, seasonName: ended.seasonName, teamName: ended.teamName, merged, parts: rows };
+      return {
+        seasonId,
+        seasonName: ended.seasonName,
+        teamName: ended.teamName,
+        // Where the season falls in league history. Not the same as its id -
+        // the archive was imported oldest-first under a different numbering,
+        // and the current season carries id 1, so sorting by id puts the
+        // newest season at the bottom.
+        seasonSort: Number(ended.sortOrder ?? 0),
+        merged,
+        parts: rows,
+      };
     })
-    .sort((a, b) => b.seasonId - a.seasonId);
+    .sort((a, b) => b.seasonSort - a.seasonSort);
 
   const career = careerTotals(seasons, columns);
 
@@ -262,8 +288,17 @@ export function PlayerProfile({
                 <tbody>
                   {shownGames.map((game) => (
                     <tr key={`${game.gameId}-${game.kind}`}>
+                      {/* The log runs across every season a player appeared
+                          in, so the season rides with the date. Without it a
+                          correctly ordered log reads as random: June of one
+                          season sits directly above June of the one before. */}
                       <td className="text-slate-400">
-                        {(game.playedOn ?? "").replace(/^\w+,?\s*/, "").replace(/,\s*\d{4}$/, "")}
+                        <span className="flex flex-col leading-tight">
+                          <span>{shortDate(game.playedOn)}</span>
+                          <span className="text-[10px] text-slate-600">
+                            {game.seasonName.replace("MBL Season ", "")}
+                          </span>
+                        </span>
                       </td>
                       <td>
                         <span className="flex min-w-0 items-center gap-2">
