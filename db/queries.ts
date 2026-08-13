@@ -11,7 +11,9 @@ import {
   historicalSeasons,
   historicalTeams,
   players,
+  fieldingChanges,
   scorecardLines,
+  scorecardLineups,
   scorecards,
   teams,
   minecraftProfiles,
@@ -837,4 +839,54 @@ export async function getPlayerRosterIdentity(playerName: string) {
     .orderBy(desc(historicalSeasons.sortOrder))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * A player's primary position: the one they have appeared at most often in
+ * games that reached the public record.
+ *
+ * The archive did not import positions - 22 of nearly 2,000 roster rows carry
+ * one - so this is built from what umpires actually record. Every approved
+ * scorecard contributes the position each player started at, plus any position
+ * they moved to during the game. A player with no scored games yet has no
+ * primary position, and the profile shows a dash rather than a guess.
+ *
+ * Returned for every player at once: a profile page would otherwise pay for a
+ * query per player, and the stat tables want the same answer for a whole page
+ * of them.
+ */
+export async function getPrimaryPositions(): Promise<Record<string, string>> {
+  const db = getDb();
+
+  const [starts, moves] = await Promise.all([
+    db
+      .select({ name: players.displayName, position: scorecardLineups.position })
+      .from(scorecardLineups)
+      .innerJoin(players, eq(scorecardLineups.playerId, players.id))
+      .innerJoin(scorecards, eq(scorecardLineups.scorecardId, scorecards.id))
+      .where(eq(scorecards.status, "APPROVED")),
+    db
+      .select({ name: players.displayName, position: fieldingChanges.position })
+      .from(fieldingChanges)
+      .innerJoin(players, eq(fieldingChanges.playerId, players.id))
+      .innerJoin(scorecards, eq(fieldingChanges.scorecardId, scorecards.id))
+      .where(eq(scorecards.status, "APPROVED")),
+  ]);
+
+  const tally = new Map<string, Map<string, number>>();
+  for (const row of [...starts, ...moves]) {
+    // A designated hitter is a batting slot, not a place on the field, so it
+    // never becomes someone's primary position.
+    if (!row.position || row.position === "DH") continue;
+    const counts = tally.get(row.name) ?? new Map<string, number>();
+    counts.set(row.position, (counts.get(row.position) ?? 0) + 1);
+    tally.set(row.name, counts);
+  }
+
+  const primary: Record<string, string> = {};
+  for (const [name, counts] of tally) {
+    const best = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    if (best) primary[name] = best[0];
+  }
+  return primary;
 }

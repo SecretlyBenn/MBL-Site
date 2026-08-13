@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getPlayerAvatars, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity } from "@/db/queries";
+import { getPlayerAvatars, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions } from "@/db/queries";
 import { PageShell } from "@/app/SiteNav";
 import { BackButton } from "@/app/players/BackButton";
 import { PlayerHead } from "@/app/PlayerHead";
@@ -28,13 +28,16 @@ export default async function HistoricalPlayerPage({
   const latest = [...history].sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))[0];
   const playedPitching = history.some((row) => (row.inningsPitched ?? 0) > 0);
 
-  // "#24 · 1B" when the archive recorded either; nothing when it recorded
-  // neither, which is the usual case.
-  const roster = await getPlayerRosterIdentity(name);
-  const identity =
-    [roster?.jerseyNumber ? `#${roster.jerseyNumber}` : null, roster?.positions]
-      .filter(Boolean)
-      .join(" · ") || null;
+  // The number comes from the archive, which recorded one for almost nobody.
+  // The position is the one they have played most in scored games, so it fills
+  // in on its own as umpires work through the season; until then it is a dash
+  // rather than a guess.
+  const [roster, positions] = await Promise.all([
+    getPlayerRosterIdentity(name),
+    getPrimaryPositions(),
+  ]);
+  const jersey = roster?.jerseyNumber ? `#${roster.jerseyNumber}` : null;
+  const position = positions[name] ?? roster?.positions ?? "—";
 
   return (
     <PageShell
@@ -44,14 +47,9 @@ export default async function HistoricalPlayerPage({
           <div className="flex flex-wrap items-center gap-5">
             <PlayerHead uuid={avatars[name]} name={name} size={96} className="rounded-lg" />
             <div className="min-w-0">
-              {/* Almost no archived roster row carries a number or a position,
-                  so this line appears only for the few that do rather than
-                  leaving an empty slot above every other player's name. */}
-              {identity && (
-                <p className="mb-0.5 text-xs font-bold uppercase tracking-[0.15em] text-sky-400">
-                  {identity}
-                </p>
-              )}
+              <p className="mb-0.5 text-xs font-bold uppercase tracking-[0.15em] text-sky-400">
+                {[jersey, position].filter(Boolean).join(" · ")}
+              </p>
               <h1 className="text-4xl font-black tracking-tight">{name}</h1>
               {latest?.teamName && (
                 <span className="mt-1.5 flex items-center gap-2 text-sm text-slate-300">

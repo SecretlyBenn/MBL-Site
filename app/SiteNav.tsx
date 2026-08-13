@@ -46,8 +46,8 @@ export function SiteNav() {
           <img src="/mbl-logo.png" alt="" className="h-9 w-auto" />
           <span className="flex flex-col leading-none">
             <span className="text-lg font-black tracking-tight">MBL</span>
-            <span className="text-[9px] font-medium uppercase tracking-[0.15em] text-slate-500">
-              Baseball League
+            <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-slate-600">
+              Minecraft Baseball League
             </span>
           </span>
         </Link>
@@ -78,7 +78,11 @@ export function SiteNav() {
             </div>
           </div>
         ))}
-        <SignInButton />
+        {/* Sign-in sits at the far edge, away from the navigation it is not
+            part of. */}
+        <div className="ml-auto">
+          <SignInButton />
+        </div>
       </nav>
     </header>
   );
