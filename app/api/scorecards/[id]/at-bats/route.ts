@@ -2,7 +2,8 @@ import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, plateAppearances, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
-import { deriveBoxScore, gameState } from "@/app/derive-box-score";
+import { currentBases, deriveBoxScore, gameState } from "@/app/derive-box-score";
+import { advance, decodeRunners, encodeBases } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
 import { validatePlateAppearance, type PlateAppearanceInput } from "@/app/scoring";
 
@@ -53,6 +54,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const sequence = rows.length === 0 ? 1 : Math.max(...rows.map((row) => row.sequence)) + 1;
 
+    // Where the runners end up is worked out here rather than taken from the
+    // screen, for the same reason the half-inning is: a browser running an
+    // older copy of the page can send a state that does not follow from the
+    // play, and once stored it is trusted over anything derived. One did -
+    // a single with the bases empty arrived saying the bases were still
+    // empty, and the batter could not then be moved off first.
+    const scored = decodeRunners(body.runnersScored ?? null);
+    const after = advance(currentBases(rows), {
+      batterPlayerId: body.batterPlayerId,
+      result: body.result,
+      scored,
+    });
+
     await db.insert(plateAppearances).values({
       scorecardId,
       sequence,
@@ -71,7 +85,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       outsRecorded: body.outsRecorded,
       errorPosition: body.errorPosition,
       stolenBases: body.stolenBases,
-      basesAfter: body.basesAfter ?? null,
+      basesAfter: encodeBases(after.bases),
       runnersScored: body.runnersScored ?? null,
       note: body.note?.trim() || null,
     });

@@ -29,10 +29,15 @@ export const PAGE_SIZE = 14;
  * when the pager is clicked.
  *
  * A rate column holds ".312" or "3.86" and a count column at most four digits,
- * so rates get slightly more room. The name columns take everything left over.
+ * so rates get slightly more room.
+ *
+ * The label columns are not fixed here. They are measured from the longest
+ * name actually present, so the club sits beside the name it belongs to rather
+ * than across a gap left by a guess. These constants only set the width below
+ * which the table starts scrolling instead of crushing its columns.
  */
 const NAME_COLUMN = 13;
-const NAME_COLUMN_WITH_TEAM = 10;
+const NAME_COLUMN_WITH_TEAM = 8.5;
 const TEAM_COLUMN = 9;
 const RATE_COLUMN = 3.2;
 const COUNT_COLUMN = 2.6;
@@ -156,11 +161,27 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
   // the screen, so empty rows hold the height steady.
   const filler = team ? 0 : PAGE_SIZE - paged.length;
 
-  // Figure columns are stated in rem and the label columns take whatever is
-  // left, so the table always fills its container exactly. Under `table-fixed`
-  // the browser never measures the cells, which is what keeps a page of short
-  // names the same shape as a page of long ones - and makes every stat table
-  // on the site the same width as every other.
+  // The label column is sized to the longest name in the whole filtered set,
+  // not the page on screen. Sizing it to the page would draw a narrow column
+  // for a page of short names and a wide one for the next, which is the jump
+  // this table used to have; sizing it to a fixed guess either clips the long
+  // names or strands the short ones across a gap. Measured over everything, it
+  // is both as tight as it can be and the same on every page.
+  const widest = (pick: (row: (typeof visible)[number]) => string) =>
+    visible.reduce((longest, row) => Math.max(longest, pick(row).length), 0);
+  // Characters, plus room for the head or crest, the gap after it, and the
+  // cell's own padding.
+  const toWidth = (chars: number) => `calc(${chars}ch + 3.25rem)`;
+  const labelColumn = toWidth(widest((row) => (team ? row.teamName : row.playerName)));
+  // The team column is measured the same way rather than being left to absorb
+  // whatever remained: that squeezed it to 95px, which cuts off a name like
+  // "Golden State Dolphins (+1)".
+  const teamColumn = toWidth(widest((row) => row.teamName));
+
+  // Every column is stated, so under `table-fixed` the browser never measures
+  // a cell - which is what keeps a page of short names the same shape as a
+  // page of long ones. These nominal label widths only feed the minimum below;
+  // the real ones are measured from the data above.
   const labelWidth = team ? NAME_COLUMN : NAME_COLUMN_WITH_TEAM + TEAM_COLUMN;
   const figureWidth = columns.reduce(
     (total, column) => total + (column.rate ? RATE_COLUMN : COUNT_COLUMN),
@@ -189,8 +210,12 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
             left unstated so they absorb whatever remains, which is what makes
             the table meet its container's edge exactly. */}
         <colgroup>
-          <col />
-          {!team && <col style={{ width: `${TEAM_COLUMN}rem` }} />}
+          {/* On a player table the player column is stated and the team column
+              takes the slack, so the club sits beside the name rather than
+              across a gap. A team table has only the one label column, so that
+              is the one left to absorb it. */}
+          <col style={{ width: labelColumn }} />
+          {!team && <col style={{ width: teamColumn }} />}
           {columns.map((column) => (
             <col key={column.key} style={{ width: `${column.rate ? RATE_COLUMN : COUNT_COLUMN}rem` }} />
           ))}

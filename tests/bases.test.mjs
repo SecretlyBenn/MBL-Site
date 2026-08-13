@@ -102,3 +102,16 @@ test("runner count reflects who is aboard", () => {
   assert.equal(runnerCount(EMPTY_BASES), 0);
   assert.equal(runnerCount(on(2, 3, 4)), 3);
 });
+
+test("a single with the bases empty leaves the batter on first", () => {
+  // The regression this guards: the screen sent its own idea of the bases
+  // along with the play, and an out-of-date one said the bases were still
+  // empty after a single. The runner could then not be moved off first,
+  // because as far as the record was concerned he was never on it.
+  const { bases } = advance(EMPTY_BASES, {
+    batterPlayerId: 77,
+    result: "1B",
+    scored: [],
+  });
+  assert.equal(bases.first, 77);
+});

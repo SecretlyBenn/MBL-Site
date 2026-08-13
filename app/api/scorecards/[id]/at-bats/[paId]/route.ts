@@ -2,7 +2,8 @@ import { and, eq, gt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, plateAppearances, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
-import { deriveBoxScore } from "@/app/derive-box-score";
+import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
+import { advance, decodeRunners, encodeBases } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
 import { RESULT_BY_CODE, type PlateAppearanceInput, type ResultCode } from "@/app/scoring";
 
@@ -79,6 +80,11 @@ export async function PATCH(
       pitcherPlayerId?: number;
     };
 
+    const before = await db
+      .select()
+      .from(plateAppearances)
+      .where(eq(plateAppearances.scorecardId, scorecardId));
+
     if (body.result && !RESULT_BY_CODE.has(body.result as ResultCode)) {
       return Response.json({ error: "Unknown result." }, { status: 400 });
     }
@@ -106,7 +112,16 @@ export async function PATCH(
         errorPosition: body.errorPosition !== undefined ? body.errorPosition : existing.errorPosition,
         stolenBases: body.stolenBases ?? existing.stolenBases,
         note: body.note !== undefined ? body.note?.trim() || null : existing.note,
-        basesAfter: body.basesAfter !== undefined ? body.basesAfter : existing.basesAfter,
+        // Derived here rather than taken from the screen - see the note in
+        // the POST route. Recomputed from the bases as they stood before this
+        // play, so a corrected result moves the runners with it.
+        basesAfter: encodeBases(
+          advance(currentBases(before.filter((row) => row.sequence < existing.sequence)), {
+            batterPlayerId: body.batterPlayerId ?? existing.batterPlayerId,
+            result,
+            scored: decodeRunners(body.runnersScored ?? existing.runnersScored),
+          }).bases,
+        ),
         runnersScored:
           body.runnersScored !== undefined ? body.runnersScored : existing.runnersScored,
       })
