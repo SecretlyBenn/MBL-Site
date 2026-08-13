@@ -817,3 +817,24 @@ export async function getPlayerGameLog(playerName: string) {
     })
     .sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0));
 }
+
+/**
+ * The number and position the archive last recorded for a player. Almost no
+ * imported roster row carries either, so this is usually null and the profile
+ * simply omits the line rather than showing an empty one.
+ */
+export async function getPlayerRosterIdentity(playerName: string) {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      jerseyNumber: historicalRosterEntries.jerseyNumber,
+      positions: historicalRosterEntries.positions,
+      sortOrder: historicalSeasons.sortOrder,
+    })
+    .from(historicalRosterEntries)
+    .innerJoin(historicalSeasons, eq(historicalRosterEntries.seasonId, historicalSeasons.id))
+    .where(eq(historicalRosterEntries.playerName, playerName))
+    .orderBy(desc(historicalSeasons.sortOrder))
+    .limit(1);
+  return row ?? null;
+}

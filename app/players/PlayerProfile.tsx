@@ -208,15 +208,33 @@ export function PlayerProfile({
                 </Fragment>
               ))}
             </tbody>
-            <tfoot>
-              <tr className="border-t-2 border-sky-600/50 bg-sky-950/30 font-bold">
-                <td>Career</td>
-                <td className="text-slate-400">{seasonRows.length} seasons</td>
+          </table>
+        </div>
+      </section>
+
+      {/* Career stands on its own rather than as a footer row: it is a
+          different claim from a season line, and reading it needs its own
+          column headings rather than borrowing the ones above. */}
+      <section>
+        <h2 className="section-title mb-3">Career {tab} stats</h2>
+        <div className="data-table-shell overflow-x-auto">
+          <table className="data-table stat-table ranked w-full">
+            <thead>
+              <tr>
+                <th className="w-72">Seasons</th>
+                {columns.map((column) => (
+                  <th key={column.key} className="w-14">{column.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>{seasonRows.length} season{seasonRows.length === 1 ? "" : "s"}</td>
                 {columns.map((column) => (
                   <td key={column.key}>{show(career[column.key], column)}</td>
                 ))}
               </tr>
-            </tfoot>
+            </tbody>
           </table>
         </div>
       </section>

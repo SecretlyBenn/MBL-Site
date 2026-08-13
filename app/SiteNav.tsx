@@ -87,11 +87,18 @@ export function SiteNav() {
 export function PageShell({
   title,
   subtitle,
+  header,
   children,
   wide = false,
 }: {
-  title: string;
+  title?: string;
   subtitle?: string;
+  /**
+   * Replaces the plain heading entirely. A page whose subject is a person or a
+   * team leads with them - a portrait, a crest, a record - and repeating the
+   * name as a heading above that only says it twice.
+   */
+  header?: React.ReactNode;
   children: React.ReactNode;
   wide?: boolean;
 }) {
@@ -99,12 +106,14 @@ export function PageShell({
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <SiteNav />
       <main className={`mx-auto px-6 py-5 ${wide ? "max-w-[1600px]" : "max-w-5xl"}`}>
-        {/* The heading and its subtitle sit on one line so the content below
-            starts near the top of the viewport rather than a third down it. */}
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-800/80 pb-2.5">
-          <h1 className="text-xl font-bold tracking-tight">{title}</h1>
-          {subtitle && <p className="text-sm text-slate-400">{subtitle}</p>}
-        </div>
+        {header ?? (
+          // The heading and its subtitle sit on one line so the content below
+          // starts near the top of the viewport rather than a third down it.
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-800/80 pb-2.5">
+            <h1 className="text-xl font-bold tracking-tight">{title}</h1>
+            {subtitle && <p className="text-sm text-slate-400">{subtitle}</p>}
+          </div>
+        )}
         <div className="mt-4">{children}</div>
       </main>
     </div>

@@ -65,37 +65,52 @@ export default async function Home() {
       <SiteNav />
       <ScoresStrip games={strip} />
 
+      {/* The hero carries a photograph of a league ballpark behind it. The
+          image is referenced rather than required: if public/stadium.png is
+          absent the gradient underneath shows through on its own, so the page
+          is never broken by a missing picture. */}
       <section className="relative overflow-hidden border-b border-slate-800/80">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,theme(colors.sky.900/45),transparent_60%)]" />
-        <div className="relative mx-auto flex max-w-[1600px] flex-wrap items-center gap-6 px-6 py-5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mbl-logo.png" alt="" className="h-12 w-auto shrink-0 drop-shadow-lg" />
-          <div className="min-w-0">
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.2em] text-sky-400/80">
-              {latestSeason?.name ?? "Minecraft Baseball League"}
-            </p>
-            <h1 className="text-2xl font-black leading-none tracking-tight sm:text-3xl">
-              MINECRAFT BASEBALL <span className="text-sky-400">LEAGUE.</span>
-            </h1>
-            <p className="mt-1.5 text-sm text-slate-400">
-              Minecraft&apos;s most realistic baseball league.
-            </p>
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-40"
+          style={{ backgroundImage: "url('/stadium.png')" }}
+        />
+        {/* Keeps the type legible whatever the photograph is doing behind it. */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/40" />
+
+        <div className="relative mx-auto max-w-[1600px] px-6 py-12">
+          <div className="flex flex-wrap items-center gap-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/mbl-logo.png" alt="" className="h-20 w-auto shrink-0 drop-shadow-lg" />
+            <div className="min-w-0">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-sky-400">
+                {latestSeason?.name ?? "Minecraft Baseball League"}
+              </p>
+              <h1 className="text-4xl font-black leading-[0.95] tracking-tight sm:text-6xl">
+                MINECRAFT BASEBALL
+                <br />
+                <span className="text-sky-400">LEAGUE.</span>
+              </h1>
+              <p className="mt-3 text-sm text-slate-300">
+                Minecraft&apos;s most realistic baseball league.
+              </p>
+            </div>
           </div>
-          <div className="ml-auto flex flex-wrap gap-2">
+
+          <div className="mt-8 flex flex-wrap gap-3">
             {[
               { href: "/schedule", label: "Schedule" },
               { href: "/statistics/batting", label: "Stats" },
               { href: "/standings", label: "Standings" },
               { href: "/rosters", label: "Rosters" },
-            ].map((link, index) => (
+              // A "Join Discord" button belongs here too, but the league's
+              // invite link is not recorded anywhere in the project and a wrong
+              // one is worse than none.
+            ].map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-md px-4 py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
-                  index === 0
-                    ? "bg-sky-600 text-white hover:bg-sky-500"
-                    : "border border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-600 hover:text-white"
-                }`}
+                className="rounded-md bg-sky-600 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-sky-500"
               >
                 {link.label}
               </Link>
