@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { TeamLogo } from "@/app/TeamLogo";
 import { formatInnings } from "@/app/formatStats";
 
@@ -170,8 +170,11 @@ export function PlayerProfile({
             </thead>
             <tbody>
               {seasonRows.map((season) => (
-                <>
-                  <tr key={season.seasonId}>
+                // The key belongs on the fragment: a season can render two rows
+                // when its splits are open, and keying the inner row instead
+                // leaves the pair unidentified.
+                <Fragment key={season.seasonId}>
+                  <tr>
                     <td>{season.seasonName.replace("MBL Season ", "")}</td>
                     <td>
                       <span className="flex min-w-0 items-center gap-2">
@@ -202,7 +205,7 @@ export function PlayerProfile({
                         ))}
                       </tr>
                     ))}
-                </>
+                </Fragment>
               ))}
             </tbody>
             <tfoot>
