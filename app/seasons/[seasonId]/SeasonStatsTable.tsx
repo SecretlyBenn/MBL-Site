@@ -127,6 +127,13 @@ export function SeasonStatsTable({ rows, kind, seasonId, teamIds }: { rows: Seas
                 </>}
               </tr>
             ))}
+            {/* A short last page would otherwise collapse the table and jump
+                the pager up the screen, so empty rows hold the height. */}
+            {Array.from({ length: PAGE_SIZE - visible.length }, (_, index) => (
+              <tr key={`filler-${index}`} aria-hidden="true">
+                <td colSpan={kind === "batting" ? 9 : 6}>&nbsp;</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

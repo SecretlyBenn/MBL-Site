@@ -20,6 +20,23 @@ const num = (value: StatRow[string]) => (value === null || value === undefined ?
 /** Rows per page - sized so a full page fills the viewport on a laptop screen. */
 export const PAGE_SIZE = 14;
 
+/**
+ * Column widths, in rem, shared by every stat table on the site.
+ *
+ * They are stated rather than measured so a table is the same size on every
+ * page of it: left to the browser, a page whose players happen to have shorter
+ * names draws narrower columns than the page before, and the whole table jumps
+ * when the pager is clicked.
+ *
+ * A rate column holds ".312" or "3.86" and a count column at most four digits,
+ * so rates get slightly more room. The name columns take everything left over.
+ */
+const NAME_COLUMN = 13;
+const NAME_COLUMN_WITH_TEAM = 10;
+const TEAM_COLUMN = 9;
+const RATE_COLUMN = 3.2;
+const COUNT_COLUMN = 2.6;
+
 const BATTING: Column[] = [
   { key: "games", label: "G" },
   // Now the source's own TPA, not AB + BB - that derivation missed sacrifices.
@@ -139,9 +156,21 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
   // the screen, so empty rows hold the height steady.
   const filler = team ? 0 : PAGE_SIZE - paged.length;
 
-  // The table is only as wide as its columns need, and the whole block centres
-  // on the page - otherwise a full-width shell just frames empty space.
-  return <div className="mx-auto w-fit max-w-full">
+  // Figure columns are stated in rem and the label columns take whatever is
+  // left, so the table always fills its container exactly. Under `table-fixed`
+  // the browser never measures the cells, which is what keeps a page of short
+  // names the same shape as a page of long ones - and makes every stat table
+  // on the site the same width as every other.
+  const labelWidth = team ? NAME_COLUMN : NAME_COLUMN_WITH_TEAM + TEAM_COLUMN;
+  const figureWidth = columns.reduce(
+    (total, column) => total + (column.rate ? RATE_COLUMN : COUNT_COLUMN),
+    0,
+  );
+  // Below this the columns would be squeezed past legibility, so the table
+  // scrolls sideways inside its shell instead.
+  const minimumWidth = labelWidth + figureWidth;
+
+  return <div className="w-full">
     {/* Season picker and search share one row: the controls that scope the
         table sit on the same line as each other rather than stacking. */}
     {(toolbar || !team) && <div className="mb-3 flex flex-wrap items-center gap-3">
@@ -152,13 +181,19 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
     <div className="data-table-shell max-w-full overflow-x-auto">
       {/* Team tables have a single label column, so they must not pick up the
           two-label alignment - it would left-align their first figure. */}
-      <table className={`data-table stat-table ${team ? "" : "has-two-labels"} w-auto table-fixed`}>
-        {/* Figures get only the width their digits need; the leftover goes to
-            the name columns instead of padding out 15 near-empty cells. */}
+      <table
+        className={`data-table stat-table ${team ? "" : "has-two-labels"} w-full table-fixed`}
+        style={{ minWidth: `${minimumWidth}rem` }}
+      >
+        {/* Figures get only the width their digits need. The label columns are
+            left unstated so they absorb whatever remains, which is what makes
+            the table meet its container's edge exactly. */}
         <colgroup>
-          <col style={{ width: team ? "13rem" : "10rem" }} />
-          {!team && <col style={{ width: "9rem" }} />}
-          {columns.map((column) => <col key={column.key} style={{ width: column.rate ? "3.2rem" : "2.6rem" }} />)}
+          <col />
+          {!team && <col style={{ width: `${TEAM_COLUMN}rem` }} />}
+          {columns.map((column) => (
+            <col key={column.key} style={{ width: `${column.rate ? RATE_COLUMN : COUNT_COLUMN}rem` }} />
+          ))}
         </colgroup>
         <thead><tr>
           <th><button onClick={() => sort(team ? "teamName" : "playerName")} className="hover:text-white">{team ? "Team" : "Player"} {arrow(team ? "teamName" : "playerName")}</button></th>

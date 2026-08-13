@@ -50,7 +50,13 @@ function Table({ teams, seasonId, compact = false, label = "Team" }: { teams: St
   })}</tbody></table></div>;
 }
 
-export function StandingsTable({ teams, seasonId, controls = true, compact = false }: { teams: StandingsRow[]; seasonId: number; controls?: boolean; compact?: boolean }) {
+export function StandingsTable({ teams, seasonId, controls = true, compact = false, constrain = true }: { teams: StandingsRow[]; seasonId: number; controls?: boolean; compact?: boolean;
+  /**
+   * Standings alone on a page read better held to a middle column. Sharing a
+   * page with the season's stat tables they should not: two tables at two
+   * widths, one above the other, look misaligned rather than deliberate.
+   */
+  constrain?: boolean }) {
   const [mode, setMode] = useState<"division" | "league">("division");
   const american = teams.filter((team) => team.league === "AMERICAN");
   const national = teams.filter((team) => team.league === "NATIONAL");
@@ -60,7 +66,7 @@ export function StandingsTable({ teams, seasonId, controls = true, compact = fal
   // standings page the leagues stack down the centre of the page instead, at
   // one shared width so league view and division view are the same object.
   const splitAt = compact ? "h-full grid-rows-2" : "";
-  const width = compact ? "" : "mx-auto w-full max-w-4xl";
+  const width = compact ? "" : constrain ? "mx-auto w-full max-w-4xl" : "w-full";
   return <div className={compact ? "flex min-h-0 flex-1 flex-col" : undefined}>
     {controls && <div className={`mb-5 flex justify-end ${width}`}><label className="ui-field-label">View<select value={mode} onChange={(event) => setMode(event.target.value as "division" | "league")} className="ui-select"><option value="division">Division standings</option><option value="league">League standings</option></select></label></div>}
     {mode === "league" || !divided ? <div className={width}><Table teams={teams} seasonId={seasonId} compact={compact} /></div> : <div className={`grid ${compact ? "gap-4" : "gap-6"} ${splitAt} ${width}`}>
