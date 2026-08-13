@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, plateAppearances, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
@@ -30,6 +30,29 @@ async function syncScore(scorecardId: number, gameId: number) {
     .set({ homeScore: box.homeScore, awayScore: box.awayScore })
     .where(eq(games.id, gameId));
   return box;
+}
+
+/**
+ * Drops the stored base state from every play after `from` in the same
+ * half-inning, so they fall back to being inferred from the corrected play
+ * rather than repeating bases that no longer follow from it.
+ */
+async function clearLaterBaseStates(
+  scorecardId: number,
+  from: { sequence: number; inning: number; isHomeBatting: boolean },
+) {
+  const db = getDb();
+  await db
+    .update(plateAppearances)
+    .set({ basesAfter: null })
+    .where(
+      and(
+        eq(plateAppearances.scorecardId, scorecardId),
+        eq(plateAppearances.inning, from.inning),
+        eq(plateAppearances.isHomeBatting, from.isHomeBatting),
+        gt(plateAppearances.sequence, from.sequence),
+      ),
+    );
 }
 
 /** Edits one at-bat, wherever it sits in the game. */
@@ -83,8 +106,18 @@ export async function PATCH(
         errorPosition: body.errorPosition !== undefined ? body.errorPosition : existing.errorPosition,
         stolenBases: body.stolenBases ?? existing.stolenBases,
         note: body.note !== undefined ? body.note?.trim() || null : existing.note,
+        basesAfter: body.basesAfter !== undefined ? body.basesAfter : existing.basesAfter,
+        runnersScored:
+          body.runnersScored !== undefined ? body.runnersScored : existing.runnersScored,
       })
       .where(eq(plateAppearances.id, existing.id));
+
+    // A stored end-state is trusted over inference, so the plays after the one
+    // just corrected would keep describing bases that the correction has
+    // changed. Clearing theirs lets the half-inning re-derive forward from the
+    // corrected play; the runners each play scored are stated by the umpire and
+    // are kept.
+    await clearLaterBaseStates(scorecardId, existing);
 
     // Changing the outs moves every later inning boundary.
     const { moved } = await resequenceInnings(scorecardId);
@@ -123,6 +156,9 @@ export async function DELETE(
     }
 
     await db.delete(plateAppearances).where(eq(plateAppearances.id, existing.id));
+    // Removing a play changes the bases every later play in the half started
+    // from, so their stored end-states no longer follow and are re-derived.
+    await clearLaterBaseStates(scorecardId, existing);
     const { moved } = await resequenceInnings(scorecardId);
     const box = await syncScore(scorecardId, scorecard.gameId);
 

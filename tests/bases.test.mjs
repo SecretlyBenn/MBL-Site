@@ -1,0 +1,104 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { advance, EMPTY_BASES, forcedRunners, runnerCount } from "../app/bases.ts";
+
+const on = (first = null, second = null, third = null) => ({ first, second, third });
+
+test("a leadoff single puts the batter on first and drives nobody in", () => {
+  const { bases, runs } = advance(EMPTY_BASES, {
+    batterPlayerId: 1,
+    result: "1B",
+    scored: [],
+  });
+  assert.deepEqual(bases, on(1));
+  assert.equal(runs, 0);
+});
+
+test("a home run clears the bases and scores everyone", () => {
+  const { bases, runs } = advance(on(2, 3, 4), {
+    batterPlayerId: 1,
+    result: "HR",
+    scored: [],
+  });
+  assert.deepEqual(bases, EMPTY_BASES);
+  assert.equal(runs, 4);
+});
+
+test("a walk with a runner on first forces them to second", () => {
+  const { bases, runs } = advance(on(2), { batterPlayerId: 1, result: "BB", scored: [] });
+  assert.deepEqual(bases, on(1, 2));
+  assert.equal(runs, 0);
+});
+
+test("a walk with the bases loaded forces in a run", () => {
+  const { bases, runs } = advance(on(2, 3, 4), {
+    batterPlayerId: 1,
+    result: "BB",
+    scored: [],
+  });
+  // The runner from third is forced home; everyone else moves up one.
+  assert.deepEqual(bases, on(1, 2, 3));
+  assert.equal(runs, 1);
+});
+
+test("a walk with first and second occupied leaves third alone", () => {
+  const { bases, runs } = advance(on(2, 3), { batterPlayerId: 1, result: "BB", scored: [] });
+  assert.deepEqual(bases, on(1, 2, 3));
+  assert.equal(runs, 0);
+});
+
+test("a runner the umpire says scored comes off the bases", () => {
+  const { bases, runs } = advance(on(null, null, 4), {
+    batterPlayerId: 1,
+    result: "1B",
+    scored: [4],
+  });
+  assert.deepEqual(bases, on(1));
+  assert.equal(runs, 1);
+});
+
+test("a strikeout leaves the bases exactly as they were", () => {
+  const { bases, runs } = advance(on(2, 3), { batterPlayerId: 1, result: "K", scored: [] });
+  assert.deepEqual(bases, on(2, 3));
+  assert.equal(runs, 0);
+});
+
+test("a runner retired on the play leaves without scoring", () => {
+  const { bases, runs } = advance(on(2), {
+    batterPlayerId: 1,
+    result: "FC",
+    scored: [],
+    batterTo: "first",
+    outRunners: [2],
+  });
+  assert.deepEqual(bases, on(1));
+  assert.equal(runs, 0);
+});
+
+test("a skipped batter does not touch the bases", () => {
+  const { bases, runs } = advance(on(2, 3), { batterPlayerId: 1, result: "SKIP", scored: [] });
+  assert.deepEqual(bases, on(2, 3));
+  assert.equal(runs, 0);
+});
+
+test("a double puts the batter on second and pushes nobody by force", () => {
+  const { bases } = advance(on(2), { batterPlayerId: 1, result: "2B", scored: [] });
+  // The runner from first is not forced past second by a double, but cannot
+  // share it - the umpire states where they ended up, so the default keeps
+  // them where the batter did not land.
+  assert.equal(bases.second, 1);
+});
+
+test("forced runners are only those with nowhere to retreat", () => {
+  assert.deepEqual(forcedRunners(EMPTY_BASES), []);
+  assert.deepEqual(forcedRunners(on(2)), ["first"]);
+  assert.deepEqual(forcedRunners(on(2, 3)), ["first", "second"]);
+  assert.deepEqual(forcedRunners(on(2, 3, 4)), ["first", "second", "third"]);
+  // A runner on second with first empty is not forced anywhere.
+  assert.deepEqual(forcedRunners(on(null, 3)), []);
+});
+
+test("runner count reflects who is aboard", () => {
+  assert.equal(runnerCount(EMPTY_BASES), 0);
+  assert.equal(runnerCount(on(2, 3, 4)), 3);
+});

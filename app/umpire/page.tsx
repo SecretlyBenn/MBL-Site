@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, scorecards, teams } from "@/db/schema";
+import { games, historicalGames, historicalSeasons, scorecards, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { ScheduledGames, type Fixture } from "./ScheduledGames";
+import { seriesFor } from "@/app/season-series";
+import { CURRENT_SEASON_NAME } from "@/db/publish";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +42,7 @@ export default async function UmpirePage() {
     .select({
       id: games.id,
       scheduledAt: games.scheduledAt,
+      sourceGameId: games.sourceGameId,
       awayTeamId: games.awayTeamId,
       homeTeamId: games.homeTeamId,
     })
@@ -47,17 +50,31 @@ export default async function UmpirePage() {
     .where(eq(games.status, "SCHEDULED"))
     .orderBy(asc(games.scheduledAt));
 
-  const fixtures: Fixture[] = scheduled.map((game) => ({
-    id: game.id,
-    scheduledAt: game.scheduledAt,
-    awayName: teamById.get(game.awayTeamId)?.name ?? "Away",
-    homeName: teamById.get(game.homeTeamId)?.name ?? "Home",
-    day: new Date(game.scheduledAt).toLocaleDateString("en-US", {
-      weekday: "long",
-      month: "long",
-      day: "numeric",
-    }),
-  }));
+  // A game's series comes from where it sits in the season's order, so the
+  // archive's ordering is what decides it - not the placeholder date the live
+  // row carries.
+  const seasonGames = await db
+    .select({ sourceGameId: historicalGames.sourceGameId })
+    .from(historicalGames)
+    .innerJoin(historicalSeasons, eq(historicalGames.seasonId, historicalSeasons.id))
+    .where(eq(historicalSeasons.name, CURRENT_SEASON_NAME))
+    .orderBy(asc(historicalGames.sortOrder));
+
+  const positionOf = new Map(
+    seasonGames.flatMap((row, index) => (row.sourceGameId ? [[row.sourceGameId, index + 1]] : [])),
+  );
+
+  const fixtures: Fixture[] = scheduled.map((game) => {
+    const position = game.sourceGameId ? positionOf.get(game.sourceGameId) : undefined;
+    const series = position ? seriesFor(position) : null;
+    return {
+      id: game.id,
+      awayName: teamById.get(game.awayTeamId)?.name ?? "Away",
+      homeName: teamById.get(game.homeTeamId)?.name ?? "Home",
+      seriesNumber: series?.number ?? null,
+      seriesWindow: series?.window ?? null,
+    };
+  });
 
   return (
     <PageShell

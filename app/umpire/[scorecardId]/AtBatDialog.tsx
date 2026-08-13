@@ -9,6 +9,8 @@ export type AtBatDraft = {
   rbis: number;
   batterScored: boolean;
   otherRunsScored: number;
+  /** Which runners crossed the plate, by player id. */
+  scoredRunners: number[];
   unearnedRuns: number;
   outsRecorded: number;
   errorPlayerId: string;
@@ -18,7 +20,7 @@ export type AtBatDraft = {
 
 export const EMPTY_DRAFT: AtBatDraft = {
   result: "", fielders: "", rbis: 0, batterScored: false, otherRunsScored: 0,
-  unearnedRuns: 0, outsRecorded: 0, errorPlayerId: "", stolenBases: 0, note: "",
+  scoredRunners: [], unearnedRuns: 0, outsRecorded: 0, errorPlayerId: "", stolenBases: 0, note: "",
 };
 
 /**
@@ -31,6 +33,7 @@ export function AtBatDialog({
   draft,
   setDraft,
   fielders,
+  runners,
   onSubmit,
   onCancel,
   busy,
@@ -39,6 +42,8 @@ export function AtBatDialog({
   draft: AtBatDraft;
   setDraft: (draft: AtBatDraft) => void;
   fielders: { playerId: number; name: string; position: string }[];
+  /** Who is on base, nearest home first. Decides which questions are worth asking. */
+  runners: { playerId: number; name: string; base: string }[];
   onSubmit: () => void;
   onCancel?: () => void;
   busy?: boolean;
@@ -47,7 +52,25 @@ export function AtBatDialog({
   const [showMore, setShowMore] = useState(false);
   const definition = draft.result ? RESULT_BY_CODE.get(draft.result) : undefined;
 
-  const patch = (change: Partial<AtBatDraft>) => setDraft({ ...draft, ...change });
+  /**
+   * Applies a change, and keeps the figures that follow from it in step. Runs
+   * are the count of the runners named, and RBI defaults to the runs - the
+   * umpire only touches RBI when the credit differs from the runs, which is
+   * the unusual case rather than every play.
+   */
+  function patch(change: Partial<AtBatDraft>) {
+    const next = { ...draft, ...change };
+    const touchedRuns = "scoredRunners" in change || "batterScored" in change || "result" in change;
+
+    if (touchedRuns) {
+      const scoredBatter = next.result === "HR" || next.batterScored;
+      next.otherRunsScored = next.scoredRunners.length;
+      if (!("rbis" in change)) {
+        next.rbis = next.scoredRunners.length + (scoredBatter ? 1 : 0);
+      }
+    }
+    setDraft(next);
+  }
 
   // Choosing a result seeds the usual outs for it; the umpire can still change
   // them, and anything already typed is kept.
@@ -60,7 +83,11 @@ export function AtBatDialog({
   const isHit = definition?.isHit ?? false;
   const isOut = (definition?.defaultOuts ?? 0) > 0 || draft.outsRecorded > 0;
   const wantsError = draft.result === "E" || showMore;
-  const runsOnPlay = (draft.batterScored ? 1 : 0) + draft.otherRunsScored;
+  // A home run scores the batter without being asked, and clears whoever was on.
+  const isHomeRun = draft.result === "HR";
+  const runsOnPlay =
+    (isHomeRun || draft.batterScored ? 1 : 0) +
+    (isHomeRun ? runners.length : draft.scoredRunners.length);
 
   return (
     <div className="space-y-3">
@@ -122,42 +149,65 @@ export function AtBatDialog({
             </label>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="ui-field-label flex-col !items-start gap-1.5">
-              Runners who scored
-              <select
-                value={draft.otherRunsScored}
-                onChange={(event) => patch({ otherRunsScored: Number(event.target.value) })}
-                className="ui-select w-full"
-              >
-                {[0, 1, 2, 3, 4].map((count) => (
-                  <option key={count} value={count}>{count}</option>
+          {/* Nobody on base means nobody can have been driven in, so the
+              question is not asked at all. With runners aboard, they are named
+              rather than counted - "did Ross score?" is a question about the
+              play the umpire just watched, where "how many scored?" is
+              arithmetic they have to do first. */}
+          {runners.length > 0 && draft.result !== "HR" && (
+            <fieldset className="rounded-md border border-slate-800 p-3">
+              <legend className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Who scored?
+              </legend>
+              <div className="space-y-1.5">
+                {runners.map((runner) => (
+                  <label key={runner.playerId} className="flex items-center gap-2 text-sm text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={draft.scoredRunners.includes(runner.playerId)}
+                      onChange={(event) =>
+                        patch({
+                          scoredRunners: event.target.checked
+                            ? [...draft.scoredRunners, runner.playerId]
+                            : draft.scoredRunners.filter((id) => id !== runner.playerId),
+                        })
+                      }
+                    />
+                    {runner.name}
+                    <span className="text-xs text-slate-500">from {runner.base}</span>
+                  </label>
                 ))}
-              </select>
-            </label>
+                {/* The batter can only come round on someone else's play, so
+                    this belongs with the runners rather than on its own. */}
+                {(isHit || definition.group === "On base") && (
+                  <label className="flex items-center gap-2 text-sm text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={draft.batterScored}
+                      onChange={(event) => patch({ batterScored: event.target.checked })}
+                    />
+                    The batter came round to score
+                  </label>
+                )}
+              </div>
+            </fieldset>
+          )}
+
+          {/* RBI follows the runs by default, and is only worth asking about
+              once a run has actually scored. It stays editable because a run
+              scored on an error or a double play is not credited. */}
+          {runsOnPlay > 0 && (
             <label className="ui-field-label flex-col !items-start gap-1.5">
-              RBI
+              RBI credited
               <select
                 value={draft.rbis}
                 onChange={(event) => patch({ rbis: Number(event.target.value) })}
                 className="ui-select w-full"
               >
-                {[0, 1, 2, 3, 4].map((count) => (
+                {Array.from({ length: runsOnPlay + 1 }, (_, count) => (
                   <option key={count} value={count}>{count}</option>
                 ))}
               </select>
-            </label>
-          </div>
-
-          {/* A home run always scores the batter, so it is not worth asking. */}
-          {draft.result !== "HR" && (isHit || definition.group === "On base") && (
-            <label className="flex items-center gap-2 text-sm text-slate-300">
-              <input
-                type="checkbox"
-                checked={draft.batterScored}
-                onChange={(event) => patch({ batterScored: event.target.checked })}
-              />
-              The batter came round to score
             </label>
           )}
 

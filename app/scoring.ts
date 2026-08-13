@@ -104,6 +104,10 @@ export type PlateAppearanceInput = {
   outsRecorded: number;
   errorPosition: number | null;
   stolenBases: number;
+  /** The bases as they stood when the play ended, as JSON. */
+  basesAfter?: string | null;
+  /** Which runners crossed the plate on the play, as JSON player ids. */
+  runnersScored?: string | null;
   note: string | null;
 };
 

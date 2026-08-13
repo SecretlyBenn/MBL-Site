@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SEASON_XII_SERIES, ALL_STAR_BREAK_AFTER_SERIES } from "@/app/season-series";
 import { getHistoricalSchedule, getHistoricalSeasons } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
@@ -21,20 +22,7 @@ const SERIES_SEASONS = /Season XII$/;
  * derived from the calendar or from matchup rotation - they're a fact about the
  * schedule. Counts sum to 110, which is the number of games on record.
  */
-const SEASON_XII_SERIES = [
-  { window: "June 15 – June 24", games: 12 },
-  { window: "June 25 – July 1", games: 12 },
-  { window: "July 2 – July 9", games: 12 },
-  { window: "July 10 – July 15", games: 12 },
-  { window: "July 16 – July 23", games: 12 },
-  { window: "August 2 – August 9", games: 12 },
-  { window: "August 10 – August 15", games: 12 },
-  { window: "August 16 – August 22", games: 12 },
-  { window: "August 23 – August 28", games: 14 },
-];
 
-/** Between series 5 and 6. Shown so the gap in play reads as intentional. */
-const ALL_STAR_BREAK_AFTER_SERIES = 5;
 
 /**
  * "June 15" plus the season's year, as a date. Accepts either a bare day or a

@@ -2,14 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { TeamLogo } from "@/app/TeamLogo";
 
 export type Fixture = {
   id: number;
-  scheduledAt: string;
   awayName: string;
   homeName: string;
-  /** The day the league published, already formatted for reading. */
-  day: string;
+  /**
+   * The series this game belongs to. Season XII games are scheduled to a
+   * series window rather than a day, so a specific date would be a guess -
+   * the two clubs play whenever they can meet inside the window.
+   */
+  seriesNumber: number | null;
+  seriesWindow: string | null;
 };
 
 /**
@@ -51,26 +56,44 @@ export function ScheduledGames({ fixtures }: { fixtures: Fixture[] }) {
     );
   }
 
-  // Grouped by day, so the list reads like the schedule the league publishes.
-  const byDay = new Map<string, Fixture[]>();
+  // Grouped by series, the way the league publishes the schedule.
+  const bySeries = new Map<string, { label: string; window: string | null; games: Fixture[] }>();
   for (const fixture of fixtures) {
-    byDay.set(fixture.day, [...(byDay.get(fixture.day) ?? []), fixture]);
+    const key = fixture.seriesNumber === null ? "rest" : String(fixture.seriesNumber);
+    const group = bySeries.get(key) ?? {
+      label: fixture.seriesNumber === null ? "Later in the season" : `Series ${fixture.seriesNumber}`,
+      window: fixture.seriesWindow,
+      games: [],
+    };
+    group.games.push(fixture);
+    bySeries.set(key, group);
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {error && <p className="text-xs text-rose-400">{error}</p>}
-      {[...byDay].map(([day, games]) => (
-        <section key={day}>
-          <h3 className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">{day}</h3>
+      {[...bySeries.values()].map((group) => (
+        <section key={group.label}>
+          <h3 className="mb-2 flex items-baseline gap-2 border-b border-slate-800/80 pb-1.5">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+              {group.label}
+            </span>
+            {group.window && (
+              <span className="text-[11px] text-slate-500">{group.window}</span>
+            )}
+          </h3>
           <div className="grid gap-2">
-            {games.map((fixture) => (
+            {group.games.map((fixture) => (
               <div
                 key={fixture.id}
-                className="flex items-center justify-between gap-4 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3"
+                className="flex items-center justify-between gap-4 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 transition-colors hover:border-slate-700"
               >
-                <span className="min-w-0 truncate font-semibold">
-                  {fixture.awayName} <span className="text-slate-500">at</span> {fixture.homeName}
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <TeamLogo teamName={fixture.awayName} className="h-7 w-7 shrink-0" />
+                  <span className="truncate font-semibold">{fixture.awayName}</span>
+                  <span className="shrink-0 text-xs text-slate-500">at</span>
+                  <TeamLogo teamName={fixture.homeName} className="h-7 w-7 shrink-0" />
+                  <span className="truncate font-semibold">{fixture.homeName}</span>
                 </span>
                 <button
                   type="button"

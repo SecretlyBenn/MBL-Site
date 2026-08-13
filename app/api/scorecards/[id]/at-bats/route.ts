@@ -71,6 +71,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       outsRecorded: body.outsRecorded,
       errorPosition: body.errorPosition,
       stolenBases: body.stolenBases,
+      basesAfter: body.basesAfter ?? null,
+      runnersScored: body.runnersScored ?? null,
       note: body.note?.trim() || null,
     });
 

@@ -1,4 +1,5 @@
-import { isSkip, RESULT_BY_CODE, type ResultCode } from "./scoring";
+import { isSkip, RESULT_BY_CODE, type ResultCode } from "./scoring.ts";
+import { advance, decodeBases, decodeRunners, EMPTY_BASES } from "./bases.ts";
 
 /**
  * Turns plate appearances into a box score. Everything public about a scored
@@ -17,6 +18,10 @@ export type StoredPlateAppearance = {
   rbis: number;
   batterScored: boolean;
   otherRunsScored: number;
+  /** Stored end-state of the bases, when the umpire placed runners by hand. */
+  basesAfter?: string | null;
+  /** Which runners crossed the plate, as player ids. */
+  runnersScored?: string | null;
   unearnedRuns: number;
   outsRecorded: number;
   errorPosition: number | null;
@@ -184,11 +189,39 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
 }
 
 /**
- * Where the game stands after the recorded at-bats: whose turn it is to bat and
- * whether the half-inning just ended. The scoring screen advances from this
- * rather than tracking its own cursor, so a reload or a correction cannot leave
- * the two disagreeing.
+ * Who is on base right now, replayed from the plays of the current
+ * half-inning. The bases start empty each half, so only the plays since the
+ * last change of sides matter - and replaying rather than storing a running
+ * total means editing an earlier at-bat corrects the diamond too.
  */
+export function currentBases(appearances: StoredPlateAppearance[]) {
+  const derived = deriveBoxScore(appearances);
+  if (derived.currentOuts >= 3) return EMPTY_BASES;
+
+  const half = appearances
+    .filter(
+      (pa) =>
+        pa.inning === derived.currentInning && pa.isHomeBatting === derived.isHomeBatting,
+    )
+    .sort((a, b) => a.sequence - b.sequence);
+
+  let bases = EMPTY_BASES;
+  for (const pa of half) {
+    // A stored end-state wins: the umpire placed those runners by hand, and
+    // re-inferring would quietly overrule them.
+    if (pa.basesAfter) {
+      bases = decodeBases(pa.basesAfter);
+      continue;
+    }
+    bases = advance(bases, {
+      batterPlayerId: pa.batterPlayerId,
+      result: pa.result,
+      scored: decodeRunners(pa.runnersScored),
+    }).bases;
+  }
+  return bases;
+}
+
 export function gameState(appearances: StoredPlateAppearance[], inningsPerGame = 6) {
   const derived = deriveBoxScore(appearances);
   const halfOver = derived.currentOuts >= 3;

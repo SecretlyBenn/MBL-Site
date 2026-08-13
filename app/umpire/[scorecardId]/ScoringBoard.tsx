@@ -2,10 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { gameState, type StoredPlateAppearance } from "@/app/derive-box-score";
+import { currentBases, gameState, type StoredPlateAppearance } from "@/app/derive-box-score";
+import { advance, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
 import { AtBatDialog, EMPTY_DRAFT, type AtBatDraft } from "./AtBatDialog";
 import { ScoreGrid } from "./ScoreGrid";
 import { DefensePanel } from "./DefensePanel";
+import { BaseDiamond } from "./BaseDiamond";
 import type { LoggedAtBat } from "./AtBatLog";
 import type { ResultCode } from "@/app/scoring";
 
@@ -46,6 +48,14 @@ export function ScoringBoard({
   const [pitcherId, setPitcherId] = useState<number | null>(null);
 
   const state = useMemo(() => gameState(appearances), [appearances]);
+  const bases = useMemo(() => currentBases(appearances), [appearances]);
+
+  // Who is aboard, nearest home first - the order they would score in.
+  const runners = runnersOn(bases).map((runner) => ({
+    playerId: runner.playerId,
+    name: nameOf[runner.playerId] ?? "Runner",
+    base: runner.base,
+  }));
 
   const orderFor = (isHome: boolean) =>
     lineups
@@ -92,19 +102,37 @@ export function ScoringBoard({
     }
   }
 
-  const payload = () => ({
-    result: draft.result as ResultCode,
-    fielders: draft.fielders || null,
-    rbis: draft.rbis,
-    // A home run always scores the batter, so the dialog never asks.
-    batterScored: draft.result === "HR" ? true : draft.batterScored,
-    otherRunsScored: draft.otherRunsScored,
-    unearnedRuns: draft.unearnedRuns,
-    outsRecorded: draft.outsRecorded,
-    errorPosition: null,
-    stolenBases: draft.stolenBases,
-    note: draft.note || null,
-  });
+  const payload = () => {
+    const batterScored = draft.result === "HR" ? true : draft.batterScored;
+    // A home run empties the bases, so everyone aboard scored whether or not
+    // the umpire ticked them.
+    const scored =
+      draft.result === "HR" ? runners.map((runner) => runner.playerId) : draft.scoredRunners;
+
+    // The bases as they stand after this play are stored with it, so the
+    // diamond survives a reload and an edit to an earlier at-bat replays from
+    // a known state rather than being guessed at again.
+    const after = advance(bases, {
+      batterPlayerId: batter?.playerId ?? 0,
+      result: draft.result || "OTHER",
+      scored,
+    });
+
+    return {
+      result: draft.result as ResultCode,
+      fielders: draft.fielders || null,
+      rbis: draft.rbis,
+      batterScored,
+      otherRunsScored: scored.length,
+      unearnedRuns: draft.unearnedRuns,
+      outsRecorded: draft.outsRecorded,
+      errorPosition: null,
+      stolenBases: draft.stolenBases,
+      basesAfter: encodeBases(after.bases),
+      runnersScored: encodeRunners(scored),
+      note: draft.note || null,
+    };
+  };
 
   const record = () =>
     batter && activePitcher
@@ -136,6 +164,7 @@ export function ScoringBoard({
       outsRecorded: atBat.outsRecorded,
       errorPlayerId: "",
       stolenBases: 0,
+      scoredRunners: [],
       note: atBat.note ?? "",
     });
   }
@@ -210,6 +239,7 @@ export function ScoringBoard({
               draft={draft}
               setDraft={setDraft}
               fielders={fielderList}
+              runners={runners}
               busy={busy}
               submitLabel={editing ? "Save change" : "Record at-bat"}
               onSubmit={editing ? saveEdit : record}
@@ -240,6 +270,15 @@ export function ScoringBoard({
               ))}
             </select>
           </div>
+
+        <BaseDiamond
+          bases={bases}
+          nameOf={nameOf}
+          busy={busy}
+          onMove={(playerId, to, stole) =>
+            send(`/api/scorecards/${scorecardId}/runners`, "POST", { playerId, to, stole })
+          }
+        />
 
         <DefensePanel
           scorecardId={scorecardId}
