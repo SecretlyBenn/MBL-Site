@@ -73,6 +73,7 @@ export default async function UmpirePage() {
       homeName: teamById.get(game.homeTeamId)?.name ?? "Home",
       seriesNumber: series?.number ?? null,
       seriesWindow: series?.window ?? null,
+      scheduledAt: game.scheduledAt,
     };
   });
 
@@ -113,7 +114,7 @@ export default async function UmpirePage() {
       </section>
 
       <section>
-        <h2 className="section-title mb-3">Schedule</h2>
+        <h2 className="section-title mb-3">Games to claim</h2>
         <ScheduledGames fixtures={fixtures} />
       </section>
     </PageShell>

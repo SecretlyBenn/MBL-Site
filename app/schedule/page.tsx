@@ -5,6 +5,9 @@ import { EmptyState, PageShell } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
 import { StandingsSeasonSelect } from "@/app/standings/StandingsSeasonSelect";
 import { isForfeit } from "@/app/formatStats";
+import { getLeagueUser } from "@/app/roles";
+import { getScheduledTimes } from "@/db/queries";
+import { ScheduleGame } from "./ScheduleGame";
 
 export const dynamic = "force-dynamic";
 
@@ -118,6 +121,14 @@ export default async function SchedulePage({
 
   const played = games.filter((game) => game.homeScore !== null && game.awayScore !== null);
 
+  // Clubs arrange their own fixtures; head umpires and admins arrange any of
+  // them. Everyone else sees the agreed time without being offered the
+  // controls to change it.
+  const viewer = await getLeagueUser();
+  const mayArrange =
+    viewer !== null && ["GM", "HEAD_UMPIRE", "ADMIN"].includes(viewer.role);
+  const arrangements = await getScheduledTimes();
+
   return (
     <PageShell
       wide
@@ -158,7 +169,13 @@ export default async function SchedulePage({
                   /* A series game can be played on any date inside its window,
                      so a per-card date would imply a fixture that isn't real.
                      In date mode the heading already carries the date. */
-                  <GameCard key={game.id} game={game} showDate={false} />
+                  <GameCard
+                    key={game.id}
+                    game={game}
+                    showDate={false}
+                    arrangement={game.sourceGameId ? arrangements[game.sourceGameId] : undefined}
+                    mayArrange={mayArrange}
+                  />
                 ))}
               </div>
             </section>
@@ -171,7 +188,18 @@ export default async function SchedulePage({
 
 type Game = Awaited<ReturnType<typeof getHistoricalSchedule>>[number];
 
-function GameCard({ game, showDate }: { game: Game; showDate: boolean }) {
+function GameCard({
+  game,
+  showDate,
+  arrangement,
+  mayArrange,
+}: {
+  game: Game;
+  showDate: boolean;
+  /** The agreed time for this fixture, if one has been set. */
+  arrangement?: { scheduledAt: string; claimed: boolean };
+  mayArrange: boolean;
+}) {
   const isFinal = game.homeScore !== null && game.awayScore !== null;
   const forfeit = isForfeit(game);
   const awayWon = isFinal && (game.awayScore ?? 0) > (game.homeScore ?? 0);
@@ -215,7 +243,15 @@ function GameCard({ game, showDate }: { game: Game; showDate: boolean }) {
       <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wider text-slate-500">
         <span>{showDate ? shortDateOf(game.playedOn) : ""}</span>
         <span className={forfeit ? "font-semibold text-amber-400" : ""}>
-          {forfeit ? "Forfeit" : game.note ? `Ended ${game.note}` : isFinal ? "Final" : "Scheduled"}
+          {forfeit
+            ? "Forfeit"
+            : game.note
+              ? `Ended ${game.note}`
+              : isFinal
+                ? "Final"
+                : arrangement
+                  ? "Time set"
+                  : "Upcoming"}
         </span>
       </div>
 
@@ -265,6 +301,25 @@ function GameCard({ game, showDate }: { game: Game; showDate: boolean }) {
           )}
         </div>
       </div>
+
+      {/* Only an upcoming fixture can be arranged, and only by someone with the
+          authority to. Everyone else still sees the agreed time. */}
+      {!isFinal && game.sourceGameId && (
+        mayArrange ? (
+          <ScheduleGame
+            sourceGameId={game.sourceGameId}
+            scheduledAt={arrangement?.scheduledAt ?? null}
+            claimed={arrangement?.claimed ?? false}
+          />
+        ) : arrangement ? (
+          <p className="mt-2 border-t border-slate-800/80 pt-2 text-[11px] text-emerald-400">
+            {new Date(arrangement.scheduledAt).toLocaleString(undefined, {
+              weekday: "short", month: "short", day: "numeric",
+              hour: "numeric", minute: "2-digit",
+            })}
+          </p>
+        ) : null
+      )}
     </Link>
   );
 }

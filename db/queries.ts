@@ -363,6 +363,7 @@ export async function getHistoricalSchedule(seasonId: number, historicalTeamId?:
   const rows = await db
     .select({
       id: historicalGames.id,
+      sourceGameId: historicalGames.sourceGameId,
       playedOn: historicalGames.playedOn,
       startTime: historicalGames.startTime,
       awayScore: historicalGames.awayScore,
@@ -904,4 +905,37 @@ export async function getPrimaryPositions(): Promise<Record<string, string>> {
     if (best) primary[name] = best[0];
   }
   return primary;
+}
+
+/**
+ * The agreed date and time for each upcoming fixture, keyed by the archive's
+ * game id, along with whether an umpire has already started scoring it.
+ *
+ * A fixture belongs to the published season; the arrangement is a separate row
+ * that clubs create and withdraw. Only arranged games are offered to umpires,
+ * so this is what the schedule reads to know which is which.
+ */
+export async function getScheduledTimes(): Promise<
+  Record<string, { scheduledAt: string; claimed: boolean }>
+> {
+  const db = getDb();
+  const rows = await db
+    .select({
+      sourceGameId: games.sourceGameId,
+      scheduledAt: games.scheduledAt,
+      scorecardId: scorecards.id,
+    })
+    .from(games)
+    .leftJoin(scorecards, eq(scorecards.gameId, games.id));
+
+  const byFixture: Record<string, { scheduledAt: string; claimed: boolean }> = {};
+  for (const row of rows) {
+    if (!row.sourceGameId) continue;
+    const existing = byFixture[row.sourceGameId];
+    byFixture[row.sourceGameId] = {
+      scheduledAt: row.scheduledAt,
+      claimed: Boolean(existing?.claimed) || row.scorecardId !== null,
+    };
+  }
+  return byFixture;
 }

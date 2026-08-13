@@ -15,6 +15,8 @@ export type Fixture = {
    */
   seriesNumber: number | null;
   seriesWindow: string | null;
+  /** The time the two clubs agreed on. */
+  scheduledAt: string;
 };
 
 /**
@@ -51,7 +53,8 @@ export function ScheduledGames({ fixtures }: { fixtures: Fixture[] }) {
   if (fixtures.length === 0) {
     return (
       <p className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-5 text-center text-sm text-slate-500">
-        Every scheduled game has been played.
+        Nothing to claim. A game appears here once its clubs agree a time for
+        it on the schedule.
       </p>
     );
   }
@@ -95,13 +98,19 @@ export function ScheduledGames({ fixtures }: { fixtures: Fixture[] }) {
                   <TeamLogo teamName={fixture.homeName} className="h-7 w-7 shrink-0" />
                   <span className="truncate font-semibold">{fixture.homeName}</span>
                 </span>
+                <span className="ml-auto shrink-0 text-[11px] text-slate-400">
+                  {new Date(fixture.scheduledAt).toLocaleString(undefined, {
+                    weekday: "short", month: "short", day: "numeric",
+                    hour: "numeric", minute: "2-digit",
+                  })}
+                </span>
                 <button
                   type="button"
                   onClick={() => start(fixture.id)}
                   disabled={starting !== null}
                   className="shrink-0 rounded-md bg-sky-600 px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
                 >
-                  {starting === fixture.id ? "Starting…" : "Score this game"}
+                  {starting === fixture.id ? "Claiming…" : "Claim & score"}
                 </button>
               </div>
             ))}
