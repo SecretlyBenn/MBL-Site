@@ -176,7 +176,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       basesAfter: encodeBases(after.bases),
       runnersScored: encodeRunners(scored),
       note: body.note?.trim() || null,
-    });
+    })
+      // The row is read back so the outs recorded on this play can point at
+      // it; destructuring an insert that returns nothing throws, which is what
+      // turned a fielder's choice into "could not record the at-bat".
+      .returning();
 
     await resequenceInnings(scorecardId);
     const box = await syncScore(scorecardId, scorecard.gameId);
@@ -200,7 +204,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error instanceof RoleError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
-    return Response.json({ error: "Could not record the at-bat." }, { status: 500 });
+    // The reason is passed on rather than swallowed: a bare "could not record
+    // the at-bat" gives an umpire mid-game nothing to act on and nothing to
+    // report.
+    return Response.json(
+      {
+        error: `Could not record the at-bat: ${
+          error instanceof Error ? error.message : "unexpected error"
+        }`,
+      },
+      { status: 500 },
+    );
   }
 }
 

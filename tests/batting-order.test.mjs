@@ -28,3 +28,17 @@ test("the turn comes from the last slot used, not a count of appearances", () =>
 test("a side with no batting order is refused rather than guessed at", () => {
   assert.ok(route.includes("That side has no batting order."));
 });
+
+test("the inserted play is read back, so outs can point at it", () => {
+  // Destructuring an insert that returns nothing throws, and the throw came
+  // back as a bare "could not record the at-bat" - which is what a fielder's
+  // choice did the first time one was scored.
+  const insert = route.indexOf("db.insert(plateAppearances).values(");
+  const returning = route.indexOf(".returning();", insert);
+  assert.ok(returning !== -1, "the insert must return the row it created");
+});
+
+test("a failure says what went wrong", () => {
+  // Mid-game, an umpire needs something to act on and something to report.
+  assert.ok(route.includes("Could not record the at-bat: ${"));
+});
