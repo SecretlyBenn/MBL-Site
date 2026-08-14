@@ -54,3 +54,18 @@ test("the scorecard page sends the stored base state to the browser", () => {
   assert.ok(page.includes("basesAfter: row.basesAfter"));
   assert.ok(page.includes("runnersScored: row.runnersScored"));
 });
+
+test("every runner move asks why", () => {
+  // The regression: the diamond skipped the prompt for anyone "forced". But
+  // being forced describes who the batter pushes along on a batted ball, and
+  // nothing on the diamond is batted - so with runners on first and second
+  // both were treated as forced and moved silently, recording no reason.
+  assert.ok(!src.includes("forcedRunners"), "the diamond must not consult forced runners");
+  assert.ok(src.includes('setAsking({ playerId, to })'));
+});
+
+test("the prompt offers a steal, an error, and something else", () => {
+  assert.ok(src.includes('"STEAL"'));
+  assert.ok(src.includes('"ERROR"'));
+  assert.ok(src.includes('"OTHER"'));
+});

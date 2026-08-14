@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import type { BaseName, Bases } from "@/app/bases";
-import { forcedRunners } from "@/app/bases";
 
 type Runner = { playerId: number; name: string; base: BaseName };
 
@@ -10,9 +9,11 @@ type Runner = { playerId: number; name: string; base: BaseName };
  * The bases, drawn as a diamond, with whoever is standing on them.
  *
  * A runner is dragged to where they ended up: to the next bag to advance them,
- * to home to score them. Advancing to a base nobody forced them to asks whether
- * they stole it, because that is the only case where the reason matters - a
- * forced runner had no choice, and asking would be noise on every walk.
+ * to home to score them. Every move asks why - a stolen base is the runner's
+ * stat, an error is the fielder's, and a run that came home on a mistake is
+ * unearned. Nothing here is a forced advance: a forced runner is one the batter
+ * pushed along, and the batter's own result is recorded through the at-bat
+ * panel rather than by dragging.
  *
  * This is a between-plays view. The batter's result is still recorded through
  * the at-bat panel; this handles what the runners did on their own.
@@ -54,8 +55,6 @@ export function BaseDiamond({
   /** Free text for "something else", so the reason is not lost. */
   const [why, setWhy] = useState("");
 
-  const forced = forcedRunners(bases);
-
   const runners: Runner[] = (["first", "second", "third"] as const).flatMap((base) =>
     bases[base] === null
       ? []
@@ -78,13 +77,10 @@ export function BaseDiamond({
     // Only forward moves make sense; a runner does not go back a base.
     if (ORDER.indexOf(to) <= ORDER.indexOf(runner.base)) return;
 
-    // A forced runner had no choice, so there is nothing to ask. Any other
-    // advance happened for a reason worth recording - a steal and an error are
-    // both someone's stat, and the rest wants describing.
-    if (forced.includes(runner.base)) {
-      send(playerId, to, "OTHER");
-      return;
-    }
+    // Always ask. Being forced is a property of a batted ball - it describes
+    // who has to move when the batter takes a base - and nothing here is
+    // batted. A runner moving between plays did it for a reason, and that
+    // reason is someone's stat.
     setWhy("");
     setAsking({ playerId, to });
   }
