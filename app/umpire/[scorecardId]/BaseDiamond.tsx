@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { BaseName, Bases } from "@/app/bases";
 import { forcedRunners } from "@/app/bases";
 
@@ -37,6 +37,13 @@ export function BaseDiamond({
    * base does the same thing.
    */
   const [picked, setPicked] = useState<number | null>(null);
+  /**
+   * Blocks a second move going out for the same gesture. A drop is followed by
+   * a click on the same base, and `busy` arrives from the parent a render too
+   * late to stop it - so the first move scored the runner and the second asked
+   * the server to move someone who was already home.
+   */
+  const inFlight = useRef(false);
   const [over, setOver] = useState<BaseName | "home" | null>(null);
   const [asking, setAsking] = useState<{ playerId: number; to: BaseName | "home" } | null>(null);
 
@@ -56,7 +63,7 @@ export function BaseDiamond({
     setOver(null);
     setDragging(null);
     setPicked(null);
-    if (playerId === null || busy) return;
+    if (playerId === null || busy || inFlight.current) return;
 
     const runner = runners.find((row) => row.playerId === playerId);
     if (!runner) return;
@@ -71,7 +78,17 @@ export function BaseDiamond({
       setAsking({ playerId, to });
       return;
     }
-    onMove(playerId, to, false);
+    send(playerId, to, false);
+  }
+
+  /** Every path out of here goes through one gate, so none can double-fire. */
+  function send(playerId: number, to: BaseName | "home", stole: boolean) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    // Released on the next tick: the trailing click from a drop has fired by
+    // then, and the refresh that follows re-renders this from scratch anyway.
+    setTimeout(() => { inFlight.current = false; }, 400);
+    onMove(playerId, to, stole);
   }
 
   const baseStyle = (base: BaseName | "home") => {
@@ -172,7 +189,13 @@ export function BaseDiamond({
               const carried = Number(event.dataTransfer.getData("text/plain"));
               move(Number.isFinite(carried) && carried > 0 ? carried : dragging, spot.base);
             }}
-            onClick={() => picked !== null && move(picked, spot.base)}
+            onClick={() => {
+              // A drop is followed by a click on the same base. Only a runner
+              // chosen by clicking is moved this way, and the drop already
+              // cleared that, so the trailing click finds nothing to do.
+              if (picked === null) return;
+              move(picked, spot.base);
+            }}
           >
             {label(spot.base)}
           </div>
@@ -188,14 +211,14 @@ export function BaseDiamond({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => { onMove(asking.playerId, asking.to, true); setAsking(null); }}
+              onClick={() => { send(asking.playerId, asking.to, true); setAsking(null); }}
               className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-500"
             >
               Stolen base
             </button>
             <button
               type="button"
-              onClick={() => { onMove(asking.playerId, asking.to, false); setAsking(null); }}
+              onClick={() => { send(asking.playerId, asking.to, false); setAsking(null); }}
               className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white"
             >
               No, just advanced
