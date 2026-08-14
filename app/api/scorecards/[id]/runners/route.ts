@@ -11,10 +11,16 @@ import {
   type BaseName,
 } from "@/app/bases";
 
+/** Why a runner moved between plays. */
+export const ADVANCE_REASONS = ["STEAL", "ERROR", "OTHER"] as const;
+export type AdvanceReason = (typeof ADVANCE_REASONS)[number];
+
 type MovePayload = {
   playerId: number;
   to: BaseName | "home";
-  stole?: boolean;
+  reason?: AdvanceReason;
+  /** Free text for OTHER - a balk, a wild pitch, defensive indifference. */
+  note?: string;
 };
 
 /**
@@ -27,6 +33,18 @@ type MovePayload = {
  * now are, and a runner reaching home is added to that play's runs so the
  * score follows without a second path to keep in step.
  */
+/** Keeps the play's existing note and adds what the runner did to it. */
+function noteFor(existing: string | null, reason: AdvanceReason, given?: string) {
+  const text =
+    reason === "ERROR"
+      ? "Runner advanced on an error"
+      : reason === "OTHER"
+        ? given?.trim() || "Runner advanced"
+        : null;
+  if (!text) return existing;
+  return existing ? `${existing}; ${text}` : text;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
@@ -82,6 +100,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ error: "No play to attach the move to." }, { status: 409 });
     }
 
+    const reason: AdvanceReason = ADVANCE_REASONS.includes(payload.reason as AdvanceReason)
+      ? (payload.reason as AdvanceReason)
+      : "OTHER";
+
     const next = { ...bases, [from]: null };
     const scoredNow = payload.to === "home";
     // Reaching home takes the runner off the bases entirely; anywhere else puts
@@ -106,7 +128,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           scoredNow && !batterCameRound
             ? encodeRunners([...decodeRunners(standing.runnersScored), payload.playerId])
             : standing.runnersScored,
-        stolenBases: standing.stolenBases + (payload.stole ? 1 : 0),
+        stolenBases: standing.stolenBases + (reason === "STEAL" ? 1 : 0),
+        // A run that only came home because of a mistake is not earned, so it
+        // does not go against the pitcher.
+        unearnedRuns: standing.unearnedRuns + (scoredNow && reason === "ERROR" ? 1 : 0),
+        note: noteFor(standing.note, reason, payload.note),
       })
       .where(eq(plateAppearances.id, standing.id));
 

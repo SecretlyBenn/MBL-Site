@@ -25,8 +25,13 @@ export function BaseDiamond({
 }: {
   bases: Bases;
   nameOf: Record<number, string>;
-  /** Called with the runner, where they went, and whether it was a steal. */
-  onMove: (playerId: number, to: BaseName | "home", stole: boolean) => void;
+  /** Called with the runner, where they went, and why. */
+  onMove: (
+    playerId: number,
+    to: BaseName | "home",
+    reason: "STEAL" | "ERROR" | "OTHER",
+    note?: string,
+  ) => void;
   busy?: boolean;
 }) {
   const [dragging, setDragging] = useState<number | null>(null);
@@ -46,6 +51,8 @@ export function BaseDiamond({
   const inFlight = useRef(false);
   const [over, setOver] = useState<BaseName | "home" | null>(null);
   const [asking, setAsking] = useState<{ playerId: number; to: BaseName | "home" } | null>(null);
+  /** Free text for "something else", so the reason is not lost. */
+  const [why, setWhy] = useState("");
 
   const forced = forcedRunners(bases);
 
@@ -71,24 +78,30 @@ export function BaseDiamond({
     // Only forward moves make sense; a runner does not go back a base.
     if (ORDER.indexOf(to) <= ORDER.indexOf(runner.base)) return;
 
-    // One base, unforced, is the shape of a steal. Anything further is a play
-    // the umpire will describe through the at-bat panel instead.
-    const oneBase = ORDER.indexOf(to) === ORDER.indexOf(runner.base) + 1;
-    if (oneBase && !forced.includes(runner.base)) {
-      setAsking({ playerId, to });
+    // A forced runner had no choice, so there is nothing to ask. Any other
+    // advance happened for a reason worth recording - a steal and an error are
+    // both someone's stat, and the rest wants describing.
+    if (forced.includes(runner.base)) {
+      send(playerId, to, "OTHER");
       return;
     }
-    send(playerId, to, false);
+    setWhy("");
+    setAsking({ playerId, to });
   }
 
   /** Every path out of here goes through one gate, so none can double-fire. */
-  function send(playerId: number, to: BaseName | "home", stole: boolean) {
+  function send(
+    playerId: number,
+    to: BaseName | "home",
+    reason: "STEAL" | "ERROR" | "OTHER",
+    note?: string,
+  ) {
     if (inFlight.current) return;
     inFlight.current = true;
     // Released on the next tick: the trailing click from a drop has fired by
     // then, and the refresh that follows re-renders this from scratch anyway.
     setTimeout(() => { inFlight.current = false; }, 400);
-    onMove(playerId, to, stole);
+    onMove(playerId, to, reason, note);
   }
 
   const baseStyle = (base: BaseName | "home") => {
@@ -205,32 +218,49 @@ export function BaseDiamond({
       {asking && (
         <div className="mt-3 rounded-md border border-sky-800 bg-sky-950/40 p-3">
           <p className="mb-2 text-xs text-slate-200">
-            Did {nameOf[asking.playerId] ?? "the runner"} steal{" "}
+            How did {nameOf[asking.playerId] ?? "the runner"} reach{" "}
             {asking.to === "home" ? "home" : asking.to}?
           </p>
-          <div className="flex gap-2">
+          <div className="grid gap-1.5">
+            {/* A steal and an error are each somebody's stat, so they are named
+                rather than lumped together as "advanced". */}
             <button
               type="button"
-              onClick={() => { send(asking.playerId, asking.to, true); setAsking(null); }}
+              onClick={() => { send(asking.playerId, asking.to, "STEAL"); setAsking(null); }}
               className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-500"
             >
               Stolen base
             </button>
             <button
               type="button"
-              onClick={() => { send(asking.playerId, asking.to, false); setAsking(null); }}
-              className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white"
+              onClick={() => { send(asking.playerId, asking.to, "ERROR"); setAsking(null); }}
+              className="rounded-md border border-amber-700 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-950/40"
             >
-              No, just advanced
+              On an error
             </button>
-            <button
-              type="button"
-              onClick={() => setAsking(null)}
-              className="ml-auto text-xs text-slate-500 hover:text-slate-300"
-            >
-              Cancel
-            </button>
+            <div className="flex gap-1.5">
+              <input
+                value={why}
+                onChange={(event) => setWhy(event.target.value)}
+                placeholder="Wild pitch, balk, on the throw…"
+                className="ui-select w-full !py-1 text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => { send(asking.playerId, asking.to, "OTHER", why); setAsking(null); }}
+                className="shrink-0 rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:text-white"
+              >
+                Something else
+              </button>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setAsking(null)}
+            className="mt-2 text-xs text-slate-500 hover:text-slate-300"
+          >
+            Cancel
+          </button>
         </div>
       )}
     </div>

@@ -283,8 +283,8 @@ export function ScoringBoard({
           bases={bases}
           nameOf={nameOf}
           busy={busy}
-          onMove={(playerId, to, stole) =>
-            send(`/api/scorecards/${scorecardId}/runners`, "POST", { playerId, to, stole })
+          onMove={(playerId, to, reason, note) =>
+            send(`/api/scorecards/${scorecardId}/runners`, "POST", { playerId, to, reason, note })
           }
         />
 

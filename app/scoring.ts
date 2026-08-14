@@ -85,13 +85,30 @@ export const POSITION_NUMBER: Record<string, number> = {
   P: 1, C: 2, "1B": 3, "2B": 4, "3B": 5, SS: 6, LF: 7, CF: 8, RF: 9,
 };
 
+/**
+ * Positions written the way a scorebook writes them: by number, not by name.
+ * "P" becomes 1, "SS" becomes 6, so a groundout to the pitcher reads G1 rather
+ * than GP. A sequence keeps its dashes - "6-3" is already numbered and passes
+ * through untouched.
+ */
+export function positionNumbers(fielders: string) {
+  return fielders
+    .split("-")
+    .map((part) => {
+      const trimmed = part.trim();
+      const number = POSITION_NUMBER[trimmed.toUpperCase()];
+      return number === undefined ? trimmed : String(number);
+    })
+    .join("-");
+}
+
 /** "F7", "G4-3", "K" - the shorthand the league already writes on paper. */
 export function scoreNotation(result: ResultCode, fielders: string | null) {
   const prefix: Partial<Record<ResultCode, string>> = {
     FO: "F", LO: "L", PO: "P", GO: "G", DP: "DP", TP: "TP", SF: "SF", SH: "SH", FC: "FC", E: "E",
   };
   const head = prefix[result] ?? result;
-  return fielders ? `${head}${fielders}` : head;
+  return fielders ? `${head}${positionNumbers(fielders)}` : head;
 }
 
 export type PlateAppearanceInput = {

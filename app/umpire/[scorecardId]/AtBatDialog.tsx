@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { RESULTS, RESULT_BY_CODE, type ResultCode } from "@/app/scoring";
+import { POSITION_NUMBER, RESULTS, RESULT_BY_CODE, type ResultCode } from "@/app/scoring";
 
 export type AtBatDraft = {
   result: ResultCode | "";
@@ -122,9 +122,12 @@ export function AtBatDialog({
                 className="ui-select w-full"
               >
                 <option value="">Not recorded</option>
+                {/* Numbered the way the scorebook writes them, so what the
+                    umpire picks reads the same as what lands on the card. */}
                 {fielders.map((fielder) => (
                   <option key={fielder.playerId} value={fielder.position}>
-                    {fielder.position} — {fielder.name}
+                    {POSITION_NUMBER[fielder.position] ?? fielder.position} — {fielder.name}
+                    {POSITION_NUMBER[fielder.position] ? ` (${fielder.position})` : ""}
                   </option>
                 ))}
                 <option value="6-3">6-3 (short to first)</option>
