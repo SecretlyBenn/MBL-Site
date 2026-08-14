@@ -175,7 +175,7 @@ export function AtBatDialog({
               is what makes it one - so the umpire says who was thrown out
               rather than the screen assuming the batter. A double play usually
               takes the batter and a runner, but two runners happens too. */}
-          {definition.retiresRunners && (
+          {(definition.retiresRunners || draft.outsRecorded > 1) && (
             <fieldset className="rounded-md border border-slate-800 p-3">
               <legend className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Who was put out?
@@ -234,8 +234,12 @@ export function AtBatDialog({
               {draft.outsRecorded > 0 &&
                 draft.outRunners.length + (draft.batterOut ? 1 : 0) !== draft.outsRecorded && (
                   <p className="mt-2 text-[11px] text-amber-400">
-                    {draft.outsRecorded} out{draft.outsRecorded === 1 ? "" : "s"} on the play, but{" "}
-                    {draft.outRunners.length + (draft.batterOut ? 1 : 0)} named.
+                    {draft.outsRecorded} out{draft.outsRecorded === 1 ? "" : "s"} on the play,{" "}
+                    {draft.outRunners.length + (draft.batterOut ? 1 : 0)} named
+                    {draft.outRunners.length + (draft.batterOut ? 1 : 0) < draft.outsRecorded
+                      ? " - each out is a putout for someone"
+                      : ""}
+                    .
                   </p>
                 )}
             </fieldset>

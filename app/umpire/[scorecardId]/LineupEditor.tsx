@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { POSITIONS } from "@/app/scoring";
+import { FULL_LINEUP, MINIMUM_LINEUP, POSITIONS } from "@/app/scoring";
 
 type Player = { id: number; name: string };
 type Slot = { playerId: string; position: string };
@@ -26,7 +26,9 @@ export function LineupEditor({
   roster: Player[];
 }) {
   const router = useRouter();
-  const [slots, setSlots] = useState<Slot[]>(Array.from({ length: 9 }, () => ({ ...EMPTY })));
+  const [slots, setSlots] = useState<Slot[]>(
+    Array.from({ length: FULL_LINEUP }, () => ({ ...EMPTY })),
+  );
   const [useDh, setUseDh] = useState(false);
   const [dhPitcherId, setDhPitcherId] = useState("");
   const [starterId, setStarterId] = useState("");
@@ -41,11 +43,18 @@ export function LineupEditor({
   const duplicate = new Set(chosen).size !== chosen.length;
   // Under a DH the pitcher is named separately; otherwise they must be batting.
   const pitcher = useDh ? dhPitcherId : starterId;
+
+  // Only the slots that have somebody in them count. A side short of nine is
+  // ordinary here, so the order simply runs shorter and comes round sooner -
+  // an empty slot at the bottom is one nobody filled, not an incomplete
+  // lineup.
+  const filled = slots.filter((slot) => slot.playerId);
   const complete =
-    slots.every((slot) => slot.playerId && slot.position) &&
+    filled.length >= MINIMUM_LINEUP &&
+    filled.every((slot) => slot.position) &&
     !duplicate &&
     Boolean(pitcher) &&
-    (!useDh || slots.some((slot) => slot.position === "DH"));
+    (!useDh || filled.some((slot) => slot.position === "DH"));
 
   async function save() {
     setBusy(true);
@@ -57,7 +66,7 @@ export function LineupEditor({
         position: string;
         dhForPlayerId: number | null;
         pitchingOrder: number | null;
-      }[] = slots.map((slot, index) => ({
+      }[] = filled.map((slot, index) => ({
         playerId: Number(slot.playerId),
         battingOrder: index + 1,
         position: slot.position,
@@ -109,6 +118,7 @@ export function LineupEditor({
               <th className="w-10">#</th>
               <th>Player</th>
               <th className="w-28">Position</th>
+              <th className="w-8" />
             </tr>
           </thead>
           <tbody>
@@ -139,10 +149,38 @@ export function LineupEditor({
                     ))}
                   </select>
                 </td>
+                <td>
+                  {slots.length > MINIMUM_LINEUP && (
+                    <button
+                      type="button"
+                      onClick={() => setSlots((current) => current.filter((_, at) => at !== index))}
+                      title="Remove this spot in the order"
+                      className="px-1 text-slate-600 transition-colors hover:text-rose-400"
+                    >
+                      ×
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Somebody who turns up late goes in at the bottom, which is where the
+          order takes them. A side can also start shorter than nine and grow. */}
+      <div className="mt-2 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setSlots((current) => [...current, { ...EMPTY }])}
+          className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:border-slate-600 hover:text-white"
+        >
+          Add a spot at the bottom
+        </button>
+        <span className="text-[11px] text-slate-500">
+          {filled.length} in the order
+          {filled.length < MINIMUM_LINEUP && ` - ${MINIMUM_LINEUP} is the fewest that can play`}
+        </span>
       </div>
 
       <div className="mt-3 space-y-2">

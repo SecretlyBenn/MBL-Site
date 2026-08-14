@@ -275,3 +275,15 @@ export function atBatSummary(
 
   return parts.join(" + ");
 }
+
+/**
+ * The fewest players a side can take the field with.
+ *
+ * Short-handed games are ordinary in this league rather than an exception, so
+ * a lineup is whatever turned up - the order simply runs shorter and comes
+ * round sooner. Below four there is no game to score.
+ */
+export const MINIMUM_LINEUP = 4;
+
+/** The usual full side, and where the editor starts. */
+export const FULL_LINEUP = 9;

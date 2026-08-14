@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
+import { MINIMUM_LINEUP } from "@/app/scoring";
 
 type LineupRow = {
   playerId: number;
@@ -34,8 +35,18 @@ export async function PUT(
     if (new Set(orders).size !== orders.length) {
       return Response.json({ error: "Two players share a batting order slot." }, { status: 400 });
     }
-    if (batters.length === 0) {
-      return Response.json({ error: "Nobody is in the batting order." }, { status: 400 });
+    // Short-handed games are ordinary here, so the order simply runs shorter -
+    // but below four there is no game to score.
+    if (batters.length < MINIMUM_LINEUP) {
+      return Response.json(
+        {
+          error:
+            batters.length === 0
+              ? "Nobody is in the batting order."
+              : `A side needs at least ${MINIMUM_LINEUP} in the order; this one has ${batters.length}.`,
+        },
+        { status: 400 },
+      );
     }
     if (!rows.some((row) => row.pitchingOrder === 1)) {
       return Response.json({ error: "Pick a starting pitcher." }, { status: 400 });
