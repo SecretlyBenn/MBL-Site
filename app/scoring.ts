@@ -209,3 +209,54 @@ function normalisePosition(fielded: string | null): Position | null {
   const entry = Object.entries(POSITION_NUMBER).find(([, number]) => String(number) === first);
   return (entry?.[0] as Position | undefined) ?? null;
 }
+
+/** What happened to a batter beyond the result itself. */
+export type AtBatExtras = {
+  rbis: number;
+  /** The batter came round to score. */
+  scored: boolean;
+  stolenBases: number;
+  /** How the batter was retired on the bases afterwards, if they were. */
+  retiredAs?: RunnerOutKind | null;
+  /** The position credited with that out, as its number. */
+  retiredBy?: number | null;
+};
+
+const RUNNER_OUT_SHORT: Record<RunnerOutKind, string> = {
+  TAGGED: "TAG",
+  PICKED_OFF: "PO",
+  CAUGHT_STEALING: "CS",
+};
+
+/**
+ * One cell of the scorecard: the result, then everything else the at-bat
+ * produced - "2B + RBI + SB + R", "1B + TAG 4".
+ *
+ * A scorer reading the card wants the whole plate appearance at a glance
+ * rather than the result alone, with the rest to be worked out from the box
+ * score afterwards. Counts appear only when there is more than one, so the
+ * common case stays short.
+ */
+export function atBatSummary(
+  result: ResultCode,
+  fielders: string | null,
+  extras: AtBatExtras,
+): string {
+  const parts = [scoreNotation(result, fielders)];
+
+  if (extras.rbis > 0) parts.push(extras.rbis > 1 ? `RBI ${extras.rbis}` : "RBI");
+  if (extras.stolenBases > 0) {
+    parts.push(extras.stolenBases > 1 ? `SB ${extras.stolenBases}` : "SB");
+  }
+  if (extras.scored) parts.push("R");
+
+  if (extras.retiredAs) {
+    const short = RUNNER_OUT_SHORT[extras.retiredAs];
+    // The fielder is named where one made the play; a caught stealing and a
+    // pickoff are always the catcher and the pitcher, so the number would say
+    // nothing the code does not.
+    parts.push(extras.retiredBy ? `${short} ${extras.retiredBy}` : short);
+  }
+
+  return parts.join(" + ");
+}

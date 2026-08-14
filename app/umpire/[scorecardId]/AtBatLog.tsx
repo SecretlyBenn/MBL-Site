@@ -20,7 +20,13 @@ export type LoggedAtBat = {
   unearnedRuns: number;
   outsRecorded: number;
   errorPosition: number | null;
+  /** Bases stolen during this plate appearance. */
+  stolenBases?: number;
   note: string | null;
+  /** How the batter was retired on the bases after reaching, if they were. */
+  retiredAs?: "TAGGED" | "PICKED_OFF" | "CAUGHT_STEALING" | null;
+  /** The position credited with that out, as its scorebook number. */
+  retiredByPosition?: number | null;
 };
 
 /**

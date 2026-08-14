@@ -1,6 +1,6 @@
 "use client";
 
-import { scoreNotation, type ResultCode } from "@/app/scoring";
+import { atBatSummary, type ResultCode } from "@/app/scoring";
 import type { LoggedAtBat } from "./AtBatLog";
 
 /**
@@ -53,8 +53,11 @@ export function ScoreGrid({
           <col style={{ width: "2.5ch" }} />
           <col style={{ width: "18ch" }} />
           <col style={{ width: "4ch" }} />
+          {/* Wide enough for a full plate appearance - "2B + RBI + SB + R" -
+              rather than the result alone. Past the grid width it scrolls
+              sideways, which is what a paper scorecard does too. */}
           {Array.from({ length: innings }, (_, index) => (
-            <col key={index} style={{ width: "7ch" }} />
+            <col key={index} style={{ width: "17ch" }} />
           ))}
         </colgroup>
         <thead>
@@ -100,15 +103,17 @@ export function ScoreGrid({
                       >
                         {entries.length > 0
                           ? entries.map((entry) => (
-                              // The RBI count rides small and beside the play,
-                              // so it never widens the column.
+                              // The whole plate appearance, not the result
+                              // alone: what was driven in, stolen, scored, and
+                              // how they were retired afterwards.
                               <span key={entry.id} className="whitespace-nowrap">
-                                {scoreNotation(entry.result as ResultCode, entry.fielders)}
-                                {entry.rbis > 0 && (
-                                  <span className="ml-0.5 align-super text-[9px] font-bold text-amber-400">
-                                    {entry.rbis}
-                                  </span>
-                                )}
+                                {atBatSummary(entry.result as ResultCode, entry.fielders, {
+                                  rbis: entry.rbis,
+                                  scored: entry.batterScored,
+                                  stolenBases: entry.stolenBases ?? 0,
+                                  retiredAs: entry.retiredAs ?? null,
+                                  retiredBy: entry.retiredByPosition ?? null,
+                                })}
                               </span>
                             ))
                           : waiting

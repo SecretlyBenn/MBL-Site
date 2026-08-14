@@ -1,9 +1,18 @@
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, players, plateAppearances, scorecardLineups, scorecards, teams } from "@/db/schema";
+import {
+  games,
+  players,
+  plateAppearances,
+  runnerOuts,
+  scorecardLineups,
+  scorecards,
+  teams,
+} from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { PageShell } from "@/app/SiteNav";
+import { POSITION_NUMBER, type RunnerOutKind } from "@/app/scoring";
 import { LineupEditor } from "./LineupEditor";
 import { ScoringBoard } from "./ScoringBoard";
 
@@ -35,6 +44,21 @@ export default async function ScorecardPage({
     .select()
     .from(scorecardLineups)
     .where(eq(scorecardLineups.scorecardId, scorecardId));
+  // Which runners were retired on the bases, and in which half-inning - a
+  // batter's cell shows what became of them after they reached, and the out
+  // hangs off whichever play was standing at the time rather than their own.
+  const outs = await db
+    .select({
+      runnerPlayerId: runnerOuts.runnerPlayerId,
+      kind: runnerOuts.kind,
+      putoutPlayerId: runnerOuts.putoutPlayerId,
+      inning: plateAppearances.inning,
+      isHomeBatting: plateAppearances.isHomeBatting,
+    })
+    .from(runnerOuts)
+    .innerJoin(plateAppearances, eq(runnerOuts.plateAppearanceId, plateAppearances.id))
+    .where(eq(runnerOuts.scorecardId, scorecardId));
+
   const appearances = await db
     .select()
     .from(plateAppearances)
@@ -46,6 +70,14 @@ export default async function ScorecardPage({
       .filter((player) => player.teamId === teamId)
       .map((player) => ({ id: player.id, name: player.displayName }))
       .sort((a, b) => a.name.localeCompare(b.name));
+
+  // A fielder's position as its scorebook number, for the "TAG 4" on a cell.
+  const positionNumberOf = new Map(
+    lineups.flatMap((row) => {
+      const number = POSITION_NUMBER[row.position];
+      return number ? [[row.playerId, number] as const] : [];
+    }),
+  );
 
   const slotOf = new Map(lineups.filter((row) => row.battingOrder !== null).map((row) => [row.playerId, row.battingOrder ?? 0]));
   const inLineup = new Set(lineups.map((row) => row.playerId));
@@ -95,7 +127,23 @@ export default async function ScorecardPage({
             unearnedRuns: row.unearnedRuns,
             outsRecorded: row.outsRecorded,
             errorPosition: row.errorPosition,
+            stolenBases: row.stolenBases,
             note: row.note,
+            ...(() => {
+              const own = outs.find(
+                (out) =>
+                  out.runnerPlayerId === row.batterPlayerId &&
+                  out.inning === row.inning &&
+                  out.isHomeBatting === row.isHomeBatting,
+              );
+              return {
+                retiredAs: (own?.kind ?? null) as RunnerOutKind | null,
+                retiredByPosition:
+                  own?.putoutPlayerId
+                    ? positionNumberOf.get(own.putoutPlayerId) ?? null
+                    : null,
+              };
+            })(),
           }))}
           appearances={appearances.map((row) => ({
             sequence: row.sequence,
