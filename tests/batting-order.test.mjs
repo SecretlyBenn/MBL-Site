@@ -42,3 +42,17 @@ test("a failure says what went wrong", () => {
   // Mid-game, an umpire needs something to act on and something to report.
   assert.ok(route.includes("Could not record the at-bat: ${"));
 });
+
+test("each out on a play carries its own putout", () => {
+  // The league gives one putout per out and no assists, so a double play
+  // credits two fielders - usually different ones. Crediting the whole play to
+  // a single fielder would hand one of them an out they did not make.
+  assert.ok(route.includes("named.batter"));
+  assert.ok(route.includes("named[String(playerId)]"));
+});
+
+test("a batter who reached is charged with no putout", () => {
+  // On a fielder's choice the batter is safe; the out belongs to the runner.
+  assert.ok(route.includes("const batterRetired ="));
+  assert.ok(route.includes("body.batterOut === true"));
+});

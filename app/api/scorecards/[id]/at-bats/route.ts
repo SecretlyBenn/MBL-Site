@@ -12,7 +12,12 @@ import {
   runnersOn,
 } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
-import { putoutPosition, validatePlateAppearance, type PlateAppearanceInput } from "@/app/scoring";
+import {
+  putoutPosition,
+  RESULT_BY_CODE,
+  validatePlateAppearance,
+  type PlateAppearanceInput,
+} from "@/app/scoring";
 
 async function open(scorecardId: number) {
   const db = getDb();
@@ -137,17 +142,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ),
     });
 
-    // One putout per play, to whoever the league credits - the fielder who
-    // made the play, and nobody at all on a strikeout.
-    const putout = putoutPosition(body.result, body.fielders ?? null);
-    const putoutFielder = putout
-      ? await db.query.scorecardLineups.findFirst({
-          where: and(
-            eq(scorecardLineups.scorecardId, scorecardId),
-            eq(scorecardLineups.isHome, !state.isHomeBatting),
-            eq(scorecardLineups.position, putout),
-          ),
-        })
+    // One putout per out, and no assists. A double play is usually turned by
+    // two different fielders, so each out carries its own - falling back to
+    // whoever fielded the ball when the umpire named nobody in particular.
+    const fieldingSide = await db
+      .select()
+      .from(scorecardLineups)
+      .where(
+        and(
+          eq(scorecardLineups.scorecardId, scorecardId),
+          eq(scorecardLineups.isHome, !state.isHomeBatting),
+        ),
+      );
+    const atPosition = (position: string | null) =>
+      position ? fieldingSide.find((row) => row.position === position) ?? null : null;
+
+    const named = body.outPutouts ?? {};
+    const definition = RESULT_BY_CODE.get(body.result);
+
+    // On a fielder's choice or a double play the umpire says whether the
+    // batter was one of the outs; on anything else the result decides it. A
+    // batter who reached has no putout against them.
+    const batterRetired = definition?.retiresRunners
+      ? body.batterOut === true
+      : (definition?.defaultOuts ?? 0) > 0;
+
+    const putoutFielder = batterRetired
+      ? atPosition(putoutPosition(body.result, named.batter ?? body.fielders ?? null))
       : null;
 
     const [inserted] = await db.insert(plateAppearances).values({
@@ -194,7 +215,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           runnerPlayerId: playerId,
           kind: "FORCED" as const,
           base: retiredAt(playerId),
-          putoutPlayerId: putoutFielder?.playerId ?? null,
+          // Each retired runner carries the fielder who put them out, which on
+          // a double play is often not the one who took the batter.
+          // Read through the same convention as any other out, so "6-3" or a
+          // bare position both land on the fielder who started the play.
+          putoutPlayerId:
+            atPosition(
+              putoutPosition("FORCED", named[String(playerId)] ?? body.fielders ?? null),
+            )?.playerId ?? null,
         })),
       );
     }

@@ -169,6 +169,7 @@ export function ScoringBoard({
       runnersScored: encodeRunners(scored),
       outRunners: draft.outRunners,
       batterOut: draft.batterOut,
+      outPutouts: draft.outPutouts,
       note: draft.note || null,
     };
   };
@@ -206,6 +207,7 @@ export function ScoringBoard({
       scoredRunners: [],
       outRunners: [],
       batterOut: (atBat.outsRecorded ?? 0) > 0,
+      outPutouts: {},
       note: atBat.note ?? "",
     });
   }

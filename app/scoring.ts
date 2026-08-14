@@ -131,6 +131,8 @@ export type PlateAppearanceInput = {
   outRunners?: number[];
   /** Whether the batter was one of the outs. */
   batterOut?: boolean;
+  /** Who is credited with each out, keyed by "batter" or the runner id. */
+  outPutouts?: Record<string, string>;
   stolenBases: number;
   /** The bases as they stood when the play ended, as JSON. */
   basesAfter?: string | null;

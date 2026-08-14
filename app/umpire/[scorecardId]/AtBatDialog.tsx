@@ -15,6 +15,12 @@ export type AtBatDraft = {
   outRunners: number[];
   /** Whether the batter was one of the outs. */
   batterOut: boolean;
+  /**
+   * Who is credited with each out, keyed by "batter" or the runner's player
+   * id. The league gives one putout per out and no assists, so a double play
+   * credits two fielders - often different ones.
+   */
+  outPutouts: Record<string, string>;
   unearnedRuns: number;
   outsRecorded: number;
   errorPlayerId: string;
@@ -24,7 +30,7 @@ export type AtBatDraft = {
 
 export const EMPTY_DRAFT: AtBatDraft = {
   result: "", fielders: "", rbis: 0, batterScored: false, otherRunsScored: 0,
-  scoredRunners: [], outRunners: [], batterOut: false, unearnedRuns: 0, outsRecorded: 0,
+  scoredRunners: [], outRunners: [], batterOut: false, outPutouts: {}, unearnedRuns: 0, outsRecorded: 0,
   errorPlayerId: "", stolenBases: 0, note: "",
 };
 
@@ -86,6 +92,7 @@ export function AtBatDialog({
       result: code,
       outsRecorded: chosen?.defaultOuts ?? 0,
       outRunners: [],
+      outPutouts: {},
       // A fielder's choice is the batter reaching while someone else is
       // retired; a double play usually starts with the batter.
       batterOut: chosen?.retiresRunners ? code !== "FC" : (chosen?.defaultOuts ?? 0) > 0,
@@ -174,30 +181,54 @@ export function AtBatDialog({
                 Who was put out?
               </legend>
               <div className="space-y-1.5">
-                <label className="flex items-center gap-2 text-sm text-slate-300">
-                  <input
-                    type="checkbox"
-                    checked={draft.batterOut}
-                    onChange={(event) => patch({ batterOut: event.target.checked })}
-                  />
-                  The batter
-                </label>
-                {runners.map((runner) => (
-                  <label key={runner.playerId} className="flex items-center gap-2 text-sm text-slate-300">
+                <div className="space-y-1">
+                  <label className="flex items-center gap-2 text-sm text-slate-300">
                     <input
                       type="checkbox"
-                      checked={draft.outRunners.includes(runner.playerId)}
-                      onChange={(event) =>
-                        patch({
-                          outRunners: event.target.checked
-                            ? [...draft.outRunners, runner.playerId]
-                            : draft.outRunners.filter((id) => id !== runner.playerId),
-                        })
+                      checked={draft.batterOut}
+                      onChange={(event) => patch({ batterOut: event.target.checked })}
+                    />
+                    The batter
+                  </label>
+                  {draft.batterOut && (
+                    <PutoutPicker
+                      fielders={fielders}
+                      value={draft.outPutouts.batter ?? ""}
+                      onChange={(position) =>
+                        patch({ outPutouts: { ...draft.outPutouts, batter: position } })
                       }
                     />
-                    {runner.name}
-                    <span className="text-xs text-slate-500">from {runner.base}</span>
-                  </label>
+                  )}
+                </div>
+                {runners.map((runner) => (
+                  <div key={runner.playerId} className="space-y-1">
+                    <label className="flex items-center gap-2 text-sm text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={draft.outRunners.includes(runner.playerId)}
+                        onChange={(event) =>
+                          patch({
+                            outRunners: event.target.checked
+                              ? [...draft.outRunners, runner.playerId]
+                              : draft.outRunners.filter((id) => id !== runner.playerId),
+                          })
+                        }
+                      />
+                      {runner.name}
+                      <span className="text-xs text-slate-500">from {runner.base}</span>
+                    </label>
+                    {draft.outRunners.includes(runner.playerId) && (
+                      <PutoutPicker
+                        fielders={fielders}
+                        value={draft.outPutouts[runner.playerId] ?? ""}
+                        onChange={(position) =>
+                          patch({
+                            outPutouts: { ...draft.outPutouts, [runner.playerId]: position },
+                          })
+                        }
+                      />
+                    )}
+                  </div>
                 ))}
               </div>
               {draft.outsRecorded > 0 &&
@@ -351,5 +382,38 @@ export function AtBatDialog({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Who is credited with one particular out. Shown beside each out rather than
+ * once for the play, because the league gives a putout per out and a double
+ * play is usually turned by two different fielders.
+ */
+function PutoutPicker({
+  fielders,
+  value,
+  onChange,
+}: {
+  fielders: { playerId: number; name: string; position: string }[];
+  value: string;
+  onChange: (position: string) => void;
+}) {
+  return (
+    <label className="ml-6 flex items-center gap-2 text-[11px] text-slate-500">
+      Putout
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="ui-select !py-0.5 !text-[11px]"
+      >
+        <option value="">Not recorded</option>
+        {fielders.map((fielder) => (
+          <option key={fielder.playerId} value={fielder.position}>
+            {POSITION_NUMBER[fielder.position] ?? fielder.position} — {fielder.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

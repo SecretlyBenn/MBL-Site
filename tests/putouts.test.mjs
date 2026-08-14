@@ -49,3 +49,11 @@ test("a play that retires nobody has no putout", () => {
   assert.equal(putoutPosition("1B", "SS"), null);
   assert.equal(putoutPosition("BB", null), null);
 });
+
+test("a forced runner's putout reads like any other", () => {
+  // Whoever started the play takes it, whether the umpire named a position or
+  // a sequence - so a double play turned 6-4-3 credits the shortstop for the
+  // runner and, separately, whoever took the batter.
+  assert.equal(putoutPosition("FORCED", "6-4"), "SS");
+  assert.equal(putoutPosition("FORCED", "2B"), "2B");
+});
