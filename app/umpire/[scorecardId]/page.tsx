@@ -113,6 +113,11 @@ export default async function ScorecardPage({
             errorPosition: row.errorPosition,
             errorPlayerId: row.errorPlayerId,
             stolenBases: row.stolenBases,
+            // Without these the diamond re-infers the bases from the results
+            // alone and never sees what actually happened - runners the record
+            // says came home stayed standing on the bases on screen.
+            basesAfter: row.basesAfter,
+            runnersScored: row.runnersScored,
           }))}
         />
       ) : (

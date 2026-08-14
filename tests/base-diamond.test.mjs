@@ -43,3 +43,14 @@ test("one gesture cannot send two moves", () => {
   // who was already home - which it rightly refused, while the run stayed.
   assert.ok(src.includes("if (inFlight.current) return;"));
 });
+
+test("the scorecard page sends the stored base state to the browser", () => {
+  // The regression this guards, and it was invisible from the server side:
+  // every fix to how the bases are recorded was correct, and none of it
+  // reached the screen. The page listed the columns it passed and these two
+  // were not among them, so the diamond re-derived the bases from the results
+  // alone - and runners the record said had scored stayed standing on base.
+  const page = readFileSync("app/umpire/[scorecardId]/page.tsx", "utf8");
+  assert.ok(page.includes("basesAfter: row.basesAfter"));
+  assert.ok(page.includes("runnersScored: row.runnersScored"));
+});
