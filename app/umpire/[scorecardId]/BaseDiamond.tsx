@@ -241,14 +241,19 @@ export function BaseDiamond({
           <p className="mb-2 text-xs text-slate-200">
             {nameOf[retiring] ?? "The runner"} — send them on by picking a base, or:
           </p>
+          {/* A tag is credited to whoever applied it, and there is no way to
+              work that out afterwards - so it is asked for rather than left
+              blank, and the button waits for it. A pickoff and a caught
+              stealing do not ask, because the convention already decides them:
+              the pitcher and the catcher. */}
           <label className="ui-field-label mb-2 flex-col !items-start gap-1">
-            Putout to
+            Who made the tag?
             <select
               value={tagger}
               onChange={(event) => setTagger(event.target.value)}
               className="ui-select w-full !py-1 text-xs"
             >
-              <option value="">Not recorded</option>
+              <option value="">Choose a fielder…</option>
               {fielders.map((fielder) => (
                 <option key={fielder.playerId} value={fielder.position}>
                   {fielder.position} — {fielder.name}
@@ -260,12 +265,14 @@ export function BaseDiamond({
             <button
               type="button"
               onClick={() => { sendOut(retiring, "TAGGED"); }}
-              className="rounded-md border border-rose-800 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-950/40"
+              disabled={!tagger}
+              title={tagger ? undefined : "Choose who made the tag first"}
+              className="rounded-md border border-rose-800 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-950/40 disabled:opacity-40"
             >
               Tagged out
             </button>
-            {/* The pitcher is credited whoever is named above, so the picker is
-                irrelevant here - the convention decides it. */}
+            {/* The pitcher takes the putout on a pickoff whatever is chosen
+                above, so this one does not wait for it. */}
             <button
               type="button"
               onClick={() => { sendOut(retiring, "PICKED_OFF"); }}
