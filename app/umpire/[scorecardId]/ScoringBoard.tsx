@@ -341,23 +341,23 @@ export function ScoringBoard({
           }
         />
 
-        <div className="space-y-3">
-          <section className="panel">
-            <div className="panel-head">
-              <h3 className="panel-title">On the mound</h3>
-            </div>
-            <div className="p-3">
-              <select
-                value={activePitcher ?? ""}
-                onChange={(event) => setPitcherId(Number(event.target.value))}
-                className="ui-select w-full"
-              >
-                {fieldingSide.map((row) => (
-                  <option key={row.playerId} value={row.playerId}>{row.name}</option>
-                ))}
-              </select>
-            </div>
-          </section>
+        {/* Who is pitching and what they have done are one subject, so they
+            are one card rather than two stacked on each other. */}
+        <section className="panel">
+          <div className="panel-head">
+            <h3 className="panel-title">On the mound</h3>
+          </div>
+          <div className="p-3">
+            <select
+              value={activePitcher ?? ""}
+              onChange={(event) => setPitcherId(Number(event.target.value))}
+              className="ui-select w-full"
+            >
+              {fieldingSide.map((row) => (
+                <option key={row.playerId} value={row.playerId}>{row.name}</option>
+              ))}
+            </select>
+          </div>
 
           <LivePitching
             awayName={awayName}
@@ -367,7 +367,7 @@ export function ScoringBoard({
             nameOf={nameOf}
             activePitcherId={activePitcher}
           />
-        </div>
+        </section>
 
         <div className="space-y-3">
           <SubstitutionPanel

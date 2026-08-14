@@ -71,19 +71,20 @@ export function DefensePanel({
   }
 
   return (
-    <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-          In the field · {teamName}
-        </p>
+    <section className="panel">
+      <div className="panel-head">
+        <h3 className="panel-title">Position changes</h3>
         <button
           type="button"
           onClick={() => { setOpen(!open); setNotice(""); }}
-          className="text-xs font-semibold text-sky-400 hover:text-sky-300"
+          className="text-[11px] font-semibold text-sky-400 hover:text-sky-300"
         >
-          {open ? "Cancel" : "Change positions"}
+          {open ? "Cancel" : "Change"}
         </button>
       </div>
+
+      <div className="p-3">
+      <p className="mb-2 text-[11px] text-slate-500">{teamName} in the field</p>
 
       {notice && <p className="mb-2 text-[11px] text-emerald-400">{notice}</p>}
       {error && <p className="mb-2 text-[11px] text-rose-400">{error}</p>}
@@ -142,6 +143,7 @@ export function DefensePanel({
           )}
         </div>
       )}
-    </div>
+      </div>
+    </section>
   );
 }

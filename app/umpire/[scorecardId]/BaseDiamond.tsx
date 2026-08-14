@@ -194,17 +194,18 @@ export function BaseDiamond({
   };
 
   const spots: { base: BaseName | "home"; style: React.CSSProperties }[] = [
-    { base: "second", style: { left: "50%", top: "8%" } },
+    { base: "second", style: { left: "50%", top: "16%" } },
     { base: "third", style: { left: "12%", top: "50%" } },
     { base: "first", style: { left: "88%", top: "50%" } },
-    { base: "home", style: { left: "50%", top: "92%" } },
+    { base: "home", style: { left: "50%", top: "84%" } },
   ];
 
   return (
-    <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-4">
-      <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-        On base
-      </p>
+    <section className="panel">
+      <div className="panel-head">
+        <h3 className="panel-title">On base</h3>
+      </div>
+      <div className="p-3">
       <p className="mb-3 text-[11px] text-slate-500">
         {runners.length === 0
           ? "Bases empty."
@@ -213,7 +214,10 @@ export function BaseDiamond({
             : "Tap a runner then a base, or drag them across. Runners move up with the batter already - drag one back if they held."}
       </p>
 
-      <div className="relative mx-auto h-52 w-52">
+      {/* Each base is centred on its point and then pulled back by half its
+          own size, so the top one reaches above the box. The margin gives it
+          somewhere to go other than over the text above. */}
+      <div className="relative mx-auto mt-4 h-56 w-52">
         {spots.map((spot) => (
           <div
             key={spot.base}
@@ -397,6 +401,7 @@ export function BaseDiamond({
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </section>
   );
 }

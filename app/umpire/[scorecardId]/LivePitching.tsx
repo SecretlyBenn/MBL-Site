@@ -31,11 +31,7 @@ export function LivePitching({
   ];
 
   return (
-    <section className="panel">
-      <div className="panel-head">
-        <h3 className="panel-title">Pitching so far</h3>
-      </div>
-      <div className="divide-y divide-slate-800/80">
+    <div className="divide-y divide-slate-800/80 border-t border-slate-800/80">
         {sides.map((side) => (
           <div key={side.label} className="p-3">
             <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -78,7 +74,6 @@ export function LivePitching({
             )}
           </div>
         ))}
-      </div>
-    </section>
+    </div>
   );
 }

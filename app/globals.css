@@ -535,17 +535,25 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
-    padding: 0.5rem 0.75rem;
-    border-bottom: 1px solid rgb(28 36 48 / 0.8);
-    background: rgb(28 36 48 / 0.35);
+    padding: 0.5rem 0.75rem 0.5rem 0.65rem;
+    border-bottom: 1px solid rgb(35 44 56 / 0.9);
+    /* A band across the top of the card, with the accent rule running down its
+       left edge, so the eye finds the four panels as four things rather than
+       reading their titles as more of the small print inside them. */
+    border-left: 3px solid rgb(59 150 245);
+    background: linear-gradient(
+      to right,
+      rgb(59 150 245 / 0.12),
+      rgb(28 36 48 / 0.35) 60%
+    );
   }
 
   .panel-title {
-    font-size: 0.625rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: rgb(139 149 161);
+    color: rgb(124 195 255);
   }
 
 }
