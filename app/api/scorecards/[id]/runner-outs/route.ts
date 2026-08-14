@@ -9,7 +9,7 @@ import {
 } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
-import { BASE_NAMES, encodeBases, type BaseName } from "@/app/bases";
+import { BASE_NAMES, decodeBases, encodeBases, type BaseName } from "@/app/bases";
 import { RUNNER_OUT_KINDS, putoutPosition, type RunnerOutKind } from "@/app/scoring";
 
 type OutPayload = {
@@ -131,5 +131,84 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ error: error.message }, { status: error.status });
     }
     return Response.json({ error: "Could not record the out." }, { status: 500 });
+  }
+}
+
+/**
+ * Takes a runner out back off the record.
+ *
+ * The runner returns to the base they were retired on and the out comes off
+ * the half-inning. Without this a mistake here could only be cleared by
+ * deleting the plate appearance it was attached to - which throws away the
+ * batter's line as well, and every at-bat after it in the inning.
+ */
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
+    const { id } = await params;
+    const scorecardId = Number(id);
+
+    const db = getDb();
+    const scorecard = await db.query.scorecards.findFirst({
+      where: eq(scorecards.id, scorecardId),
+    });
+    if (!scorecard) return Response.json({ error: "No such scorecard." }, { status: 404 });
+    if (scorecard.status === "APPROVED") {
+      return Response.json({ error: "This scorecard is approved and locked." }, { status: 409 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const outId = Number(searchParams.get("outId"));
+    if (!Number.isInteger(outId)) {
+      return Response.json({ error: "Which out?" }, { status: 400 });
+    }
+
+    const out = await db.query.runnerOuts.findFirst({ where: eq(runnerOuts.id, outId) });
+    if (!out || out.scorecardId !== scorecardId) {
+      return Response.json({ error: "No such out." }, { status: 404 });
+    }
+
+    const standing = await db.query.plateAppearances.findFirst({
+      where: eq(plateAppearances.id, out.plateAppearanceId),
+    });
+    if (!standing) {
+      return Response.json({ error: "The play it belonged to is gone." }, { status: 409 });
+    }
+
+    // Put the runner back where they were retired. The bases are a stored
+    // snapshot, so the runner is restored into it rather than re-derived -
+    // re-deriving would not know this out had ever happened.
+    const restored = { ...decodeBases(standing.basesAfter), [out.base as BaseName]: out.runnerPlayerId };
+
+    await db
+      .update(plateAppearances)
+      .set({
+        outsRecorded: Math.max(0, standing.outsRecorded - 1),
+        basesAfter: encodeBases(restored),
+      })
+      .where(eq(plateAppearances.id, standing.id));
+
+    await db.delete(runnerOuts).where(eq(runnerOuts.id, outId));
+
+    const rows = await db
+      .select()
+      .from(plateAppearances)
+      .where(eq(plateAppearances.scorecardId, scorecardId));
+    const updated = deriveBoxScore(rows);
+    await db
+      .update(scorecards)
+      .set({ homeScore: updated.homeScore, awayScore: updated.awayScore })
+      .where(eq(scorecards.id, scorecardId));
+    await db
+      .update(games)
+      .set({ homeScore: updated.homeScore, awayScore: updated.awayScore })
+      .where(eq(games.id, scorecard.gameId));
+
+    return Response.json({ ok: true });
+  } catch (error) {
+    if (error instanceof RoleError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    return Response.json({ error: "Could not undo the out." }, { status: 500 });
   }
 }

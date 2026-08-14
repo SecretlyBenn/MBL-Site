@@ -49,8 +49,10 @@ export default async function ScorecardPage({
   // hangs off whichever play was standing at the time rather than their own.
   const outs = await db
     .select({
+      id: runnerOuts.id,
       runnerPlayerId: runnerOuts.runnerPlayerId,
       kind: runnerOuts.kind,
+      base: runnerOuts.base,
       putoutPlayerId: runnerOuts.putoutPlayerId,
       inning: plateAppearances.inning,
       isHomeBatting: plateAppearances.isHomeBatting,
@@ -109,6 +111,14 @@ export default async function ScorecardPage({
           }))}
           nameOf={Object.fromEntries(roster.map((player) => [player.id, player.displayName]))}
           bench={{ away: benchFor(game.awayTeamId), home: benchFor(game.homeTeamId) }}
+          runnerOuts={outs.map((out) => ({
+            id: out.id,
+            runnerPlayerId: out.runnerPlayerId,
+            kind: out.kind,
+            base: out.base,
+            inning: out.inning,
+            isHomeBatting: out.isHomeBatting,
+          }))}
           atBats={appearances.map((row) => ({
             id: row.id,
             sequence: row.sequence,

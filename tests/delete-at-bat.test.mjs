@@ -33,3 +33,19 @@ test("a tag out asks who applied it", () => {
   assert.ok(diamond.includes("Who made the tag?"));
   assert.ok(diamond.includes("disabled={!tagger}"));
 });
+
+test("a runner out can be taken back on its own", () => {
+  // Without this the only way to clear a mistake here was deleting the plate
+  // appearance the out hung from, which threw away the batter's line and
+  // every at-bat after it in the inning.
+  const outs = readFileSync("app/api/scorecards/[id]/runner-outs/route.ts", "utf8");
+  assert.ok(outs.includes("export async function DELETE"));
+  // The runner goes back to the base they were retired on, and the out comes
+  // off the half-inning.
+  assert.ok(outs.includes("[out.base as BaseName]: out.runnerPlayerId"));
+  assert.ok(outs.includes("outsRecorded: Math.max(0, standing.outsRecorded - 1)"));
+});
+
+test("a tag still cannot be recorded without naming the tagger", () => {
+  assert.ok(diamond.includes("disabled={!tagger}"));
+});

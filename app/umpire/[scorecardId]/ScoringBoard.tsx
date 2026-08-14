@@ -31,6 +31,7 @@ export function ScoringBoard({
   atBats,
   nameOf,
   bench,
+  runnerOuts,
 }: {
   scorecardId: number;
   awayName: string;
@@ -40,6 +41,15 @@ export function ScoringBoard({
   atBats: LoggedAtBat[];
   nameOf: Record<number, string>;
   bench: { away: { id: number; name: string }[]; home: { id: number; name: string }[] };
+  /** Runners retired on the bases, with the half-inning each happened in. */
+  runnerOuts: {
+    id: number;
+    runnerPlayerId: number;
+    kind: string;
+    base: string;
+    inning: number;
+    isHomeBatting: boolean;
+  }[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -301,6 +311,19 @@ export function ScoringBoard({
           fielders={fielderList}
           onMove={(playerId, to, reason, note) =>
             send(`/api/scorecards/${scorecardId}/runners`, "POST", { playerId, to, reason, note })
+          }
+          recordedOuts={runnerOuts
+            .filter(
+              (out) => out.inning === state.inning && out.isHomeBatting === state.isHomeBatting,
+            )
+            .map((out) => ({
+              id: out.id,
+              runnerName: nameOf[out.runnerPlayerId] ?? "Runner",
+              kind: out.kind,
+              base: out.base,
+            }))}
+          onUndoOut={(outId) =>
+            send(`/api/scorecards/${scorecardId}/runner-outs?outId=${outId}`, "DELETE")
           }
           onOut={(playerId, kind, fielded) =>
             send(`/api/scorecards/${scorecardId}/runner-outs`, "POST", { playerId, kind, fielded })

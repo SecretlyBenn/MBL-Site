@@ -24,6 +24,8 @@ export function BaseDiamond({
   onMove,
   onOut,
   fielders,
+  recordedOuts,
+  onUndoOut,
   busy,
 }: {
   bases: Bases;
@@ -39,6 +41,13 @@ export function BaseDiamond({
   onOut: (playerId: number, kind: "TAGGED" | "PICKED_OFF", fielded: string | null) => void;
   /** The side in the field, for choosing who made the tag. */
   fielders: { playerId: number; name: string; position: string }[];
+  /**
+   * Outs already recorded in this half-inning, so a mistake here can be taken
+   * back. Without them the only way out was deleting the plate appearance the
+   * out hung from, which threw away the batter's line with it.
+   */
+  recordedOuts: { id: number; runnerName: string; kind: string; base: string }[];
+  onUndoOut: (outId: number) => void;
   busy?: boolean;
 }) {
   const [dragging, setDragging] = useState<number | null>(null);
@@ -235,6 +244,36 @@ export function BaseDiamond({
           </div>
         ))}
       </div>
+
+      {recordedOuts.length > 0 && (
+        <div className="mt-3 space-y-1 border-t border-slate-800/80 pt-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Out this inning
+          </p>
+          {recordedOuts.map((out) => (
+            <div key={out.id} className="flex items-center gap-2 text-[11px]">
+              <span className="min-w-0 truncate text-slate-300">
+                {out.runnerName}{" "}
+                <span className="text-slate-500">
+                  {out.kind === "TAGGED"
+                    ? `tagged at ${out.base}`
+                    : out.kind === "PICKED_OFF"
+                      ? `picked off ${out.base}`
+                      : "caught stealing"}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => onUndoOut(out.id)}
+                disabled={busy}
+                className="ml-auto shrink-0 font-semibold text-sky-400 hover:text-sky-300 disabled:opacity-40"
+              >
+                Undo
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {retiring !== null && asking === null && (
         <div className="mt-3 rounded-md border border-slate-700 bg-slate-900/60 p-3">
