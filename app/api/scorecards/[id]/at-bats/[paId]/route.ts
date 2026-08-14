@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { games, plateAppearances, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
-import { advance, decodeRunners, encodeBases } from "@/app/bases";
+import { advance, decodeRunners, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
 import { RESULT_BY_CODE, type PlateAppearanceInput, type ResultCode } from "@/app/scoring";
 
@@ -97,6 +97,22 @@ export async function PATCH(
       return Response.json({ error: "Describe what happened when using Other." }, { status: 400 });
     }
 
+    // Recomputed from the bases as they stood before this play, and limited
+    // to runners who were actually on them.
+    const standing = currentBases(before.filter((row) => row.sequence < existing.sequence));
+    const aboard = new Set(runnersOn(standing).map((runner) => runner.playerId));
+    const scoredHere = decodeRunners(body.runnersScored ?? existing.runnersScored).filter((id) =>
+      aboard.has(id),
+    );
+    const corrected = advance(standing, {
+      batterPlayerId: body.batterPlayerId ?? existing.batterPlayerId,
+      result,
+      scored: scoredHere,
+      // See the note in the POST route: scoring the batter takes him off the
+      // bases rather than leaving him on one to be scored again.
+      batterTo: (body.batterScored ?? existing.batterScored) ? "home" : undefined,
+    });
+
     await db
       .update(plateAppearances)
       .set({
@@ -106,7 +122,6 @@ export async function PATCH(
         fielders: body.fielders !== undefined ? body.fielders?.trim() || null : existing.fielders,
         rbis: body.rbis ?? existing.rbis,
         batterScored: body.batterScored ?? existing.batterScored,
-        otherRunsScored: body.otherRunsScored ?? existing.otherRunsScored,
         unearnedRuns: body.unearnedRuns ?? existing.unearnedRuns,
         outsRecorded: outs,
         errorPosition: body.errorPosition !== undefined ? body.errorPosition : existing.errorPosition,
@@ -115,15 +130,9 @@ export async function PATCH(
         // Derived here rather than taken from the screen - see the note in
         // the POST route. Recomputed from the bases as they stood before this
         // play, so a corrected result moves the runners with it.
-        basesAfter: encodeBases(
-          advance(currentBases(before.filter((row) => row.sequence < existing.sequence)), {
-            batterPlayerId: body.batterPlayerId ?? existing.batterPlayerId,
-            result,
-            scored: decodeRunners(body.runnersScored ?? existing.runnersScored),
-          }).bases,
-        ),
-        runnersScored:
-          body.runnersScored !== undefined ? body.runnersScored : existing.runnersScored,
+        basesAfter: encodeBases(corrected.bases),
+        otherRunsScored: corrected.runs,
+        runnersScored: encodeRunners(scoredHere),
       })
       .where(eq(plateAppearances.id, existing.id));
 

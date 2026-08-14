@@ -140,3 +140,18 @@ test("a home run scores everyone aboard, and leaves the batter to the caller", (
   });
   assert.equal(runs, 3);
 });
+
+test("a batter who scores does not also stand on a base", () => {
+  // The regression: the batter reached on a single and was also ticked as
+  // having come round. He was counted as a run and left on first, where the
+  // next play could score him again. The game read 3-0 from one hit.
+  const { bases, runs } = advance(on(191, 190), {
+    batterPlayerId: 192,
+    result: "1B",
+    scored: [190, 191],
+    batterTo: "home",
+  });
+  assert.deepEqual(bases, { first: null, second: null, third: null });
+  // The two runners; the batter is counted by the caller.
+  assert.equal(runs, 2);
+});

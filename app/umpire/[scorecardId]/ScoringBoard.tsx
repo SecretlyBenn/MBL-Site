@@ -52,13 +52,6 @@ export function ScoringBoard({
   const state = useMemo(() => gameState(appearances), [appearances]);
   const bases = useMemo(() => currentBases(appearances), [appearances]);
 
-  // Who is aboard, nearest home first - the order they would score in.
-  const runners = runnersOn(bases).map((runner) => ({
-    playerId: runner.playerId,
-    name: nameOf[runner.playerId] ?? "Runner",
-    base: runner.base,
-  }));
-
   const orderFor = (isHome: boolean) =>
     lineups
       .filter((row) => row.isHome === isHome && row.battingOrder !== null)
@@ -67,6 +60,18 @@ export function ScoringBoard({
   const battingOrder = orderFor(state.isHomeBatting);
   const completed = appearances.filter((pa) => pa.isHomeBatting === state.isHomeBatting).length;
   const batter = battingOrder[battingOrder.length > 0 ? completed % battingOrder.length : 0];
+
+  // Who is aboard, nearest home first - the order they would score in. The
+  // batter is at the plate, not on a base: if a stale reading leaves him among
+  // the runners he can be ticked as having scored and counted again as the
+  // batter, which is one man and two runs.
+  const runners = runnersOn(bases)
+    .filter((runner) => runner.playerId !== batter?.playerId)
+    .map((runner) => ({
+      playerId: runner.playerId,
+      name: nameOf[runner.playerId] ?? "Runner",
+      base: runner.base,
+    }));
 
   const fieldingSide = lineups.filter((row) => row.isHome !== state.isHomeBatting);
   const defaultPitcher = fieldingSide

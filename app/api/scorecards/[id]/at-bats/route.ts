@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { games, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore, gameState } from "@/app/derive-box-score";
-import { advance, decodeRunners, encodeBases } from "@/app/bases";
+import { advance, decodeRunners, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
 import { validatePlateAppearance, type PlateAppearanceInput } from "@/app/scoring";
 
@@ -60,11 +60,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // play, and once stored it is trusted over anything derived. One did -
     // a single with the bases empty arrived saying the bases were still
     // empty, and the batter could not then be moved off first.
-    const scored = decodeRunners(body.runnersScored ?? null);
-    const after = advance(currentBases(rows), {
+    // Only runners actually on base can have scored. The screen can offer a
+    // stale list - it did, and a name that was never out there was credited
+    // with a run.
+    const before = currentBases(rows);
+    const aboard = new Set(runnersOn(before).map((runner) => runner.playerId));
+    const scored = decodeRunners(body.runnersScored ?? null).filter((id) => aboard.has(id));
+    const after = advance(before, {
       batterPlayerId: body.batterPlayerId,
       result: body.result,
       scored,
+      // A batter who came all the way round is not also standing on a base.
+      // Leaving him on one counted him twice: once as a run and again as a
+      // runner the next play could score.
+      batterTo: body.batterScored ? "home" : undefined,
     });
 
     // The slot is pinned to the play now, while the lineup still describes
@@ -100,7 +109,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       errorPosition: body.errorPosition,
       stolenBases: body.stolenBases,
       basesAfter: encodeBases(after.bases),
-      runnersScored: body.runnersScored ?? null,
+      runnersScored: encodeRunners(scored),
       note: body.note?.trim() || null,
     });
 
