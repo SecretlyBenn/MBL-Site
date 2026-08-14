@@ -91,7 +91,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       fielders: body.fielders?.trim() || null,
       rbis: body.rbis,
       batterScored: body.batterScored,
-      otherRunsScored: body.otherRunsScored,
+      // The runs on the play are counted from the bases, not taken from the
+      // screen: a runner the screen still shows but who is no longer out there
+      // cannot cross the plate, and trusting the count let one do exactly that.
+      otherRunsScored: after.runs,
       unearnedRuns: body.unearnedRuns,
       outsRecorded: body.outsRecorded,
       errorPosition: body.errorPosition,

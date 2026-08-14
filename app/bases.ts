@@ -88,11 +88,26 @@ export function advance(
     /** Runners retired on the play, who leave the bases without scoring. */
     outRunners?: number[];
   },
-): { bases: Bases; runs: number } {
+): {
+  bases: Bases;
+  /**
+   * Runs scored by runners. The batter is not counted here even when they came
+   * all the way round - the caller records that separately, and adding it here
+   * too would score them twice.
+   */
+  runs: number;
+} {
   // A skipped batter never took the plate, so the bases are untouched.
   if (isSkip(result)) return { bases, runs: 0 };
 
-  const gone = new Set([...scored, ...outRunners]);
+  // Only runners actually standing on a base can score or be put out. A name
+  // that is not out there earns nothing: the screen can offer a stale list, and
+  // counting it would invent a run - which is how a game reached 3-0 with the
+  // bases still loaded.
+  const aboard = new Set(runnersOn(bases).map((runner) => runner.playerId));
+  const realScorers = scored.filter((playerId) => aboard.has(playerId));
+
+  const gone = new Set([...realScorers, ...outRunners]);
   const remaining: Bases = {
     first: bases.first !== null && !gone.has(bases.first) ? bases.first : null,
     second: bases.second !== null && !gone.has(bases.second) ? bases.second : null,
@@ -103,8 +118,9 @@ export function advance(
 
   // A home run clears the bases: everyone aboard scores along with the batter.
   if (destination === "home") {
-    const aboard = runnersOn(remaining).length;
-    return { bases: EMPTY_BASES, runs: aboard + 1 };
+    // Everyone aboard scores. The batter is counted by the caller, which
+    // records them separately - see the note on the return type.
+    return { bases: EMPTY_BASES, runs: runnerCount(bases) };
   }
 
   const next: Bases = { ...remaining };
@@ -128,7 +144,7 @@ export function advance(
       if (carrying !== null) {
         return {
           bases: { ...next, [destination]: batterPlayerId },
-          runs: scored.length + 1,
+          runs: realScorers.length + 1,
         };
       }
     }
@@ -136,7 +152,7 @@ export function advance(
     next[destination] = batterPlayerId;
   }
 
-  return { bases: next, runs: scored.length };
+  return { bases: next, runs: realScorers.length };
 }
 
 /** Serialised for storage - the column holds JSON so the shape can grow. */

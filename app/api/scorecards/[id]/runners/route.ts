@@ -88,16 +88,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // them down on the bag they reached.
     if (payload.to !== "home") next[payload.to] = payload.playerId;
 
+    // The batter of the play that is standing can come round to score too, and
+    // their run belongs to them: recording it as another runner's leaves the
+    // batter with no run to their name in the box score.
+    const batterCameRound = scoredNow && payload.playerId === standing.batterPlayerId;
+
     await db
       .update(plateAppearances)
       .set({
         basesAfter: encodeBases(next),
+        batterScored: standing.batterScored || batterCameRound,
         // A run here is not driven in by the batter, so it adds to the runs on
         // the play without touching the RBI.
-        otherRunsScored: standing.otherRunsScored + (scoredNow ? 1 : 0),
-        runnersScored: scoredNow
-          ? encodeRunners([...decodeRunners(standing.runnersScored), payload.playerId])
-          : standing.runnersScored,
+        otherRunsScored:
+          standing.otherRunsScored + (scoredNow && !batterCameRound ? 1 : 0),
+        runnersScored:
+          scoredNow && !batterCameRound
+            ? encodeRunners([...decodeRunners(standing.runnersScored), payload.playerId])
+            : standing.runnersScored,
         stolenBases: standing.stolenBases + (payload.stole ? 1 : 0),
       })
       .where(eq(plateAppearances.id, standing.id));

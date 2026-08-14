@@ -21,7 +21,8 @@ test("a home run clears the bases and scores everyone", () => {
     scored: [],
   });
   assert.deepEqual(bases, EMPTY_BASES);
-  assert.equal(runs, 4);
+  // Three runners score; the batter is recorded separately by the caller.
+  assert.equal(runs, 3);
 });
 
 test("a walk with a runner on first forces them to second", () => {
@@ -114,4 +115,28 @@ test("a single with the bases empty leaves the batter on first", () => {
     scored: [],
   });
   assert.equal(bases.first, 77);
+});
+
+test("a runner who is not on base cannot score", () => {
+  // The regression: the screen offered a stale list of runners, the umpire
+  // ticked one who had already come off, and the play was credited with a run
+  // nobody ran. The game read 3-0 with the bases still loaded.
+  const { bases, runs } = advance(on(191, 190), {
+    batterPlayerId: 999,
+    result: "1B",
+    scored: [190, 191, 192],
+  });
+  assert.equal(runs, 2);
+  assert.equal(bases.first, 999);
+});
+
+test("a home run scores everyone aboard, and leaves the batter to the caller", () => {
+  // The batter is recorded separately; counting them here as well would put
+  // four runs on a grand slam and then a fifth.
+  const { runs } = advance(on(2, 3, 4), {
+    batterPlayerId: 1,
+    result: "HR",
+    scored: [2, 3, 4],
+  });
+  assert.equal(runs, 3);
 });
