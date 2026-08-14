@@ -54,6 +54,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const sequence = rows.length === 0 ? 1 : Math.max(...rows.map((row) => row.sequence)) + 1;
 
+    // Whose turn it is is worked out here, not taken from the screen. The
+    // browser was deciding it from its own count of plate appearances, so a
+    // page a beat behind named the batter who had just hit - and he was
+    // recorded twice while the man after him never came up at all.
+    //
+    // The order is taken from the last slot this side used rather than from a
+    // count, because a count only holds while every trip through the lineup is
+    // exactly its length: deleting an at-bat, or a lineup that is not nine
+    // long, shifts everyone after it.
+    const lineup = await db
+      .select()
+      .from(scorecardLineups)
+      .where(
+        and(
+          eq(scorecardLineups.scorecardId, scorecardId),
+          eq(scorecardLineups.isHome, state.isHomeBatting),
+        ),
+      );
+    const order = lineup
+      .filter((row) => row.battingOrder !== null)
+      .sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0));
+
+    if (order.length === 0) {
+      return Response.json({ error: "That side has no batting order." }, { status: 409 });
+    }
+
+    const lastForSide = rows
+      .filter((row) => row.isHomeBatting === state.isHomeBatting)
+      .sort((a, b) => b.sequence - a.sequence)[0];
+
+    const lastIndex = lastForSide
+      ? order.findIndex((row) => row.battingOrder === lastForSide.battingSlot)
+      : -1;
+    const dueUp = order[(lastIndex + 1) % order.length];
+    const batterPlayerId = dueUp.playerId;
+
     // Where the runners end up is worked out here rather than taken from the
     // screen, for the same reason the half-inning is: a browser running an
     // older copy of the page can send a state that does not follow from the
@@ -67,7 +103,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const aboard = new Set(runnersOn(before).map((runner) => runner.playerId));
     const scored = decodeRunners(body.runnersScored ?? null).filter((id) => aboard.has(id));
     const after = advance(before, {
-      batterPlayerId: body.batterPlayerId,
+      batterPlayerId,
       result: body.result,
       scored,
       // A batter who came all the way round is not also standing on a base.
@@ -82,7 +118,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const slot = await db.query.scorecardLineups.findFirst({
       where: and(
         eq(scorecardLineups.scorecardId, scorecardId),
-        eq(scorecardLineups.playerId, body.batterPlayerId),
+        eq(scorecardLineups.playerId, batterPlayerId),
       ),
     });
 
@@ -106,7 +142,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // stale screen cannot file an at-bat into the wrong inning.
       inning: state.inning,
       isHomeBatting: state.isHomeBatting,
-      batterPlayerId: body.batterPlayerId,
+      batterPlayerId,
       battingSlot: slot?.battingOrder ?? null,
       putoutPlayerId: putoutFielder?.playerId ?? null,
       pitcherPlayerId: body.pitcherPlayerId,
