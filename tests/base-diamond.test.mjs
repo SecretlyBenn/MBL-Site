@@ -69,3 +69,18 @@ test("the prompt offers a steal, an error, and something else", () => {
   assert.ok(src.includes('"ERROR"'));
   assert.ok(src.includes('"OTHER"'));
 });
+
+test("advancing on the play just gone is offered, and leads", () => {
+  // The commonest reason by far, so it is the first option and the default
+  // action rather than something to hunt for.
+  assert.ok(src.includes("On the last play"));
+  assert.ok(src.includes('"PLAY"'));
+});
+
+test("a runner can be put back", () => {
+  // The runners are placed forward automatically now, so getting one back to
+  // where they actually held up has to be possible - and is a correction, not
+  // something that happened on the field, so it is not interrogated.
+  assert.ok(src.includes("ORDER.indexOf(to) < ORDER.indexOf(runner.base)"));
+  assert.ok(src.includes('send(playerId, to, "PLAY")'));
+});

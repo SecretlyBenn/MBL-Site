@@ -125,6 +125,34 @@ export function advance(
 
   const next: Bases = { ...remaining };
 
+  // On a hit the runners go with the batter: a single moves everyone up one,
+  // a double up two. That is what happens on the field nearly every time, so
+  // it is the starting point rather than something the umpire has to enter -
+  // and a runner who held up, or took an extra base, is dragged to where they
+  // actually finished.
+  //
+  // Only hits do this. A walk pushes along only the runners with nowhere to
+  // stand, which the forcing below handles.
+  const step = RESULT_BY_CODE.get(result as ResultCode)?.isHit
+    ? RESULT_BY_CODE.get(result as ResultCode)?.bases ?? 0
+    : 0;
+
+  let carriedHome = 0;
+  if (step > 0) {
+    const order: BaseName[] = ["first", "second", "third"];
+    // Lead runner first, so nobody is put on a bag the runner ahead has yet to
+    // leave.
+    for (let index = order.length - 1; index >= 0; index -= 1) {
+      const from = order[index];
+      const runner = next[from];
+      if (runner === null) continue;
+      next[from] = null;
+      const target = index + step;
+      if (target >= order.length) carriedHome += 1;
+      else next[order[target]] = runner;
+    }
+  }
+
   if (destination) {
     if (next[destination] !== null) {
       // The base the batter is taking is occupied, so its runner is forced up.
@@ -141,18 +169,13 @@ export function advance(
       }
       // A runner pushed past third scores; the caller normally states this, but
       // a forced run is not optional.
-      if (carrying !== null) {
-        return {
-          bases: { ...next, [destination]: batterPlayerId },
-          runs: realScorers.length + 1,
-        };
-      }
+      if (carrying !== null) carriedHome += 1;
     }
 
     next[destination] = batterPlayerId;
   }
 
-  return { bases: next, runs: realScorers.length };
+  return { bases: next, runs: realScorers.length + carriedHome };
 }
 
 /** Serialised for storage - the column holds JSON so the shape can grow. */

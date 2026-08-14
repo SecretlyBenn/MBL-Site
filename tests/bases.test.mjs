@@ -155,3 +155,61 @@ test("a batter who scores does not also stand on a base", () => {
   // The two runners; the batter is counted by the caller.
   assert.equal(runs, 2);
 });
+
+test("a runner on second goes to third on a single", () => {
+  // The runners go with the batter. This is what happens on the field nearly
+  // every time, so it is where the play starts rather than something the
+  // umpire has to enter by hand.
+  const { bases, runs } = advance(on(null, 50), {
+    batterPlayerId: 7,
+    result: "1B",
+    scored: [],
+  });
+  assert.equal(bases.third, 50);
+  assert.equal(bases.first, 7);
+  assert.equal(bases.second, null);
+  assert.equal(runs, 0);
+});
+
+test("a runner on third scores on a single", () => {
+  const { bases, runs } = advance(on(null, null, 50), {
+    batterPlayerId: 7,
+    result: "1B",
+    scored: [],
+  });
+  assert.equal(runs, 1);
+  assert.equal(bases.first, 7);
+  assert.equal(bases.third, null);
+});
+
+test("a double moves everyone up two", () => {
+  const { bases, runs } = advance(on(60, 50), {
+    batterPlayerId: 7,
+    result: "2B",
+    scored: [],
+  });
+  // From second: home. From first: third. The batter takes second.
+  assert.equal(runs, 1);
+  assert.equal(bases.third, 60);
+  assert.equal(bases.second, 7);
+  assert.equal(bases.first, null);
+});
+
+test("a walk moves only the runners with nowhere to stand", () => {
+  // A runner on second is not forced by a walk and stays put.
+  const { bases, runs } = advance(on(null, 50), {
+    batterPlayerId: 7,
+    result: "BB",
+    scored: [],
+  });
+  assert.equal(bases.second, 50);
+  assert.equal(bases.first, 7);
+  assert.equal(runs, 0);
+});
+
+test("an out leaves the runners where they were", () => {
+  const { bases, runs } = advance(on(60, 50), { batterPlayerId: 7, result: "GO", scored: [] });
+  assert.equal(bases.first, 60);
+  assert.equal(bases.second, 50);
+  assert.equal(runs, 0);
+});

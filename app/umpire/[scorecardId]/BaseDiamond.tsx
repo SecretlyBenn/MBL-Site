@@ -30,7 +30,7 @@ export function BaseDiamond({
   onMove: (
     playerId: number,
     to: BaseName | "home",
-    reason: "STEAL" | "ERROR" | "OTHER",
+    reason: "PLAY" | "STEAL" | "ERROR" | "OTHER",
     note?: string,
   ) => void;
   busy?: boolean;
@@ -74,13 +74,18 @@ export function BaseDiamond({
     const runner = runners.find((row) => row.playerId === playerId);
     if (!runner) return;
 
-    // Only forward moves make sense; a runner does not go back a base.
-    if (ORDER.indexOf(to) <= ORDER.indexOf(runner.base)) return;
+    // Landing a runner where they already are is not a move.
+    if (to === runner.base) return;
 
-    // Always ask. Being forced is a property of a batted ball - it describes
-    // who has to move when the batter takes a base - and nothing here is
-    // batted. A runner moving between plays did it for a reason, and that
-    // reason is someone's stat.
+    // Putting a runner back is a correction, not something that happened on
+    // the field - the runners are placed forward automatically now, so getting
+    // one back to where they held up should not be interrogated.
+    if (ORDER.indexOf(to) < ORDER.indexOf(runner.base)) {
+      send(playerId, to, "PLAY");
+      return;
+    }
+
+    // Everything else happened for a reason, and the reason is someone's stat.
     setWhy("");
     setAsking({ playerId, to });
   }
@@ -89,7 +94,7 @@ export function BaseDiamond({
   function send(
     playerId: number,
     to: BaseName | "home",
-    reason: "STEAL" | "ERROR" | "OTHER",
+    reason: "PLAY" | "STEAL" | "ERROR" | "OTHER",
     note?: string,
   ) {
     if (inFlight.current) return;
@@ -103,10 +108,10 @@ export function BaseDiamond({
   const baseStyle = (base: BaseName | "home") => {
     const hovered = over === base;
     const pickedRunner = picked === null ? null : runners.find((row) => row.playerId === picked);
+    // Every base except the one they are standing on, since a runner can be
+    // put back as well as sent on.
     const reachable =
-      pickedRunner !== null &&
-      pickedRunner !== undefined &&
-      ORDER.indexOf(base) > ORDER.indexOf(pickedRunner.base);
+      pickedRunner !== null && pickedRunner !== undefined && base !== pickedRunner.base;
     // An occupied bag is lit. The umpire should be able to read the state of
     // the bases from across the room, without stopping to find the names.
     const occupied = base !== "home" && runnerAt(base) !== null;
@@ -176,7 +181,7 @@ export function BaseDiamond({
           ? "Bases empty."
           : picked !== null
             ? "Now pick the base they reached, or home if they scored."
-            : "Tap a runner then a base, or drag them across."}
+            : "Tap a runner then a base, or drag them across. Runners move up with the batter already - drag one back if they held."}
       </p>
 
       <div className="relative mx-auto h-52 w-52">
@@ -218,12 +223,21 @@ export function BaseDiamond({
             {asking.to === "home" ? "home" : asking.to}?
           </p>
           <div className="grid gap-1.5">
-            {/* A steal and an error are each somebody's stat, so they are named
-                rather than lumped together as "advanced". */}
+            {/* Moving up on the ball just put in play is the commonest case,
+                so it leads and carries no note - the play it came from is
+                already on the card. A steal and an error are each somebody's
+                stat, so they are named rather than lumped in with it. */}
+            <button
+              type="button"
+              onClick={() => { send(asking.playerId, asking.to, "PLAY"); setAsking(null); }}
+              className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-500"
+            >
+              On the last play
+            </button>
             <button
               type="button"
               onClick={() => { send(asking.playerId, asking.to, "STEAL"); setAsking(null); }}
-              className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-500"
+              className="rounded-md border border-sky-700 px-3 py-1.5 text-xs font-semibold text-sky-300 hover:bg-sky-950/40"
             >
               Stolen base
             </button>

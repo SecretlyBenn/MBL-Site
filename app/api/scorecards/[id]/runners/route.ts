@@ -12,7 +12,7 @@ import {
 } from "@/app/bases";
 
 /** Why a runner moved between plays. */
-export const ADVANCE_REASONS = ["STEAL", "ERROR", "OTHER"] as const;
+export const ADVANCE_REASONS = ["PLAY", "STEAL", "ERROR", "OTHER"] as const;
 export type AdvanceReason = (typeof ADVANCE_REASONS)[number];
 
 type MovePayload = {
@@ -35,6 +35,8 @@ type MovePayload = {
  */
 /** Keeps the play's existing note and adds what the runner did to it. */
 function noteFor(existing: string | null, reason: AdvanceReason, given?: string) {
+  // Advancing on the play just gone is the ordinary case and needs no note;
+  // the batted ball it came from is already on the card.
   const text =
     reason === "ERROR"
       ? "Runner advanced on an error"
