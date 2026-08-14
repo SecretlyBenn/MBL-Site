@@ -1,9 +1,16 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import { games, plateAppearances, runnerOuts, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore, gameState } from "@/app/derive-box-score";
-import { advance, decodeRunners, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
+import {
+  advance,
+  BASE_NAMES,
+  decodeRunners,
+  encodeBases,
+  encodeRunners,
+  runnersOn,
+} from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
 import { putoutPosition, validatePlateAppearance, type PlateAppearanceInput } from "@/app/scoring";
 
@@ -102,14 +109,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const before = currentBases(rows);
     const aboard = new Set(runnersOn(before).map((runner) => runner.playerId));
     const scored = decodeRunners(body.runnersScored ?? null).filter((id) => aboard.has(id));
+    // Runners retired on the play, limited to those actually on base.
+    const outRunners = (body.outRunners ?? []).filter((id) => aboard.has(id));
+
     const after = advance(before, {
       batterPlayerId,
       result: body.result,
       scored,
+      outRunners,
       // A batter who came all the way round is not also standing on a base.
       // Leaving him on one counted him twice: once as a run and again as a
       // runner the next play could score.
-      batterTo: body.batterScored ? "home" : undefined,
+      //
+      // On a fielder's choice he reaches instead, and on a double play he
+      // usually does not - the umpire says which, so the bases follow the play
+      // rather than the result code deciding for them.
+      batterTo: body.batterScored ? "home" : body.batterOut ? null : undefined,
     });
 
     // The slot is pinned to the play now, while the lineup still describes
@@ -135,7 +150,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         })
       : null;
 
-    await db.insert(plateAppearances).values({
+    const [inserted] = await db.insert(plateAppearances).values({
       scorecardId,
       sequence,
       // The half-inning comes from the recorded at-bats, not the client, so a
@@ -165,6 +180,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await resequenceInnings(scorecardId);
     const box = await syncScore(scorecardId, scorecard.gameId);
+    if (outRunners.length > 0 && inserted) {
+      const retiredAt = (playerId: number) =>
+        BASE_NAMES.find((base) => before[base] === playerId) ?? "first";
+      await db.insert(runnerOuts).values(
+        outRunners.map((playerId) => ({
+          scorecardId,
+          plateAppearanceId: inserted.id,
+          runnerPlayerId: playerId,
+          kind: "FORCED" as const,
+          base: retiredAt(playerId),
+          putoutPlayerId: putoutFielder?.playerId ?? null,
+        })),
+      );
+    }
+
     return Response.json({ ok: true, score: { home: box.homeScore, away: box.awayScore } });
   } catch (error) {
     if (error instanceof RoleError) {

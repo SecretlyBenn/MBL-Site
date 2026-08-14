@@ -24,7 +24,7 @@ export type LoggedAtBat = {
   stolenBases?: number;
   note: string | null;
   /** How the batter was retired on the bases after reaching, if they were. */
-  retiredAs?: "TAGGED" | "PICKED_OFF" | "CAUGHT_STEALING" | null;
+  retiredAs?: "TAGGED" | "PICKED_OFF" | "CAUGHT_STEALING" | "FORCED" | null;
   /** The position credited with that out, as its scorebook number. */
   retiredByPosition?: number | null;
 };

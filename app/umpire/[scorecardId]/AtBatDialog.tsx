@@ -11,6 +11,10 @@ export type AtBatDraft = {
   otherRunsScored: number;
   /** Which runners crossed the plate, by player id. */
   scoredRunners: number[];
+  /** Which runners were retired on the play, by player id. */
+  outRunners: number[];
+  /** Whether the batter was one of the outs. */
+  batterOut: boolean;
   unearnedRuns: number;
   outsRecorded: number;
   errorPlayerId: string;
@@ -20,7 +24,8 @@ export type AtBatDraft = {
 
 export const EMPTY_DRAFT: AtBatDraft = {
   result: "", fielders: "", rbis: 0, batterScored: false, otherRunsScored: 0,
-  scoredRunners: [], unearnedRuns: 0, outsRecorded: 0, errorPlayerId: "", stolenBases: 0, note: "",
+  scoredRunners: [], outRunners: [], batterOut: false, unearnedRuns: 0, outsRecorded: 0,
+  errorPlayerId: "", stolenBases: 0, note: "",
 };
 
 /**
@@ -77,7 +82,14 @@ export function AtBatDialog({
   function chooseResult(code: ResultCode | "") {
     if (!code) return patch({ result: "" });
     const chosen = RESULT_BY_CODE.get(code);
-    patch({ result: code, outsRecorded: chosen?.defaultOuts ?? 0 });
+    patch({
+      result: code,
+      outsRecorded: chosen?.defaultOuts ?? 0,
+      outRunners: [],
+      // A fielder's choice is the batter reaching while someone else is
+      // retired; a double play usually starts with the batter.
+      batterOut: chosen?.retiresRunners ? code !== "FC" : (chosen?.defaultOuts ?? 0) > 0,
+    });
   }
 
   const isHit = definition?.isHit ?? false;
@@ -150,6 +162,52 @@ export function AtBatDialog({
                 ))}
               </select>
             </label>
+          )}
+
+          {/* A fielder's choice retires a runner and the batter reaches - that
+              is what makes it one - so the umpire says who was thrown out
+              rather than the screen assuming the batter. A double play usually
+              takes the batter and a runner, but two runners happens too. */}
+          {definition.retiresRunners && (
+            <fieldset className="rounded-md border border-slate-800 p-3">
+              <legend className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Who was put out?
+              </legend>
+              <div className="space-y-1.5">
+                <label className="flex items-center gap-2 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={draft.batterOut}
+                    onChange={(event) => patch({ batterOut: event.target.checked })}
+                  />
+                  The batter
+                </label>
+                {runners.map((runner) => (
+                  <label key={runner.playerId} className="flex items-center gap-2 text-sm text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={draft.outRunners.includes(runner.playerId)}
+                      onChange={(event) =>
+                        patch({
+                          outRunners: event.target.checked
+                            ? [...draft.outRunners, runner.playerId]
+                            : draft.outRunners.filter((id) => id !== runner.playerId),
+                        })
+                      }
+                    />
+                    {runner.name}
+                    <span className="text-xs text-slate-500">from {runner.base}</span>
+                  </label>
+                ))}
+              </div>
+              {draft.outsRecorded > 0 &&
+                draft.outRunners.length + (draft.batterOut ? 1 : 0) !== draft.outsRecorded && (
+                  <p className="mt-2 text-[11px] text-amber-400">
+                    {draft.outsRecorded} out{draft.outsRecorded === 1 ? "" : "s"} on the play, but{" "}
+                    {draft.outRunners.length + (draft.batterOut ? 1 : 0)} named.
+                  </p>
+                )}
+            </fieldset>
           )}
 
           {/* Nobody on base means nobody can have been driven in, so the

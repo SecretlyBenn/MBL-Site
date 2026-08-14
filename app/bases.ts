@@ -47,6 +47,11 @@ export function batterDestination(result: string): BaseName | "home" | null {
   // A walk, hit-by-pitch, interference, or reaching on an error all put the
   // batter on first without a hit.
   if (definition.group === "On base" || definition.isWalk) return "first";
+  // On a fielder's choice the batter reaches and a runner is thrown out
+  // instead - the batter standing on first is the whole point of the play. A
+  // double play usually retires the batter too, so the caller says so by
+  // passing the destination itself.
+  if (definition.code === "FC") return "first";
   return null;
 }
 

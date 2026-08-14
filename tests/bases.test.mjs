@@ -213,3 +213,54 @@ test("an out leaves the runners where they were", () => {
   assert.equal(bases.second, 50);
   assert.equal(runs, 0);
 });
+
+test("a fielder's choice puts the batter on base", () => {
+  // The batter reaching is what makes it a fielder's choice rather than a
+  // groundout: the fielder chose to retire the runner instead. It was being
+  // treated as a plain out, so the batter vanished off the bases entirely.
+  const { bases } = advance(on(60), {
+    batterPlayerId: 7,
+    result: "FC",
+    scored: [],
+    outRunners: [60],
+  });
+  assert.equal(bases.first, 7);
+  assert.equal(bases.second, null);
+});
+
+test("a fielder's choice with the out at second leaves the batter on first", () => {
+  // MrGrinch hits into one with KonMan on first; the out is taken at second,
+  // so KonMan is gone and MrGrinch stands on first.
+  const konman = 60, mrgrinch = 61;
+  const { bases, runs } = advance(on(konman), {
+    batterPlayerId: mrgrinch,
+    result: "FC",
+    scored: [],
+    outRunners: [konman],
+  });
+  assert.equal(bases.first, mrgrinch);
+  assert.equal(runs, 0);
+});
+
+test("a double play can retire the batter and a runner", () => {
+  const { bases } = advance(on(60), {
+    batterPlayerId: 7,
+    result: "DP",
+    scored: [],
+    outRunners: [60],
+    batterTo: null,
+  });
+  assert.deepEqual(bases, { first: null, second: null, third: null });
+});
+
+test("a double play can retire two runners and leave the batter on", () => {
+  const { bases } = advance(on(60, 61), {
+    batterPlayerId: 7,
+    result: "DP",
+    scored: [],
+    outRunners: [60, 61],
+    batterTo: "first",
+  });
+  assert.equal(bases.first, 7);
+  assert.equal(bases.second, null);
+});

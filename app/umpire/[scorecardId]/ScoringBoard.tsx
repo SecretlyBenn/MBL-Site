@@ -148,6 +148,11 @@ export function ScoringBoard({
       batterPlayerId: batter?.playerId ?? 0,
       result: draft.result || "OTHER",
       scored,
+      outRunners: draft.outRunners,
+      // On a fielder's choice the batter reaches; on a double play he usually
+      // does not. The umpire says which, so the bases follow rather than the
+      // result code deciding for them.
+      batterTo: draft.batterOut ? null : undefined,
     });
 
     return {
@@ -162,6 +167,8 @@ export function ScoringBoard({
       stolenBases: draft.stolenBases,
       basesAfter: encodeBases(after.bases),
       runnersScored: encodeRunners(scored),
+      outRunners: draft.outRunners,
+      batterOut: draft.batterOut,
       note: draft.note || null,
     };
   };
@@ -197,6 +204,8 @@ export function ScoringBoard({
       errorPlayerId: "",
       stolenBases: 0,
       scoredRunners: [],
+      outRunners: [],
+      batterOut: (atBat.outsRecorded ?? 0) > 0,
       note: atBat.note ?? "",
     });
   }

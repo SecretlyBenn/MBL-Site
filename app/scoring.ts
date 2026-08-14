@@ -32,6 +32,13 @@ export type ResultDefinition = {
   bases: number;
   /** Prompts for the fielder digits, e.g. 6-3 on a groundout. */
   wantsFielders: boolean;
+  /**
+   * The out can fall on a runner rather than the batter, so the umpire is
+   * asked who was retired. On a fielder's choice the batter reaches and a
+   * runner is thrown out; a double play usually takes the batter and a runner,
+   * but can take two runners instead.
+   */
+  retiresRunners?: boolean;
   /** Charged to the pitcher's line. */
   isStrikeout?: boolean;
   isWalk?: boolean;
@@ -55,9 +62,9 @@ export const RESULTS: ResultDefinition[] = [
   { code: "FO", label: "Flyout", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
   { code: "LO", label: "Lineout", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
   { code: "PO", label: "Popout", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
-  { code: "FC", label: "Fielder's choice", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
-  { code: "DP", label: "Double play", group: "Out", defaultOuts: 2, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
-  { code: "TP", label: "Triple play", group: "Out", defaultOuts: 3, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
+  { code: "FC", label: "Fielder's choice", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: true, retiresRunners: true },
+  { code: "DP", label: "Double play", group: "Out", defaultOuts: 2, isAtBat: true, isHit: false, bases: 0, wantsFielders: true, retiresRunners: true },
+  { code: "TP", label: "Triple play", group: "Out", defaultOuts: 3, isAtBat: true, isHit: false, bases: 0, wantsFielders: true, retiresRunners: true },
   { code: "SF", label: "Sacrifice fly", group: "Out", defaultOuts: 1, isAtBat: false, isHit: false, bases: 0, wantsFielders: true },
   { code: "SH", label: "Sacrifice bunt", group: "Out", defaultOuts: 1, isAtBat: false, isHit: false, bases: 0, wantsFielders: true },
 
@@ -120,6 +127,10 @@ export type PlateAppearanceInput = {
   unearnedRuns: number;
   outsRecorded: number;
   errorPosition: number | null;
+  /** Runners retired on the play itself, by player id. */
+  outRunners?: number[];
+  /** Whether the batter was one of the outs. */
+  batterOut?: boolean;
   stolenBases: number;
   /** The bases as they stood when the play ended, as JSON. */
   basesAfter?: string | null;
@@ -155,13 +166,14 @@ export function validatePlateAppearance(
 }
 
 /** How a runner was retired away from the plate. */
-export const RUNNER_OUT_KINDS = ["TAGGED", "PICKED_OFF", "CAUGHT_STEALING"] as const;
+export const RUNNER_OUT_KINDS = ["TAGGED", "PICKED_OFF", "CAUGHT_STEALING", "FORCED"] as const;
 export type RunnerOutKind = (typeof RUNNER_OUT_KINDS)[number];
 
 export const RUNNER_OUT_LABELS: Record<RunnerOutKind, string> = {
   TAGGED: "Tagged out",
   PICKED_OFF: "Picked off",
   CAUGHT_STEALING: "Caught stealing",
+  FORCED: "Out on the play",
 };
 
 /**
@@ -186,7 +198,7 @@ export function putoutPosition(
   if (result === "K" || result === "KL") return null;
   if (result === "CAUGHT_STEALING") return "C";
   if (result === "PICKED_OFF") return "P";
-  if (result === "TAGGED") return normalisePosition(fielded);
+  if (result === "TAGGED" || result === "FORCED") return normalisePosition(fielded);
 
   const definition = RESULT_BY_CODE.get(result as ResultCode);
   // Nobody is retired, so there is no putout to give.
@@ -226,6 +238,7 @@ const RUNNER_OUT_SHORT: Record<RunnerOutKind, string> = {
   TAGGED: "TAG",
   PICKED_OFF: "PO",
   CAUGHT_STEALING: "CS",
+  FORCED: "OUT",
 };
 
 /**
