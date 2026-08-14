@@ -320,6 +320,8 @@ export const historicalGameStats = sqliteTable("historical_game_stats", {
   rbis: integer("rbis"),
   walks: integer("walks"),
   strikeouts: integer("strikeouts"),
+  /** One per play, as the league scores them - no assists. */
+  putouts: integer("putouts"),
   inningsPitched: real("innings_pitched"),
   earnedRuns: integer("earned_runs"),
   hitsAllowed: integer("hits_allowed"),
@@ -418,6 +420,12 @@ export const plateAppearances = sqliteTable("plate_appearances", {
    * replaced player had already taken would fall out of the scorecard.
    */
   battingSlot: integer("batting_slot"),
+  /**
+   * Who is credited with the out. The league scores one putout per play and
+   * no assists, so a groundout to short credits the shortstop rather than the
+   * first baseman who took the throw.
+   */
+  putoutPlayerId: integer("putout_player_id").references(() => players.id),
   pitcherPlayerId: integer("pitcher_player_id")
     .notNull()
     .references(() => players.id),
@@ -479,4 +487,31 @@ export const fieldingChanges = sqliteTable("fielding_changes", {
     .notNull()
     .references(() => players.id),
   position: text("position").notNull(),
+});
+
+/**
+ * A runner retired between plays - tagged out, picked off, or caught stealing.
+ *
+ * Not a plate appearance: nobody batted, so recording one as an at-bat would
+ * give a player a turn at the plate they never took. It hangs off the play
+ * that was standing when it happened, which is what puts it in the right
+ * inning.
+ */
+export const runnerOuts = sqliteTable("runner_outs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scorecardId: integer("scorecard_id")
+    .notNull()
+    .references(() => scorecards.id),
+  plateAppearanceId: integer("plate_appearance_id")
+    .notNull()
+    .references(() => plateAppearances.id),
+  runnerPlayerId: integer("runner_player_id")
+    .notNull()
+    .references(() => players.id),
+  /** TAGGED, PICKED_OFF, CAUGHT_STEALING. */
+  kind: text("kind").notNull(),
+  /** The base they were on, or heading for on a caught stealing. */
+  base: text("base").notNull(),
+  putoutPlayerId: integer("putout_player_id").references(() => players.id),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

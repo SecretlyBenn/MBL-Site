@@ -179,6 +179,7 @@ export async function publishScorecard(scorecardId: number) {
       kind: "BATTING" as const,
       playerName: nameOf.get(line.playerId) ?? "Unknown",
       atBats: line.atBats,
+      putouts: line.putouts,
       runs: line.runs,
       hits: line.hits,
       doubles: line.doubles,
@@ -368,6 +369,7 @@ export async function recomputeSeason(seasonId: number) {
       add("rbis", row.rbis);
       add("walks", row.walks);
       add("strikeouts", row.strikeouts);
+      add("putouts", row.putouts);
     } else {
       add("pitchingGames", 1);
       add("inningsPitched", row.inningsPitched);
@@ -408,6 +410,7 @@ export async function recomputeSeason(seasonId: number) {
       rbis: totals.rbis ?? null,
       walks: totals.walks ?? null,
       strikeouts: totals.strikeouts ?? null,
+      putouts: totals.putouts ?? null,
       totalBases: atBats > 0 ? totalBases : null,
       singles: atBats > 0 ? singles : null,
       plateAppearances: atBats > 0 ? onBase : null,

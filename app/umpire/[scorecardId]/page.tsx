@@ -118,6 +118,7 @@ export default async function ScorecardPage({
             // says came home stayed standing on the bases on screen.
             basesAfter: row.basesAfter,
             runnersScored: row.runnersScored,
+            putoutPlayerId: row.putoutPlayerId,
           }))}
         />
       ) : (

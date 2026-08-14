@@ -153,3 +153,59 @@ export function validatePlateAppearance(
   }
   return null;
 }
+
+/** How a runner was retired away from the plate. */
+export const RUNNER_OUT_KINDS = ["TAGGED", "PICKED_OFF", "CAUGHT_STEALING"] as const;
+export type RunnerOutKind = (typeof RUNNER_OUT_KINDS)[number];
+
+export const RUNNER_OUT_LABELS: Record<RunnerOutKind, string> = {
+  TAGGED: "Tagged out",
+  PICKED_OFF: "Picked off",
+  CAUGHT_STEALING: "Caught stealing",
+};
+
+/**
+ * Which position is credited with the out, where the league's convention
+ * decides it rather than the umpire.
+ *
+ * This league scores one putout per play and does not use assists, so a
+ * groundout to short credits the shortstop - not the first baseman who caught
+ * the throw. Most plays therefore credit whoever fielded the ball, which the
+ * umpire has already said. Three do not:
+ *
+ *   - a strikeout credits nobody, because nobody made a play
+ *   - a caught stealing credits the catcher, who threw
+ *   - a pickoff credits the pitcher, who threw
+ *
+ * Returns the position, or null when nobody is credited.
+ */
+export function putoutPosition(
+  result: ResultCode | RunnerOutKind,
+  fielded: string | null,
+): Position | null {
+  if (result === "K" || result === "KL") return null;
+  if (result === "CAUGHT_STEALING") return "C";
+  if (result === "PICKED_OFF") return "P";
+  if (result === "TAGGED") return normalisePosition(fielded);
+
+  const definition = RESULT_BY_CODE.get(result as ResultCode);
+  // Nobody is retired, so there is no putout to give.
+  if (!definition || definition.defaultOuts === 0) return null;
+  return normalisePosition(fielded);
+}
+
+/**
+ * The fielder a putout belongs to, from what the umpire chose. A sequence like
+ * "6-3" names the fielder who started the play first, and under this league's
+ * convention that is the one credited.
+ */
+function normalisePosition(fielded: string | null): Position | null {
+  if (!fielded) return null;
+  const first = fielded.split("-")[0]?.trim().toUpperCase();
+  if (!first) return null;
+  const byName = POSITIONS.find((position) => position === first);
+  if (byName) return byName;
+  // Written as a number, e.g. "6".
+  const entry = Object.entries(POSITION_NUMBER).find(([, number]) => String(number) === first);
+  return (entry?.[0] as Position | undefined) ?? null;
+}

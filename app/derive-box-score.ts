@@ -27,6 +27,8 @@ export type StoredPlateAppearance = {
   errorPosition: number | null;
   errorPlayerId: number | null;
   stolenBases: number;
+  /** Whoever the league credits with the out, or null when nobody is. */
+  putoutPlayerId?: number | null;
 };
 
 export type BattingLine = {
@@ -44,6 +46,11 @@ export type BattingLine = {
   strikeouts: number;
   stolenBases: number;
   totalBases: number;
+  /**
+   * Outs this player was credited with in the field. The league scores one per
+   * play and no assists, so these are whole plays rather than shares of them.
+   */
+  putouts: number;
 };
 
 export type PitchingLine = {
@@ -63,6 +70,7 @@ export type PitchingLine = {
 const emptyBatting = (playerId: number): BattingLine => ({
   playerId, plateAppearances: 0, atBats: 0, runs: 0, hits: 0, singles: 0, doubles: 0,
   triples: 0, homeRuns: 0, rbis: 0, walks: 0, strikeouts: 0, stolenBases: 0, totalBases: 0,
+  putouts: 0,
 });
 
 const emptyPitching = (playerId: number): PitchingLine => ({
@@ -142,6 +150,14 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
     pitcher.outs += pa.outsRecorded;
     pitcher.runs += runs;
     pitcher.earnedRuns += Math.max(0, runs - pa.unearnedRuns);
+
+    if (pa.putoutPlayerId) {
+      // The fielder bats for the other side, so their line lives there.
+      const line =
+        batting[fieldingSide].get(pa.putoutPlayerId) ?? emptyBatting(pa.putoutPlayerId);
+      line.putouts += 1;
+      batting[fieldingSide].set(pa.putoutPlayerId, line);
+    }
 
     batting[side].set(pa.batterPlayerId, batter);
     pitching[fieldingSide].set(pa.pitcherPlayerId, pitcher);

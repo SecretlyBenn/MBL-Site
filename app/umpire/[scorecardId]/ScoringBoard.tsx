@@ -283,8 +283,12 @@ export function ScoringBoard({
           bases={bases}
           nameOf={nameOf}
           busy={busy}
+          fielders={fielderList}
           onMove={(playerId, to, reason, note) =>
             send(`/api/scorecards/${scorecardId}/runners`, "POST", { playerId, to, reason, note })
+          }
+          onOut={(playerId, kind, fielded) =>
+            send(`/api/scorecards/${scorecardId}/runner-outs`, "POST", { playerId, kind, fielded })
           }
         />
 

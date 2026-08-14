@@ -5,7 +5,7 @@ import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore, gameState } from "@/app/derive-box-score";
 import { advance, decodeRunners, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
-import { validatePlateAppearance, type PlateAppearanceInput } from "@/app/scoring";
+import { putoutPosition, validatePlateAppearance, type PlateAppearanceInput } from "@/app/scoring";
 
 async function open(scorecardId: number) {
   const db = getDb();
@@ -86,6 +86,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ),
     });
 
+    // One putout per play, to whoever the league credits - the fielder who
+    // made the play, and nobody at all on a strikeout.
+    const putout = putoutPosition(body.result, body.fielders ?? null);
+    const putoutFielder = putout
+      ? await db.query.scorecardLineups.findFirst({
+          where: and(
+            eq(scorecardLineups.scorecardId, scorecardId),
+            eq(scorecardLineups.isHome, !state.isHomeBatting),
+            eq(scorecardLineups.position, putout),
+          ),
+        })
+      : null;
+
     await db.insert(plateAppearances).values({
       scorecardId,
       sequence,
@@ -95,6 +108,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       isHomeBatting: state.isHomeBatting,
       batterPlayerId: body.batterPlayerId,
       battingSlot: slot?.battingOrder ?? null,
+      putoutPlayerId: putoutFielder?.playerId ?? null,
       pitcherPlayerId: body.pitcherPlayerId,
       result: body.result,
       fielders: body.fielders?.trim() || null,

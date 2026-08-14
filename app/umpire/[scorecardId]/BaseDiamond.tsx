@@ -22,6 +22,8 @@ export function BaseDiamond({
   bases,
   nameOf,
   onMove,
+  onOut,
+  fielders,
   busy,
 }: {
   bases: Bases;
@@ -33,6 +35,10 @@ export function BaseDiamond({
     reason: "PLAY" | "STEAL" | "ERROR" | "OTHER",
     note?: string,
   ) => void;
+  /** Retiring a runner away from the plate. */
+  onOut: (playerId: number, kind: "TAGGED" | "PICKED_OFF", fielded: string | null) => void;
+  /** The side in the field, for choosing who made the tag. */
+  fielders: { playerId: number; name: string; position: string }[];
   busy?: boolean;
 }) {
   const [dragging, setDragging] = useState<number | null>(null);
@@ -54,6 +60,9 @@ export function BaseDiamond({
   const [asking, setAsking] = useState<{ playerId: number; to: BaseName | "home" } | null>(null);
   /** Free text for "something else", so the reason is not lost. */
   const [why, setWhy] = useState("");
+  /** The runner whose fate is being recorded - out, or put somewhere else. */
+  const [retiring, setRetiring] = useState<number | null>(null);
+  const [tagger, setTagger] = useState("");
 
   const runners: Runner[] = (["first", "second", "third"] as const).flatMap((base) =>
     bases[base] === null
@@ -105,6 +114,15 @@ export function BaseDiamond({
     onMove(playerId, to, reason, note);
   }
 
+  function sendOut(playerId: number, kind: "TAGGED" | "PICKED_OFF" | "CAUGHT_STEALING") {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setTimeout(() => { inFlight.current = false; }, 400);
+    setRetiring(null);
+    setPicked(null);
+    onOut(playerId, kind as "TAGGED" | "PICKED_OFF", tagger || null);
+  }
+
   const baseStyle = (base: BaseName | "home") => {
     const hovered = over === base;
     const pickedRunner = picked === null ? null : runners.find((row) => row.playerId === picked);
@@ -150,6 +168,8 @@ export function BaseDiamond({
         onDragEnd={() => { setDragging(null); setOver(null); }}
         onClick={(event) => {
           event.stopPropagation();
+          setRetiring((current) => (current === runner.playerId ? null : runner.playerId));
+          setTagger("");
           setPicked((current) => (current === runner.playerId ? null : runner.playerId));
         }}
         className={`-rotate-45 cursor-grab rounded px-1 text-center text-[10px] font-bold leading-tight active:cursor-grabbing ${
@@ -216,6 +236,54 @@ export function BaseDiamond({
         ))}
       </div>
 
+      {retiring !== null && asking === null && (
+        <div className="mt-3 rounded-md border border-slate-700 bg-slate-900/60 p-3">
+          <p className="mb-2 text-xs text-slate-200">
+            {nameOf[retiring] ?? "The runner"} — send them on by picking a base, or:
+          </p>
+          <label className="ui-field-label mb-2 flex-col !items-start gap-1">
+            Putout to
+            <select
+              value={tagger}
+              onChange={(event) => setTagger(event.target.value)}
+              className="ui-select w-full !py-1 text-xs"
+            >
+              <option value="">Not recorded</option>
+              {fielders.map((fielder) => (
+                <option key={fielder.playerId} value={fielder.position}>
+                  {fielder.position} — {fielder.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => { sendOut(retiring, "TAGGED"); }}
+              className="rounded-md border border-rose-800 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-950/40"
+            >
+              Tagged out
+            </button>
+            {/* The pitcher is credited whoever is named above, so the picker is
+                irrelevant here - the convention decides it. */}
+            <button
+              type="button"
+              onClick={() => { sendOut(retiring, "PICKED_OFF"); }}
+              className="rounded-md border border-rose-800 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-950/40"
+            >
+              Picked off
+            </button>
+            <button
+              type="button"
+              onClick={() => { setRetiring(null); setPicked(null); }}
+              className="ml-auto text-xs text-slate-500 hover:text-slate-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {asking && (
         <div className="mt-3 rounded-md border border-sky-800 bg-sky-950/40 p-3">
           <p className="mb-2 text-xs text-slate-200">
@@ -247,6 +315,16 @@ export function BaseDiamond({
               className="rounded-md border border-amber-700 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-950/40"
             >
               On an error
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sendOut(asking.playerId, "CAUGHT_STEALING");
+                setAsking(null);
+              }}
+              className="rounded-md border border-rose-800 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-950/40"
+            >
+              Caught stealing — he never got there
             </button>
             <div className="flex gap-1.5">
               <input
