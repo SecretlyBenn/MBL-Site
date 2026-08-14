@@ -1,6 +1,6 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, desc, eq, gt, lt } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, plateAppearances, scorecards } from "@/db/schema";
+import { games, plateAppearances, runnerOuts, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
 import { advance, decodeRunners, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
@@ -179,6 +179,52 @@ export async function DELETE(
       return Response.json({ error: "No such at-bat." }, { status: 404 });
     }
 
+    // Runners retired between plays hang off the play that was standing at the
+    // time. Those outs really happened, so removing the at-bat moves them back
+    // onto the play before it rather than erasing them - along with the outs
+    // they contributed, which live on the play they are attached to.
+    const attached = await db
+      .select()
+      .from(runnerOuts)
+      .where(eq(runnerOuts.plateAppearanceId, existing.id));
+
+    let movedOuts = 0;
+    let lostOuts = 0;
+
+    if (attached.length > 0) {
+      const [previous] = await db
+        .select()
+        .from(plateAppearances)
+        .where(
+          and(
+            eq(plateAppearances.scorecardId, scorecardId),
+            eq(plateAppearances.inning, existing.inning),
+            eq(plateAppearances.isHomeBatting, existing.isHomeBatting),
+            lt(plateAppearances.sequence, existing.sequence),
+          ),
+        )
+        .orderBy(desc(plateAppearances.sequence))
+        .limit(1);
+
+      if (previous) {
+        await db
+          .update(runnerOuts)
+          .set({ plateAppearanceId: previous.id })
+          .where(eq(runnerOuts.plateAppearanceId, existing.id));
+        await db
+          .update(plateAppearances)
+          .set({ outsRecorded: previous.outsRecorded + attached.length })
+          .where(eq(plateAppearances.id, previous.id));
+        movedOuts = attached.length;
+      } else {
+        // The first play of the half-inning is going, so there is nothing left
+        // to hang them on and they go with it. The umpire is told rather than
+        // left to notice the outs have changed.
+        await db.delete(runnerOuts).where(eq(runnerOuts.plateAppearanceId, existing.id));
+        lostOuts = attached.length;
+      }
+    }
+
     await db.delete(plateAppearances).where(eq(plateAppearances.id, existing.id));
     // Removing a play changes the bases every later play in the half started
     // from, so their stored end-states no longer follow and are re-derived.
@@ -189,6 +235,8 @@ export async function DELETE(
     return Response.json({
       ok: true,
       inningsShifted: moved,
+      movedOuts,
+      lostOuts,
       score: { home: box.homeScore, away: box.awayScore },
     });
   } catch (error) {

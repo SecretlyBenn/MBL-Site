@@ -90,13 +90,28 @@ export function ScoringBoard({
         headers: body ? { "Content-Type": "application/json" } : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });
-      const result = (await response.json()) as { error?: string; inningsShifted?: number };
+      const result = (await response.json()) as {
+        error?: string;
+        inningsShifted?: number;
+        movedOuts?: number;
+        lostOuts?: number;
+      };
       if (!response.ok) throw new Error(result.error ?? "Something went wrong.");
-      if (result.inningsShifted) {
-        setNotice(
-          `${result.inningsShifted} later at-bat${result.inningsShifted === 1 ? "" : "s"} moved to a different half-inning.`,
-        );
-      }
+
+      // Anything the change did beyond what was asked for is said out loud,
+      // rather than left for the umpire to notice in the outs.
+      const told = [
+        result.inningsShifted
+          ? `${result.inningsShifted} later at-bat${result.inningsShifted === 1 ? "" : "s"} moved to a different half-inning`
+          : null,
+        result.movedOuts
+          ? `${result.movedOuts} runner out${result.movedOuts === 1 ? "" : "s"} moved to the play before`
+          : null,
+        result.lostOuts
+          ? `${result.lostOuts} runner out${result.lostOuts === 1 ? "" : "s"} removed with it - there was no earlier play to keep ${result.lostOuts === 1 ? "it" : "them"} on`
+          : null,
+      ].filter(Boolean);
+      if (told.length > 0) setNotice(`${told.join("; ")}.`);
       setDraft(EMPTY_DRAFT);
       setEditing(null);
       router.refresh();
