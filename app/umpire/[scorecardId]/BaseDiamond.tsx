@@ -30,6 +30,13 @@ export function BaseDiamond({
   busy?: boolean;
 }) {
   const [dragging, setDragging] = useState<number | null>(null);
+  /**
+   * The runner picked by clicking rather than dragging. Dragging is fiddly on
+   * a trackpad and impossible on a touchscreen, and an umpire scoring a live
+   * game should not have to fight the interface - clicking a runner and then a
+   * base does the same thing.
+   */
+  const [picked, setPicked] = useState<number | null>(null);
   const [over, setOver] = useState<BaseName | "home" | null>(null);
   const [asking, setAsking] = useState<{ playerId: number; to: BaseName | "home" } | null>(null);
 
@@ -45,10 +52,10 @@ export function BaseDiamond({
 
   const ORDER: (BaseName | "home")[] = ["first", "second", "third", "home"];
 
-  function drop(to: BaseName | "home") {
+  function move(playerId: number | null, to: BaseName | "home") {
     setOver(null);
-    const playerId = dragging;
     setDragging(null);
+    setPicked(null);
     if (playerId === null || busy) return;
 
     const runner = runners.find((row) => row.playerId === playerId);
@@ -69,6 +76,11 @@ export function BaseDiamond({
 
   const baseStyle = (base: BaseName | "home") => {
     const hovered = over === base;
+    const pickedRunner = picked === null ? null : runners.find((row) => row.playerId === picked);
+    const reachable =
+      pickedRunner !== null &&
+      pickedRunner !== undefined &&
+      ORDER.indexOf(base) > ORDER.indexOf(pickedRunner.base);
     // An occupied bag is lit. The umpire should be able to read the state of
     // the bases from across the room, without stopping to find the names.
     const occupied = base !== "home" && runnerAt(base) !== null;
@@ -77,6 +89,8 @@ export function BaseDiamond({
       "justify-center rounded-md border-2 transition-colors",
       hovered
         ? "border-sky-300 bg-sky-500/40 ring-2 ring-sky-400/60"
+        : reachable
+          ? "cursor-pointer border-sky-500 bg-sky-500/15 ring-1 ring-sky-500/50"
         : occupied
           ? "border-amber-400 bg-amber-400/20 shadow-[0_0_20px_-2px_rgba(251,191,36,0.5)]"
           : "border-slate-700 bg-slate-900",
@@ -95,9 +109,23 @@ export function BaseDiamond({
     return (
       <span
         draggable={!busy}
-        onDragStart={() => setDragging(runner.playerId)}
+        onDragStart={(event) => {
+          // A drag carrying no data is rejected outright by the browser, which
+          // is why dropping a runner did nothing at all.
+          event.dataTransfer.setData("text/plain", String(runner.playerId));
+          event.dataTransfer.effectAllowed = "move";
+          setDragging(runner.playerId);
+        }}
         onDragEnd={() => { setDragging(null); setOver(null); }}
-        className="-rotate-45 cursor-grab px-0.5 text-center text-[10px] font-bold leading-tight text-amber-200 active:cursor-grabbing"
+        onClick={(event) => {
+          event.stopPropagation();
+          setPicked((current) => (current === runner.playerId ? null : runner.playerId));
+        }}
+        className={`-rotate-45 cursor-grab rounded px-1 text-center text-[10px] font-bold leading-tight active:cursor-grabbing ${
+          picked === runner.playerId
+            ? "bg-sky-500 text-white ring-2 ring-sky-300"
+            : "text-amber-200"
+        }`}
         title={`${runner.name} on ${runner.base}`}
       >
         {runner.name.slice(0, 8)}
@@ -120,7 +148,9 @@ export function BaseDiamond({
       <p className="mb-3 text-[11px] text-slate-500">
         {runners.length === 0
           ? "Bases empty."
-          : "Drag a runner to the base they reached, or to home if they scored."}
+          : picked !== null
+            ? "Now pick the base they reached, or home if they scored."
+            : "Tap a runner then a base, or drag them across."}
       </p>
 
       <div className="relative mx-auto h-52 w-52">
@@ -129,9 +159,20 @@ export function BaseDiamond({
             key={spot.base}
             style={spot.style}
             className={baseStyle(spot.base)}
-            onDragOver={(event) => { event.preventDefault(); setOver(spot.base); }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              setOver(spot.base);
+            }}
             onDragLeave={() => setOver((current) => (current === spot.base ? null : current))}
-            onDrop={() => drop(spot.base)}
+            onDrop={(event) => {
+              event.preventDefault();
+              // The id travels with the drag, so a re-render mid-drag cannot
+              // lose track of who is being moved.
+              const carried = Number(event.dataTransfer.getData("text/plain"));
+              move(Number.isFinite(carried) && carried > 0 ? carried : dragging, spot.base);
+            }}
+            onClick={() => picked !== null && move(picked, spot.base)}
           >
             {label(spot.base)}
           </div>
