@@ -20,6 +20,8 @@ export type LoggedAtBat = {
   unearnedRuns: number;
   outsRecorded: number;
   errorPosition: number | null;
+  /** The fielder charged with the error, so an edit can show it again. */
+  errorPlayerId?: number | null;
   /** Bases stolen during this plate appearance. */
   stolenBases?: number;
   note: string | null;

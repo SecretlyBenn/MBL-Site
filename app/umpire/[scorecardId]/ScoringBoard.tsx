@@ -11,7 +11,7 @@ import { BaseDiamond } from "./BaseDiamond";
 import { LivePitching } from "./LivePitching";
 import { SubstitutionPanel } from "./SubstitutionPanel";
 import type { LoggedAtBat } from "./AtBatLog";
-import { nextInOrder, type ResultCode } from "@/app/scoring";
+import { nextInOrder, POSITION_NUMBER, type ResultCode } from "@/app/scoring";
 
 type LineupRow = {
   playerId: number;
@@ -197,7 +197,11 @@ export function ScoringBoard({
       otherRunsScored: scored.length,
       unearnedRuns: draft.unearnedRuns,
       outsRecorded: draft.outsRecorded,
-      errorPosition: null,
+      // The fielder the umpire named, and his position at the time. Both were
+      // being thrown away here - the dialog asked who made the error and the
+      // answer never left the browser, so the error reached nobody's line.
+      errorPlayerId: draft.errorPlayerId ? Number(draft.errorPlayerId) : null,
+      errorPosition: erredAt(draft.errorPlayerId),
       stolenBases: draft.stolenBases,
       basesAfter: encodeBases(after.bases),
       runnersScored: encodeRunners(scored),
@@ -236,8 +240,10 @@ export function ScoringBoard({
       otherRunsScored: atBat.otherRunsScored,
       unearnedRuns: atBat.unearnedRuns,
       outsRecorded: atBat.outsRecorded,
-      errorPlayerId: "",
-      stolenBases: 0,
+      // Loaded rather than blanked: the form sends whatever is in it, so
+      // opening a play to fix the RBI would otherwise wipe the error off it.
+      errorPlayerId: atBat.errorPlayerId ? String(atBat.errorPlayerId) : "",
+      stolenBases: atBat.stolenBases ?? 0,
       scoredRunners: [],
       outRunners: [],
       batterOut: (atBat.outsRecorded ?? 0) > 0,
@@ -250,6 +256,13 @@ export function ScoringBoard({
     if (!confirm("Finish the game and send it to the head umpire? Scoring stops here.")) return;
     if (await send(`/api/scorecards/${scorecardId}/finish`, "POST")) router.push("/umpire");
   }
+
+  /** The scorebook number of whoever is charged with an error, if anyone is. */
+  const erredAt = (playerId: string) => {
+    if (!playerId) return null;
+    const fielder = fieldingSide.find((row) => row.playerId === Number(playerId));
+    return fielder ? POSITION_NUMBER[fielder.position] ?? null : null;
+  };
 
   const fielderList = fieldingSide.map((row) => ({
     playerId: row.playerId,

@@ -125,6 +125,8 @@ export async function PATCH(
         unearnedRuns: body.unearnedRuns ?? existing.unearnedRuns,
         outsRecorded: outs,
         errorPosition: body.errorPosition !== undefined ? body.errorPosition : existing.errorPosition,
+        errorPlayerId:
+          body.errorPlayerId !== undefined ? body.errorPlayerId : existing.errorPlayerId,
         stolenBases: body.stolenBases ?? existing.stolenBases,
         note: body.note !== undefined ? body.note?.trim() || null : existing.note,
         // Derived here rather than taken from the screen - see the note in

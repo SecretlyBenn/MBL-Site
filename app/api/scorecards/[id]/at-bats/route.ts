@@ -199,6 +199,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       unearnedRuns: body.unearnedRuns,
       outsRecorded: body.outsRecorded,
       errorPosition: body.errorPosition,
+      errorPlayerId: body.errorPlayerId ?? null,
       stolenBases: body.stolenBases,
       basesAfter: encodeBases(after.bases),
       runnersScored: encodeRunners(scored),

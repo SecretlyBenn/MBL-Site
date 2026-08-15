@@ -127,6 +127,12 @@ export type PlateAppearanceInput = {
   unearnedRuns: number;
   outsRecorded: number;
   errorPosition: number | null;
+  /**
+   * The fielder charged with the error. The position alone cannot answer
+   * "whose error was it" once anybody has moved, and it is the player the
+   * fielding line and the fielding percentage are built from.
+   */
+  errorPlayerId?: number | null;
   /** Runners retired on the play itself, by player id. */
   outRunners?: number[];
   /** Whether the batter was one of the outs. */
