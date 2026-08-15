@@ -101,7 +101,11 @@ export function AtBatDialog({
 
   const isHit = definition?.isHit ?? false;
   const isOut = (definition?.defaultOuts ?? 0) > 0 || draft.outsRecorded > 0;
-  const wantsError = draft.result === "E" || showMore;
+  // A play that already has an error on it always shows the picker, whatever
+  // the result was. Hiding it behind "more" meant opening a play to check an
+  // error showed no sign of one, and the umpire had to expand the form to find
+  // out whether the error they had entered was still there.
+  const wantsError = draft.result === "E" || showMore || Boolean(draft.errorPlayerId);
   // A home run scores the batter without being asked, and clears whoever was on.
   const isHomeRun = draft.result === "HR";
   const runsOnPlay =

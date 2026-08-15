@@ -257,18 +257,39 @@ export function ScoringBoard({
     if (await send(`/api/scorecards/${scorecardId}/finish`, "POST")) router.push("/umpire");
   }
 
-  /** The scorebook number of whoever is charged with an error, if anyone is. */
-  const erredAt = (playerId: string) => {
-    if (!playerId) return null;
-    const fielder = fieldingSide.find((row) => row.playerId === Number(playerId));
-    return fielder ? POSITION_NUMBER[fielder.position] ?? null : null;
-  };
-
   const fielderList = fieldingSide.map((row) => ({
     playerId: row.playerId,
     name: row.name,
     position: row.position,
   }));
+
+  /**
+   * The fielders the entry form offers, which is not always the side out there
+   * now. Correcting a play from the half-inning just gone means naming someone
+   * from the other team - and offering the current fielders instead made an
+   * error in the top of the inning impossible to record, and hid one already
+   * recorded, because the man who made it was not in the list to be selected.
+   *
+   * Everyone on that side is offered, including anyone since gone from the
+   * field: they were standing there when the play happened, which is the only
+   * thing that matters here.
+   */
+  const entrySide = editing
+    ? lineups.filter((row) => row.isHome !== editing.isHomeBatting)
+    : fieldingSide;
+
+  const entryFielders = entrySide.map((row) => ({
+    playerId: row.playerId,
+    name: row.name,
+    position: row.position,
+  }));
+
+  /** The scorebook number of whoever is charged with an error, if anyone is. */
+  const erredAt = (playerId: string) => {
+    if (!playerId) return null;
+    const fielder = entrySide.find((row) => row.playerId === Number(playerId));
+    return fielder ? POSITION_NUMBER[fielder.position] ?? null : null;
+  };
 
   /**
    * Putouts and errors so far, beside the man who made them. A fielding line
@@ -393,7 +414,7 @@ export function ScoringBoard({
             <AtBatDialog
               draft={draft}
               setDraft={setDraft}
-              fielders={fielderList}
+              fielders={entryFielders}
               runners={runners}
               busy={busy}
               submitLabel={editing ? "Save change" : "Record at-bat"}
