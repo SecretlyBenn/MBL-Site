@@ -36,6 +36,8 @@ export function BaseDiamond({
     to: BaseName | "home",
     reason: "PLAY" | "STEAL" | "ERROR" | "OTHER",
     note?: string,
+    /** Who booted it, when the reason is an error. */
+    errorPlayerId?: number | null,
   ) => void;
   /** Retiring a runner away from the plate. */
   onOut: (playerId: number, kind: "TAGGED" | "PICKED_OFF", fielded: string | null) => void;
@@ -69,6 +71,12 @@ export function BaseDiamond({
   const [asking, setAsking] = useState<{ playerId: number; to: BaseName | "home" } | null>(null);
   /** Free text for "something else", so the reason is not lost. */
   const [why, setWhy] = useState("");
+  /**
+   * Who made the error, when a runner moved up on one. An error charged to
+   * nobody shows in the team total and on no player's line, so the move is not
+   * accepted until this is filled in.
+   */
+  const [erredBy, setErredBy] = useState("");
   /** The runner whose fate is being recorded - out, or put somewhere else. */
   const [retiring, setRetiring] = useState<number | null>(null);
   const [tagger, setTagger] = useState("");
@@ -105,6 +113,7 @@ export function BaseDiamond({
 
     // Everything else happened for a reason, and the reason is someone's stat.
     setWhy("");
+    setErredBy("");
     setAsking({ playerId, to });
   }
 
@@ -114,13 +123,14 @@ export function BaseDiamond({
     to: BaseName | "home",
     reason: "PLAY" | "STEAL" | "ERROR" | "OTHER",
     note?: string,
+    errorPlayerId?: number | null,
   ) {
     if (inFlight.current) return;
     inFlight.current = true;
     // Released on the next tick: the trailing click from a drop has fired by
     // then, and the refresh that follows re-renders this from scratch anyway.
     setTimeout(() => { inFlight.current = false; }, 400);
-    onMove(playerId, to, reason, note);
+    onMove(playerId, to, reason, note, errorPlayerId);
   }
 
   function sendOut(playerId: number, kind: "TAGGED" | "PICKED_OFF" | "CAUGHT_STEALING") {
@@ -217,7 +227,7 @@ export function BaseDiamond({
       {/* Each base is centred on its point and then pulled back by half its
           own size, so the top one reaches above the box. The margin gives it
           somewhere to go other than over the text above. */}
-      <div className="relative mx-auto mt-4 h-56 w-52">
+      <div className="relative mx-auto mt-10 h-56 w-52">
         {spots.map((spot) => (
           <div
             key={spot.base}
@@ -359,13 +369,35 @@ export function BaseDiamond({
             >
               Stolen base
             </button>
-            <button
-              type="button"
-              onClick={() => { send(asking.playerId, asking.to, "ERROR"); setAsking(null); }}
-              className="rounded-md border border-amber-700 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-950/40"
-            >
-              On an error
-            </button>
+            {/* An error has to land on somebody. Charging it to the team and
+                nobody else would leave the fielding line and the fielding
+                percentage unable to account for it, so the button stays shut
+                until a name is picked. */}
+            <div className="flex gap-1.5">
+              <select
+                value={erredBy}
+                onChange={(event) => setErredBy(event.target.value)}
+                className="ui-select w-full !py-1 text-xs"
+              >
+                <option value="">Who made the error?</option>
+                {fielders.map((fielder) => (
+                  <option key={fielder.playerId} value={fielder.playerId}>
+                    {fielder.position} — {fielder.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!erredBy}
+                onClick={() => {
+                  send(asking.playerId, asking.to, "ERROR", undefined, Number(erredBy));
+                  setAsking(null);
+                }}
+                className="shrink-0 rounded-md border border-amber-700 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:bg-amber-950/40 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                On an error
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => {

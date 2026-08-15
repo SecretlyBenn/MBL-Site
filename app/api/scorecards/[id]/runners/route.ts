@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, plateAppearances, scorecards } from "@/db/schema";
+import { games, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
 import {
@@ -10,6 +10,7 @@ import {
   encodeRunners,
   type BaseName,
 } from "@/app/bases";
+import { POSITION_NUMBER } from "@/app/scoring";
 
 /** Why a runner moved between plays. */
 export const ADVANCE_REASONS = ["PLAY", "STEAL", "ERROR", "OTHER"] as const;
@@ -19,6 +20,12 @@ type MovePayload = {
   playerId: number;
   to: BaseName | "home";
   reason?: AdvanceReason;
+  /**
+   * Who booted it, when the runner moved up on an error. Without this the
+   * error has nowhere to land: it would show in the team total and against
+   * nobody, and no fielding percentage could be worked out from it.
+   */
+  errorPlayerId?: number | null;
   /** Free text for OTHER - a balk, a wild pitch, defensive indifference. */
   note?: string;
 };
@@ -106,6 +113,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? (payload.reason as AdvanceReason)
       : "OTHER";
 
+    if (reason === "ERROR" && !Number.isInteger(payload.errorPlayerId)) {
+      return Response.json({ error: "Say who made the error." }, { status: 400 });
+    }
+
+    // The fielder who made the error, and the position they were standing at,
+    // so the error reaches their line and not just the team's. A play can only
+    // carry one error, so a second one on the same play is written into the
+    // note rather than overwriting the first.
+    const errorBy =
+      reason === "ERROR" && standing.errorPlayerId === null
+        ? await db.query.scorecardLineups.findFirst({
+            where: and(
+              eq(scorecardLineups.scorecardId, scorecardId),
+              eq(scorecardLineups.playerId, payload.errorPlayerId as number),
+            ),
+          })
+        : null;
+
     const next = { ...bases, [from]: null };
     const scoredNow = payload.to === "home";
     // Reaching home takes the runner off the bases entirely; anywhere else puts
@@ -131,9 +156,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             ? encodeRunners([...decodeRunners(standing.runnersScored), payload.playerId])
             : standing.runnersScored,
         stolenBases: standing.stolenBases + (reason === "STEAL" ? 1 : 0),
+        // Named, not just counted: the play this hangs off belongs to a
+        // different batter, and a bare count would go on his line.
+        stolenBy:
+          reason === "STEAL"
+            ? encodeRunners([...decodeRunners(standing.stolenBy), payload.playerId])
+            : standing.stolenBy,
         // A run that only came home because of a mistake is not earned, so it
         // does not go against the pitcher.
         unearnedRuns: standing.unearnedRuns + (scoredNow && reason === "ERROR" ? 1 : 0),
+        errorPlayerId: errorBy ? errorBy.playerId : standing.errorPlayerId,
+        errorPosition: errorBy
+          ? POSITION_NUMBER[errorBy.position] ?? standing.errorPosition
+          : standing.errorPosition,
         note: noteFor(standing.note, reason, payload.note),
       })
       .where(eq(plateAppearances.id, standing.id));

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
+  fieldingChanges,
   games,
   players,
   plateAppearances,
@@ -61,6 +62,14 @@ export default async function ScorecardPage({
     .innerJoin(plateAppearances, eq(runnerOuts.plateAppearanceId, plateAppearances.id))
     .where(eq(runnerOuts.scorecardId, scorecardId));
 
+  // Every rearrangement in the field, so the panel can show what has already
+  // been changed rather than only where everyone is standing now.
+  const moves = await db
+    .select()
+    .from(fieldingChanges)
+    .where(eq(fieldingChanges.scorecardId, scorecardId))
+    .orderBy(asc(fieldingChanges.appliedAtSequence));
+
   const appearances = await db
     .select()
     .from(plateAppearances)
@@ -111,11 +120,20 @@ export default async function ScorecardPage({
           }))}
           nameOf={Object.fromEntries(roster.map((player) => [player.id, player.displayName]))}
           bench={{ away: benchFor(game.awayTeamId), home: benchFor(game.homeTeamId) }}
+          fieldingChanges={moves.map((move) => ({
+            id: move.id,
+            isHome: move.isHome,
+            playerId: move.playerId,
+            position: move.position,
+            inning: move.inning,
+          }))}
+          starters={lineups.filter((row) => row.isStarter).map((row) => row.playerId)}
           runnerOuts={outs.map((out) => ({
             id: out.id,
             runnerPlayerId: out.runnerPlayerId,
             kind: out.kind,
             base: out.base,
+            putoutPlayerId: out.putoutPlayerId,
             inning: out.inning,
             isHomeBatting: out.isHomeBatting,
           }))}

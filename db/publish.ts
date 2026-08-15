@@ -10,6 +10,9 @@ import {
   historicalTeams,
   players,
   plateAppearances,
+  fieldingChanges,
+  runnerOuts,
+  scorecardLineups,
   scorecards,
   teams,
 } from "@/db/schema";
@@ -110,7 +113,33 @@ export async function publishScorecard(scorecardId: number) {
     .select()
     .from(plateAppearances)
     .where(eq(plateAppearances.scorecardId, scorecardId));
-  const box = deriveBoxScore(appearances);
+
+  // Caught stealings, tag-play putouts and time on the field live outside the
+  // plate appearances, so the box score is handed them rather than left to
+  // infer stats that are nowhere in the at-bats.
+  const [outs, lineups, changes] = await Promise.all([
+    db.select().from(runnerOuts).where(eq(runnerOuts.scorecardId, scorecardId)),
+    db.select().from(scorecardLineups).where(eq(scorecardLineups.scorecardId, scorecardId)),
+    db.select().from(fieldingChanges).where(eq(fieldingChanges.scorecardId, scorecardId)),
+  ]);
+
+  const box = deriveBoxScore(appearances, {
+    runnerOuts: outs,
+    fielding: [
+      ...lineups.map((row) => ({
+        isHome: row.isHome,
+        playerId: row.playerId,
+        position: row.position,
+        fromSequence: 0,
+      })),
+      ...changes.map((row) => ({
+        isHome: row.isHome,
+        playerId: row.playerId,
+        position: row.position,
+        fromSequence: row.appliedAtSequence,
+      })),
+    ],
+  });
 
   const seasonId = await currentSeasonId();
   const awayTeamId = await seasonTeamId(seasonId, game.awayTeamId);
@@ -180,6 +209,7 @@ export async function publishScorecard(scorecardId: number) {
       playerName: nameOf.get(line.playerId) ?? "Unknown",
       atBats: line.atBats,
       putouts: line.putouts,
+      errors: line.errors,
       runs: line.runs,
       hits: line.hits,
       doubles: line.doubles,
@@ -187,7 +217,17 @@ export async function publishScorecard(scorecardId: number) {
       homeRuns: line.homeRuns,
       rbis: line.rbis,
       walks: line.walks,
+      hitByPitch: line.hitByPitch,
       strikeouts: line.strikeouts,
+      stolenBases: line.stolenBases,
+      caughtStealing: line.caughtStealing,
+      sacFlies: line.sacFlies,
+      sacBunts: line.sacBunts,
+      leftOnBase: line.leftOnBase,
+      // Only worth a row when the player actually took the field; an empty
+      // object would make every bench player look like a fielder.
+      positionOuts:
+        Object.keys(line.positionOuts).length > 0 ? JSON.stringify(line.positionOuts) : null,
     }));
 
   const pitchingRows = (lines: PitchingLine[], isHome: boolean) =>
@@ -200,8 +240,16 @@ export async function publishScorecard(scorecardId: number) {
       hitsAllowed: line.hits,
       runsAllowed: line.runs,
       earnedRuns: line.earnedRuns,
+      homeRunsAllowed: line.homeRuns,
       strikeoutsPitched: line.strikeouts,
       walksAllowed: line.walks,
+      gamesStarted: line.gamesStarted,
+      completeGames: line.completeGames,
+      shutouts: line.shutouts,
+      wins: line.wins,
+      losses: line.losses,
+      saves: line.saves,
+      blownSaves: line.blownSaves,
     }));
 
   const statRows = [
@@ -369,15 +417,29 @@ export async function recomputeSeason(seasonId: number) {
       add("rbis", row.rbis);
       add("walks", row.walks);
       add("strikeouts", row.strikeouts);
+      add("hitByPitch", row.hitByPitch);
+      add("stolenBases", row.stolenBases);
+      add("caughtStealing", row.caughtStealing);
+      add("sacFlies", row.sacFlies);
+      add("leftOnBase", row.leftOnBase);
       add("putouts", row.putouts);
+      add("errors", row.errors);
     } else {
       add("pitchingGames", 1);
       add("inningsPitched", row.inningsPitched);
       add("hitsAllowed", row.hitsAllowed);
       add("runsAllowed", row.runsAllowed);
       add("earnedRuns", row.earnedRuns);
+      add("homeRunsAllowed", row.homeRunsAllowed);
       add("strikeoutsPitched", row.strikeoutsPitched);
       add("walksAllowed", row.walksAllowed);
+      add("gamesStarted", row.gamesStarted);
+      add("completeGames", row.completeGames);
+      add("shutouts", row.shutouts);
+      add("wins", row.wins);
+      add("losses", row.losses);
+      add("saves", row.saves);
+      add("blownSaves", row.blownSaves);
     }
     byPlayerTeam.set(key, entry);
   }
@@ -392,7 +454,18 @@ export async function recomputeSeason(seasonId: number) {
     const totalBases =
       singles + 2 * (totals.doubles ?? 0) + 3 * (totals.triples ?? 0) + 4 * (totals.homeRuns ?? 0);
     const innings = totals.inningsPitched ?? 0;
-    const onBase = atBats + walks;
+    const hitByPitch = totals.hitByPitch ?? 0;
+    const sacFlies = totals.sacFlies ?? 0;
+    // Plate appearances, properly: everything that ends a turn at bat, not
+    // just AB + BB, which loses hit batsmen and sacrifices.
+    const onBase = atBats + walks + hitByPitch + sacFlies;
+    // On-base percentage counts times reached over times up, and sacrifice
+    // bunts are excluded from both by convention - they are not attempts to
+    // reach.
+    const reached = hits + walks + hitByPitch;
+    const putouts = totals.putouts ?? 0;
+    const fieldingChances = putouts + (totals.errors ?? 0);
+    const pitchingGames = totals.pitchingGames ?? 0;
 
     return {
       ...priorByKey.get(`${playerName}::${teamId}`),
@@ -410,23 +483,43 @@ export async function recomputeSeason(seasonId: number) {
       rbis: totals.rbis ?? null,
       walks: totals.walks ?? null,
       strikeouts: totals.strikeouts ?? null,
+      hitByPitch: totals.hitByPitch ?? null,
+      stolenBases: totals.stolenBases ?? null,
+      caughtStealing: totals.caughtStealing ?? null,
+      sacFlies: totals.sacFlies ?? null,
+      leftOnBase: totals.leftOnBase ?? null,
       putouts: totals.putouts ?? null,
+      errors: totals.errors ?? null,
+      // The league scores no assists, so a fielder's chances are the plays he
+      // made plus the ones he dropped.
+      fieldingPct: fieldingChances > 0 ? putouts / fieldingChances : null,
       totalBases: atBats > 0 ? totalBases : null,
       singles: atBats > 0 ? singles : null,
-      plateAppearances: atBats > 0 ? onBase : null,
+      plateAppearances: onBase > 0 ? onBase : null,
       battingAverage: atBats > 0 ? hits / atBats : null,
-      onBasePct: onBase > 0 ? (hits + walks) / onBase : null,
+      onBasePct: onBase > 0 ? reached / onBase : null,
       sluggingPct: atBats > 0 ? totalBases / atBats : null,
-      ops: atBats > 0 ? (hits + walks) / Math.max(1, onBase) + totalBases / atBats : null,
+      ops: atBats > 0 ? reached / Math.max(1, onBase) + totalBases / atBats : null,
       pitchingGames: totals.pitchingGames ?? null,
+      gamesStarted: totals.gamesStarted ?? null,
+      completeGames: totals.completeGames ?? null,
+      shutouts: totals.shutouts ?? null,
+      wins: totals.wins ?? null,
+      losses: totals.losses ?? null,
+      saves: totals.saves ?? null,
+      blownSaves: totals.blownSaves ?? null,
       inningsPitched: totals.inningsPitched ?? null,
       hitsAllowed: totals.hitsAllowed ?? null,
       runsAllowed: totals.runsAllowed ?? null,
       earnedRuns: totals.earnedRuns ?? null,
+      homeRunsAllowed: totals.homeRunsAllowed ?? null,
       strikeoutsPitched: totals.strikeoutsPitched ?? null,
       walksAllowed: totals.walksAllowed ?? null,
       era: innings > 0 ? ((totals.earnedRuns ?? 0) * 9) / innings : null,
       whip: innings > 0 ? ((totals.walksAllowed ?? 0) + (totals.hitsAllowed ?? 0)) / innings : null,
+      walksPerGame: pitchingGames > 0 ? (totals.walksAllowed ?? 0) / pitchingGames : null,
+      strikeoutsPerGame:
+        pitchingGames > 0 ? (totals.strikeoutsPitched ?? 0) / pitchingGames : null,
     };
   });
 

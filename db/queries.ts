@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, isNotNull, like, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
 import { playedOnValue } from "@/app/formatStats";
@@ -546,7 +546,7 @@ const COUNTING_STATS = [
   // Batting
   "games", "atBats", "runs", "hits", "doubles", "triples", "homeRuns", "rbis", "walks",
   "strikeouts", "stolenBases", "totalBases", "singles", "plateAppearances", "caughtStealing",
-  "sacFlies", "leftOnBase", "putouts", "errors",
+  "sacFlies", "leftOnBase", "hitByPitch", "putouts", "errors",
   // Pitching
   "pitchingGames", "gamesStarted", "wins", "losses", "saves", "inningsPitched", "hitsAllowed",
   "runsAllowed", "earnedRuns", "homeRunsAllowed", "strikeoutsPitched", "walksAllowed",
@@ -600,12 +600,25 @@ function recalculateRates(row: HistoricalStatViewRow) {
   const hits = row.hits ?? 0;
   const walks = row.walks ?? 0;
   const innings = row.inningsPitched ?? 0;
+  const hitByPitch = row.hitByPitch ?? 0;
+  const sacFlies = row.sacFlies ?? 0;
+  // Times up, for on-base percentage: everything that ended a turn at bat
+  // apart from a sacrifice bunt, which by convention counts in neither half
+  // of the fraction.
+  const timesUp = atBats + walks + hitByPitch + sacFlies;
+  const putouts = row.putouts ?? 0;
+  const chances = putouts + (row.errors ?? 0);
+  const pitchingGames = row.pitchingGames ?? 0;
   row.battingAverage = atBats ? hits / atBats : null;
-  row.onBasePct = atBats + walks ? (hits + walks) / (atBats + walks) : null;
+  row.onBasePct = timesUp ? (hits + walks + hitByPitch) / timesUp : null;
   row.sluggingPct = atBats ? (row.totalBases ?? 0) / atBats : null;
   row.ops = row.onBasePct === null || row.sluggingPct === null ? null : row.onBasePct + row.sluggingPct;
+  // No assists in this league, so a chance is a play made or a play muffed.
+  row.fieldingPct = chances ? putouts / chances : null;
   row.era = innings ? ((row.earnedRuns ?? 0) * 9) / innings : null;
   row.whip = innings ? ((row.walksAllowed ?? 0) + (row.hitsAllowed ?? 0)) / innings : null;
+  row.walksPerGame = pitchingGames ? (row.walksAllowed ?? 0) / pitchingGames : null;
+  row.strikeoutsPerGame = pitchingGames ? (row.strikeoutsPitched ?? 0) / pitchingGames : null;
   return row;
 }
 
@@ -858,14 +871,16 @@ export async function getPlayerRosterIdentity(playerName: string) {
 }
 
 /**
- * A player's primary position: the one they have appeared at most often in
- * games that reached the public record.
+ * A player's primary position: the one they have spent the most defensive outs
+ * standing at in games that reached the public record.
  *
  * The archive did not import positions - 22 of nearly 2,000 roster rows carry
- * one - so this is built from what umpires actually record. Every approved
- * scorecard contributes the position each player started at, plus any position
- * they moved to during the game. A player with no scored games yet has no
- * primary position, and the profile shows a dash rather than a guess.
+ * one - so this is built from what umpires actually record. Time on the field
+ * is what counts, not how many lineup cards list someone somewhere: a player
+ * who starts at short and moves to right in the first inning is a right
+ * fielder for that game, and counting the two entries equally would say
+ * otherwise. A player with no scored games yet has no primary position, and
+ * the profile shows a dash rather than a guess.
  *
  * Returned for every player at once: a profile page would otherwise pay for a
  * query per player, and the stat tables want the same answer for a whole page
@@ -874,28 +889,27 @@ export async function getPlayerRosterIdentity(playerName: string) {
 export async function getPrimaryPositions(): Promise<Record<string, string>> {
   const db = getDb();
 
-  const [starts, moves] = await Promise.all([
-    db
-      .select({ name: players.displayName, position: scorecardLineups.position })
-      .from(scorecardLineups)
-      .innerJoin(players, eq(scorecardLineups.playerId, players.id))
-      .innerJoin(scorecards, eq(scorecardLineups.scorecardId, scorecards.id))
-      .where(eq(scorecards.status, "APPROVED")),
-    db
-      .select({ name: players.displayName, position: fieldingChanges.position })
-      .from(fieldingChanges)
-      .innerJoin(players, eq(fieldingChanges.playerId, players.id))
-      .innerJoin(scorecards, eq(fieldingChanges.scorecardId, scorecards.id))
-      .where(eq(scorecards.status, "APPROVED")),
-  ]);
+  const rows = await db
+    .select({ name: historicalGameStats.playerName, positionOuts: historicalGameStats.positionOuts })
+    .from(historicalGameStats)
+    .where(isNotNull(historicalGameStats.positionOuts));
 
   const tally = new Map<string, Map<string, number>>();
-  for (const row of [...starts, ...moves]) {
-    // A designated hitter is a batting slot, not a place on the field, so it
-    // never becomes someone's primary position.
-    if (!row.position || row.position === "DH") continue;
+  for (const row of rows) {
+    if (!row.positionOuts) continue;
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(row.positionOuts) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
     const counts = tally.get(row.name) ?? new Map<string, number>();
-    counts.set(row.position, (counts.get(row.position) ?? 0) + 1);
+    for (const [position, outs] of Object.entries(parsed)) {
+      // A designated hitter is a batting slot, not a place on the field, so it
+      // never becomes someone's primary position.
+      if (position === "DH" || typeof outs !== "number") continue;
+      counts.set(position, (counts.get(position) ?? 0) + outs);
+    }
     tally.set(row.name, counts);
   }
 

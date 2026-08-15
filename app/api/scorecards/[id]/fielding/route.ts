@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { fieldingChanges, plateAppearances, scorecards } from "@/db/schema";
+import { fieldingChanges, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { gameState } from "@/app/derive-box-score";
 import { POSITIONS } from "@/app/scoring";
@@ -61,6 +61,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         position: assignment.position,
       })),
     );
+
+    // The change also has to reach the lineup, which is where every other
+    // part of the game reads a player's position from - the diamond, the tag
+    // pickers, the scorecard. Recording only the history left the move visible
+    // nowhere: the panel said it had happened and every position stayed put.
+    for (const assignment of assignments) {
+      await db
+        .update(scorecardLineups)
+        .set({ position: assignment.position })
+        .where(
+          and(
+            eq(scorecardLineups.scorecardId, scorecardId),
+            eq(scorecardLineups.playerId, assignment.playerId),
+          ),
+        );
+    }
 
     await logAudit({
       actingUserId: user.id,

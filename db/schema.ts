@@ -213,6 +213,9 @@ export const historicalPlayerStats = sqliteTable("historical_player_stats", {
   caughtStealing: integer("caught_stealing"),
   sacFlies: integer("sac_flies"),
   leftOnBase: integer("left_on_base"),
+  // Not shown on the stat tables, but it belongs in on-base percentage and
+  // in the plate-appearance count, neither of which is right without it.
+  hitByPitch: integer("hit_by_pitch"),
   // Fielding travels with the batting line in the source.
   putouts: integer("putouts"),
   errors: integer("errors"),
@@ -320,14 +323,37 @@ export const historicalGameStats = sqliteTable("historical_game_stats", {
   rbis: integer("rbis"),
   walks: integer("walks"),
   strikeouts: integer("strikeouts"),
+  hitByPitch: integer("hit_by_pitch"),
+  stolenBases: integer("stolen_bases"),
+  caughtStealing: integer("caught_stealing"),
+  sacFlies: integer("sac_flies"),
+  sacBunts: integer("sac_bunts"),
+  leftOnBase: integer("left_on_base"),
   /** One per play, as the league scores them - no assists. */
   putouts: integer("putouts"),
+  errors: integer("errors"),
+  /**
+   * Defensive outs served at each position in this game, as a JSON object
+   * keyed by position. Kept per game rather than summed so that a corrected or
+   * un-approved game takes its share back out again, and so a player's primary
+   * position is decided by time on the field rather than by how many lineup
+   * cards happen to list them somewhere.
+   */
+  positionOuts: text("position_outs"),
   inningsPitched: real("innings_pitched"),
   earnedRuns: integer("earned_runs"),
   hitsAllowed: integer("hits_allowed"),
   runsAllowed: integer("runs_allowed"),
+  homeRunsAllowed: integer("home_runs_allowed"),
   strikeoutsPitched: integer("strikeouts_pitched"),
   walksAllowed: integer("walks_allowed"),
+  gamesStarted: integer("games_started"),
+  completeGames: integer("complete_games"),
+  shutouts: integer("shutouts"),
+  wins: integer("wins"),
+  losses: integer("losses"),
+  saves: integer("saves"),
+  blownSaves: integer("blown_saves"),
 });
 
 // Append-only trail for anything correction-worthy: scorecard approvals and
@@ -444,6 +470,15 @@ export const plateAppearances = sqliteTable("plate_appearances", {
   errorPosition: integer("error_position"),
   errorPlayerId: integer("error_player_id").references(() => players.id),
   stolenBases: integer("stolen_bases").notNull().default(0),
+  /**
+   * Which runners did the stealing, as a JSON array of player ids.
+   *
+   * A steal is recorded against the play that was standing when it happened,
+   * and the man who stole is almost never the man at bat - so a count alone
+   * gets credited to the wrong player. Empty on an older row, which falls back
+   * to the batter.
+   */
+  stolenBy: text("stolen_by"),
   /**
    * Who stood on first, second and third when this play ended, as a JSON array
    * of three player ids or nulls.

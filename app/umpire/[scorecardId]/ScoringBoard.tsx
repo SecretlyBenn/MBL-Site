@@ -32,6 +32,8 @@ export function ScoringBoard({
   nameOf,
   bench,
   runnerOuts,
+  fieldingChanges,
+  starters,
 }: {
   scorecardId: number;
   awayName: string;
@@ -47,9 +49,20 @@ export function ScoringBoard({
     runnerPlayerId: number;
     kind: string;
     base: string;
+    putoutPlayerId?: number | null;
     inning: number;
     isHomeBatting: boolean;
   }[];
+  /** Every rearrangement in the field, oldest first. */
+  fieldingChanges: {
+    id: number;
+    isHome: boolean;
+    playerId: number;
+    position: string;
+    inning: number;
+  }[];
+  /** Who was on the card at the first pitch, so a substitute reads as one. */
+  starters: number[];
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -223,6 +236,52 @@ export function ScoringBoard({
     position: row.position,
   }));
 
+  /**
+   * Putouts and errors so far, beside the man who made them. A fielding line
+   * that only exists in the published box score is no use to the umpire, who
+   * needs to see that the putout he just entered landed on the right player
+   * while there is still time to correct it.
+   */
+  const fieldingTally = useMemo(() => {
+    const tally = new Map<number, { putouts: number; errors: number }>();
+    const bump = (playerId: number | null | undefined, key: "putouts" | "errors") => {
+      if (!playerId) return;
+      const line = tally.get(playerId) ?? { putouts: 0, errors: 0 };
+      line[key] += 1;
+      tally.set(playerId, line);
+    };
+    for (const pa of appearances) {
+      bump(pa.putoutPlayerId, "putouts");
+      bump(pa.errorPlayerId, "errors");
+    }
+    // Tag plays and pickoffs are putouts too, and they are not plate
+    // appearances - leaving them out would undercount every catcher.
+    for (const out of runnerOuts) bump(out.putoutPlayerId, "putouts");
+    return tally;
+  }, [appearances, runnerOuts]);
+
+  /**
+   * What has already been changed on this side, in the order it happened: who
+   * came in for whom, and who moved where. Only where everyone is standing now
+   * was visible before, which made a mistaken substitution impossible to spot.
+   */
+  const changeLog = useMemo(() => {
+    const fieldingIsHome = !state.isHomeBatting;
+    const entered = lineups
+      .filter((row) => row.isHome === fieldingIsHome && !starters.includes(row.playerId))
+      .map((row) => ({
+        key: `sub-${row.playerId}`,
+        text: `${row.name} entered the game at ${row.position}`,
+      }));
+    const moved = fieldingChanges
+      .filter((change) => change.isHome === fieldingIsHome)
+      .map((change) => ({
+        key: `move-${change.id}`,
+        text: `${nameOf[change.playerId] ?? "Player"} moved to ${change.position} in inning ${change.inning}`,
+      }));
+    return [...entered, ...moved];
+  }, [lineups, fieldingChanges, starters, state.isHomeBatting, nameOf]);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-6 rounded-lg border border-slate-800/80 bg-slate-900/40 px-5 py-4">
@@ -320,8 +379,14 @@ export function ScoringBoard({
           nameOf={nameOf}
           busy={busy}
           fielders={fielderList}
-          onMove={(playerId, to, reason, note) =>
-            send(`/api/scorecards/${scorecardId}/runners`, "POST", { playerId, to, reason, note })
+          onMove={(playerId, to, reason, note, errorPlayerId) =>
+            send(`/api/scorecards/${scorecardId}/runners`, "POST", {
+              playerId,
+              to,
+              reason,
+              note,
+              errorPlayerId,
+            })
           }
           recordedOuts={runnerOuts
             .filter(
@@ -383,7 +448,12 @@ export function ScoringBoard({
             scorecardId={scorecardId}
             isHome={!state.isHomeBatting}
             teamName={state.isHomeBatting ? awayName : homeName}
-            fielders={fielderList}
+            fielders={fielderList.map((fielder) => ({
+              ...fielder,
+              putouts: fieldingTally.get(fielder.playerId)?.putouts ?? 0,
+              errors: fieldingTally.get(fielder.playerId)?.errors ?? 0,
+            }))}
+            changeLog={changeLog}
             bench={state.isHomeBatting ? bench.away : bench.home}
             inning={state.inning}
           />

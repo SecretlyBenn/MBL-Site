@@ -4,7 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { POSITIONS } from "@/app/scoring";
 
-type Fielder = { playerId: number; name: string; position: string };
+type Fielder = {
+  playerId: number;
+  name: string;
+  position: string;
+  /** Plays made and plays muffed so far, shown beside the name. */
+  putouts: number;
+  errors: number;
+};
 
 /**
  * Defensive positions for the team in the field, changeable at any point.
@@ -17,6 +24,7 @@ export function DefensePanel({
   isHome,
   teamName,
   fielders,
+  changeLog,
   bench,
   inning,
 }: {
@@ -24,6 +32,8 @@ export function DefensePanel({
   isHome: boolean;
   teamName: string;
   fielders: Fielder[];
+  /** Substitutions and moves already made by this side, oldest first. */
+  changeLog: { key: string; text: string }[];
   bench: { id: number; name: string }[];
   inning: number;
 }) {
@@ -111,11 +121,37 @@ export function DefensePanel({
               <>
                 <span className="w-8 shrink-0 font-bold text-slate-500">{fielder.position}</span>
                 <span className="truncate text-slate-300">{fielder.name}</span>
+                {/* The fielding line as it stands. Nothing is shown for a
+                    fielder who has neither made a play nor dropped one -
+                    a row of zeroes reads as noise, and every fielder starts
+                    there. */}
+                <span className="ml-auto shrink-0 tabular-nums text-[11px]">
+                  {fielder.putouts > 0 && (
+                    <span className="text-emerald-400">{fielder.putouts} PO</span>
+                  )}
+                  {fielder.putouts > 0 && fielder.errors > 0 && (
+                    <span className="text-slate-600"> · </span>
+                  )}
+                  {fielder.errors > 0 && <span className="text-rose-400">{fielder.errors} E</span>}
+                </span>
               </>
             )}
           </li>
         ))}
       </ul>
+
+      {!open && changeLog.length > 0 && (
+        <div className="mt-3 border-t border-slate-800 pt-2">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Changes this game
+          </p>
+          <ul className="space-y-0.5 text-[11px] text-slate-400">
+            {changeLog.map((entry) => (
+              <li key={entry.key}>{entry.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {open && (
         <div className="mt-3">

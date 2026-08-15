@@ -1,5 +1,5 @@
-import { isSkip, RESULT_BY_CODE, type ResultCode } from "./scoring.ts";
-import { advance, decodeBases, decodeRunners, EMPTY_BASES } from "./bases.ts";
+import { isSkip, RESULT_BY_CODE, POSITION_NUMBER, type ResultCode } from "./scoring.ts";
+import { advance, decodeBases, decodeRunners, EMPTY_BASES, runnersOn } from "./bases.ts";
 
 /**
  * Turns plate appearances into a box score. Everything public about a scored
@@ -27,8 +27,40 @@ export type StoredPlateAppearance = {
   errorPosition: number | null;
   errorPlayerId: number | null;
   stolenBases: number;
+  /** Player ids of the runners who stole on this play. */
+  stolenBy?: string | null;
   /** Whoever the league credits with the out, or null when nobody is. */
   putoutPlayerId?: number | null;
+};
+
+/**
+ * A runner retired between plays. These never appear as plate appearances, so
+ * the caught stealings and the tag-play putouts they carry reach the box score
+ * only if they are handed in alongside.
+ */
+export type StoredRunnerOut = {
+  runnerPlayerId: number;
+  /** TAGGED, PICKED_OFF, CAUGHT_STEALING, FORCED. */
+  kind: string;
+  putoutPlayerId?: number | null;
+};
+
+/**
+ * Where a fielder stood and from when. Starters carry sequence 0; every later
+ * rearrangement is its own entry, so "who was at short in the fourth" is
+ * answered by taking the latest entry at or before that play.
+ */
+export type FieldingSlot = {
+  isHome: boolean;
+  playerId: number;
+  position: string;
+  fromSequence: number;
+};
+
+export type BoxContext = {
+  runnerOuts?: StoredRunnerOut[];
+  /** Starting lineups plus every fielding change, in any order. */
+  fielding?: FieldingSlot[];
 };
 
 export type BattingLine = {
@@ -43,14 +75,28 @@ export type BattingLine = {
   homeRuns: number;
   rbis: number;
   walks: number;
+  hitByPitch: number;
   strikeouts: number;
   stolenBases: number;
+  caughtStealing: number;
+  sacFlies: number;
+  sacBunts: number;
+  /** Runners still aboard when this batter's turn ended. */
+  leftOnBase: number;
   totalBases: number;
   /**
    * Outs this player was credited with in the field. The league scores one per
    * play and no assists, so these are whole plays rather than shares of them.
    */
   putouts: number;
+  /** Errors charged to this player, whether or not the batter reached. */
+  errors: number;
+  /**
+   * Defensive outs that elapsed while this player was stationed at each
+   * position, keyed by position. This is time on the field rather than plays
+   * made, which is what decides someone's primary position.
+   */
+  positionOuts: Record<string, number>;
 };
 
 export type PitchingLine = {
@@ -65,17 +111,27 @@ export type PitchingLine = {
   homeRuns: number;
   walks: number;
   strikeouts: number;
+  /** Took the mound for the first batter of the game. */
+  gamesStarted: number;
+  completeGames: number;
+  shutouts: number;
+  wins: number;
+  losses: number;
+  saves: number;
+  blownSaves: number;
 };
 
 const emptyBatting = (playerId: number): BattingLine => ({
   playerId, plateAppearances: 0, atBats: 0, runs: 0, hits: 0, singles: 0, doubles: 0,
-  triples: 0, homeRuns: 0, rbis: 0, walks: 0, strikeouts: 0, stolenBases: 0, totalBases: 0,
-  putouts: 0,
+  triples: 0, homeRuns: 0, rbis: 0, walks: 0, hitByPitch: 0, strikeouts: 0, stolenBases: 0,
+  caughtStealing: 0, sacFlies: 0, sacBunts: 0, leftOnBase: 0, totalBases: 0,
+  putouts: 0, errors: 0, positionOuts: {},
 });
 
 const emptyPitching = (playerId: number): PitchingLine => ({
   playerId, outs: 0, inningsPitched: 0, battersFaced: 0, hits: 0, runs: 0,
   earnedRuns: 0, homeRuns: 0, walks: 0, strikeouts: 0,
+  gamesStarted: 0, completeGames: 0, shutouts: 0, wins: 0, losses: 0, saves: 0, blownSaves: 0,
 });
 
 export type DerivedBoxScore = {
@@ -98,32 +154,96 @@ export type DerivedBoxScore = {
   isHomeBatting: boolean;
 };
 
-export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBoxScore {
+/**
+ * Who was standing where on the fielding side when a given play happened.
+ * The latest entry at or before the play wins, which is what makes a
+ * mid-inning rearrangement take effect from that play onwards and not before.
+ */
+function alignmentAt(fielding: FieldingSlot[], isHome: boolean, sequence: number) {
+  const byPlayer = new Map<number, { position: string; from: number }>();
+  for (const slot of fielding) {
+    if (slot.isHome !== isHome) continue;
+    if (slot.fromSequence > sequence) continue;
+    const held = byPlayer.get(slot.playerId);
+    if (!held || slot.fromSequence >= held.from) {
+      byPlayer.set(slot.playerId, { position: slot.position, from: slot.fromSequence });
+    }
+  }
+  // Two players cannot hold one position; the more recent assignment displaces
+  // the older, which is how a swap reads when only one half of it was entered.
+  const byPosition = new Map<string, { playerId: number; from: number }>();
+  for (const [playerId, held] of byPlayer) {
+    if (held.position === "DH") continue;
+    if (!POSITION_NUMBER[held.position]) continue;
+    const sitting = byPosition.get(held.position);
+    if (!sitting || held.from >= sitting.from) {
+      byPosition.set(held.position, { playerId, from: held.from });
+    }
+  }
+  return byPosition;
+}
+
+export function deriveBoxScore(
+  appearances: StoredPlateAppearance[],
+  context: BoxContext = {},
+): DerivedBoxScore {
   const ordered = [...appearances].sort((a, b) => a.sequence - b.sequence);
 
   const batting = { away: new Map<number, BattingLine>(), home: new Map<number, BattingLine>() };
   const pitching = { away: new Map<number, PitchingLine>(), home: new Map<number, PitchingLine>() };
   const innings = { away: [] as number[], home: [] as number[] };
   const errors = { away: 0, home: 0 };
+  const fielding = context.fielding ?? [];
+
+  // A fielder's line lives with their own side's batting, since that is where
+  // the archive keeps fielding. Reached for by putouts, errors and time on the
+  // field, none of which require the player to have batted.
+  const fielderLine = (side: "home" | "away", playerId: number) => {
+    const line = batting[side].get(playerId) ?? emptyBatting(playerId);
+    batting[side].set(playerId, line);
+    return line;
+  };
+
+  // Bases are replayed alongside the counting stats so that runners left
+  // aboard can be charged to the batter whose turn ended with them there.
+  let bases = EMPTY_BASES;
+  let half: string | null = null;
 
   for (const pa of ordered) {
+    const side = pa.isHomeBatting ? "home" : "away";
+    // The pitcher belongs to the fielding side, which is the other one.
+    const fieldingSide = pa.isHomeBatting ? "away" : "home";
+
+    const thisHalf = `${pa.inning}:${pa.isHomeBatting}`;
+    if (thisHalf !== half) {
+      bases = EMPTY_BASES;
+      half = thisHalf;
+    }
+
+    // Defensive outs are time on the field: they are served by whoever was
+    // standing there, whether or not the ball came anywhere near them.
+    if (pa.outsRecorded > 0 && fielding.length > 0) {
+      const alignment = alignmentAt(fielding, fieldingSide === "home", pa.sequence);
+      for (const [position, holder] of alignment) {
+        const line = fielderLine(fieldingSide, holder.playerId);
+        line.positionOuts[position] = (line.positionOuts[position] ?? 0) + pa.outsRecorded;
+      }
+    }
+
     // A skipped batter never came to the plate. The order moved past them, but
     // nothing is charged to them or to the pitcher - counting it would give a
     // player who was not there a plate appearance and inflate batters faced.
     if (isSkip(pa.result)) continue;
 
     const definition = RESULT_BY_CODE.get(pa.result as ResultCode);
-    const side = pa.isHomeBatting ? "home" : "away";
-    // The pitcher belongs to the fielding side, which is the other one.
-    const fieldingSide = pa.isHomeBatting ? "away" : "home";
 
     const batter = batting[side].get(pa.batterPlayerId) ?? emptyBatting(pa.batterPlayerId);
-    const pitcher = pitching[fieldingSide].get(pa.pitcherPlayerId) ?? emptyPitching(pa.pitcherPlayerId);
+    const pitcher =
+      pitching[fieldingSide].get(pa.pitcherPlayerId) ?? emptyPitching(pa.pitcherPlayerId);
 
     const runs = (pa.batterScored ? 1 : 0) + pa.otherRunsScored;
 
     batter.plateAppearances += 1;
-    batter.stolenBases += pa.stolenBases;
     batter.rbis += pa.rbis;
     if (pa.batterScored) batter.runs += 1;
 
@@ -138,6 +258,9 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
         if (definition.code === "HR") batter.homeRuns += 1;
       }
       if (definition.isWalk) batter.walks += 1;
+      if (definition.code === "HBP") batter.hitByPitch += 1;
+      if (definition.code === "SF") batter.sacFlies += 1;
+      if (definition.code === "SH") batter.sacBunts += 1;
       if (definition.isStrikeout) batter.strikeouts += 1;
 
       pitcher.battersFaced += 1;
@@ -152,11 +275,14 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
     pitcher.earnedRuns += Math.max(0, runs - pa.unearnedRuns);
 
     if (pa.putoutPlayerId) {
-      // The fielder bats for the other side, so their line lives there.
-      const line =
-        batting[fieldingSide].get(pa.putoutPlayerId) ?? emptyBatting(pa.putoutPlayerId);
-      line.putouts += 1;
-      batting[fieldingSide].set(pa.putoutPlayerId, line);
+      fielderLine(fieldingSide, pa.putoutPlayerId).putouts += 1;
+    }
+
+    // An error is charged to the fielding side, and to the fielder by name
+    // when the umpire said who booted it.
+    if (pa.errorPosition !== null || pa.errorPlayerId !== null) {
+      errors[fieldingSide] += 1;
+      if (pa.errorPlayerId) fielderLine(fieldingSide, pa.errorPlayerId).errors += 1;
     }
 
     batting[side].set(pa.batterPlayerId, batter);
@@ -167,8 +293,46 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
     while (list.length < pa.inning) list.push(0);
     list[pa.inning - 1] += runs;
 
-    // An error is charged to the fielding side.
-    if (pa.errorPosition !== null || pa.errorPlayerId !== null) errors[fieldingSide] += 1;
+    // Where the play left the bases, so the next one starts from it and this
+    // batter can be charged with whoever he stranded.
+    if (pa.basesAfter) {
+      bases = decodeBases(pa.basesAfter);
+    } else {
+      bases = advance(bases, {
+        batterPlayerId: pa.batterPlayerId,
+        result: pa.result,
+        scored: decodeRunners(pa.runnersScored),
+      }).bases;
+    }
+    batter.leftOnBase += runnersOn(bases).length;
+
+    // A steal goes to the runner who made it. Only a play recorded before
+    // there was anywhere to put that has to fall back to the batter, and on
+    // those the batter usually was the runner.
+    if (pa.stolenBases > 0) {
+      const thieves = decodeRunners(pa.stolenBy);
+      if (thieves.length > 0) {
+        for (const playerId of thieves) {
+          const line = batting[side].get(playerId) ?? emptyBatting(playerId);
+          line.stolenBases += 1;
+          batting[side].set(playerId, line);
+        }
+      } else {
+        batter.stolenBases += pa.stolenBases;
+      }
+    }
+  }
+
+  // Runners retired between plays. The runner batted for his own side; the
+  // fielder who got him bats for the other one.
+  for (const out of context.runnerOuts ?? []) {
+    const runnerSide = batting.home.has(out.runnerPlayerId) ? "home" : "away";
+    if (out.kind === "CAUGHT_STEALING") {
+      fielderLine(runnerSide, out.runnerPlayerId).caughtStealing += 1;
+    }
+    if (out.putoutPlayerId) {
+      fielderLine(runnerSide === "home" ? "away" : "home", out.putoutPlayerId).putouts += 1;
+    }
   }
 
   for (const line of pitching.away.values()) line.inningsPitched = line.outs / 3;
@@ -185,6 +349,11 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
   const sumBy = (lines: Iterable<BattingLine>, key: keyof BattingLine) =>
     [...lines].reduce((sum, line) => sum + (line[key] as number), 0);
 
+  const awayScore = total(innings.away);
+  const homeScore = total(innings.home);
+
+  assignDecisions(ordered, pitching, { awayScore, homeScore });
+
   return {
     awayBatting: [...batting.away.values()],
     homeBatting: [...batting.home.values()],
@@ -192,8 +361,8 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
     homePitching: [...pitching.home.values()],
     awayInnings: innings.away,
     homeInnings: innings.home,
-    awayScore: total(innings.away),
-    homeScore: total(innings.home),
+    awayScore,
+    homeScore,
     awayHits: sumBy(batting.away.values(), "hits"),
     homeHits: sumBy(batting.home.values(), "hits"),
     awayErrors: errors.away,
@@ -202,6 +371,101 @@ export function deriveBoxScore(appearances: StoredPlateAppearance[]): DerivedBox
     currentInning,
     isHomeBatting,
   };
+}
+
+/**
+ * Pitcher of record, saves and blown saves.
+ *
+ * The league plays six innings, so the rule that a starter must go five to
+ * qualify for a win cannot apply - a starter would almost never reach it. What
+ * is kept is the part that matters: the win belongs to whoever was pitching
+ * when his side took the lead it never gave back, and the loss to whoever gave
+ * up the run that put the other side ahead for good.
+ */
+function assignDecisions(
+  ordered: StoredPlateAppearance[],
+  pitching: { away: Map<number, PitchingLine>; home: Map<number, PitchingLine> },
+  final: { awayScore: number; homeScore: number },
+) {
+  if (ordered.length === 0) return;
+
+  const starterOf = (side: "home" | "away") =>
+    ordered.find((pa) => (pa.isHomeBatting ? "away" : "home") === side)?.pitcherPlayerId ?? null;
+  const finisherOf = (side: "home" | "away") =>
+    [...ordered].reverse().find((pa) => (pa.isHomeBatting ? "away" : "home") === side)
+      ?.pitcherPlayerId ?? null;
+
+  for (const side of ["home", "away"] as const) {
+    const starter = starterOf(side);
+    if (starter === null) continue;
+    const line = pitching[side].get(starter);
+    if (line) line.gamesStarted = 1;
+  }
+
+  // A complete game is one pitcher for the whole of his side's defence; a
+  // shutout is a complete game with nothing scored against it. Neither waits
+  // on the game being decided, so both are settled before the tie check.
+  for (const side of ["home", "away"] as const) {
+    const lines = [...pitching[side].values()];
+    if (lines.length !== 1) continue;
+    const only = lines[0];
+    only.completeGames = 1;
+    if (only.runs === 0) only.shutouts = 1;
+  }
+
+  // A tie has no pitcher of record.
+  if (final.homeScore === final.awayScore) return;
+
+  const winner: "home" | "away" = final.homeScore > final.awayScore ? "home" : "away";
+  const loser = winner === "home" ? "away" : "home";
+
+  // Replay the score to find the play that put the winner ahead to stay.
+  let away = 0;
+  let home = 0;
+  let leadTaken: { winningPitcher: number; losingPitcher: number } | null = null;
+  for (const pa of ordered) {
+    const before = winner === "home" ? home - away : away - home;
+    const runs = (pa.batterScored ? 1 : 0) + pa.otherRunsScored;
+    if (pa.isHomeBatting) home += runs;
+    else away += runs;
+    const after = winner === "home" ? home - away : away - home;
+    if (before <= 0 && after > 0) {
+      // The side batting here is the winner taking the lead, so the pitcher
+      // who allowed it is the loser's. The winner's pitcher of record is
+      // whoever was last on the mound for his own side.
+      const allowed = pa.pitcherPlayerId;
+      const ours = ordered
+        .filter((row) => row.sequence <= pa.sequence && row.isHomeBatting !== pa.isHomeBatting)
+        .at(-1)?.pitcherPlayerId;
+      // Before the winner has taken the field there is no pitcher of record
+      // yet; the next lead change settles it.
+      if (ours !== undefined) leadTaken = { winningPitcher: ours, losingPitcher: allowed };
+    }
+  }
+
+  if (leadTaken) {
+    const win = pitching[winner].get(leadTaken.winningPitcher);
+    if (win) win.wins = 1;
+    const loss = pitching[loser].get(leadTaken.losingPitcher);
+    if (loss) loss.losses = 1;
+  }
+
+  // The save goes to a reliever who finished a win he did not earn, with the
+  // margin close enough that finishing it was worth something.
+  const finisher = finisherOf(winner);
+  const margin = Math.abs(final.homeScore - final.awayScore);
+  if (finisher !== null) {
+    const line = pitching[winner].get(finisher);
+    if (line && line.wins === 0 && line.gamesStarted === 0 && margin <= 3) line.saves = 1;
+  }
+
+  // A blown save is a reliever who came in with his team ahead and gave the
+  // lead away - which is exactly the pitcher charged with the loss when he was
+  // not the starter.
+  if (leadTaken) {
+    const line = pitching[loser].get(leadTaken.losingPitcher);
+    if (line && line.gamesStarted === 0 && line.losses === 1) line.blownSaves = 1;
+  }
 }
 
 /**
