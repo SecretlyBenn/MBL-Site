@@ -14,7 +14,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
     const scorecard = await db.query.scorecards.findFirst({ where: eq(scorecards.id, scorecardId) });
     if (!scorecard) return Response.json({ error: "No such scorecard." }, { status: 404 });
-    if (scorecard.status !== "IN_PROGRESS") {
+    // A card sent back for correction is submitted again the same way, so
+    // RETURNED is as valid a starting point here as IN_PROGRESS. Refusing it
+    // left a returned game with no way back to review.
+    if (scorecard.status !== "IN_PROGRESS" && scorecard.status !== "RETURNED") {
       return Response.json({ error: `Already ${scorecard.status.toLowerCase()}.` }, { status: 409 });
     }
 

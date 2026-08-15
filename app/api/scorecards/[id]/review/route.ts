@@ -79,6 +79,18 @@ export async function POST(
       await publishScorecard(scorecardId);
     }
 
+    if (payload.decision === "RETURN") {
+      // The game is back in the umpire's hands, so it stops sitting in the
+      // review queue. Without this the fixture was left claiming to be
+      // awaiting a review that had already happened - which took it out of the
+      // list of games to claim and out of the list being scored, leaving it
+      // reachable from nowhere.
+      await db
+        .update(games)
+        .set({ status: "IN_PROGRESS" })
+        .where(eq(games.id, scorecard.gameId));
+    }
+
     if (payload.decision === "REOPEN") {
       await unpublishScorecard(scorecardId);
 

@@ -26,13 +26,17 @@ export default async function UmpirePage() {
       gameId: scorecards.gameId,
       homeScore: scorecards.homeScore,
       awayScore: scorecards.awayScore,
+      reviewNote: scorecards.reviewNote,
       awayTeamId: games.awayTeamId,
       homeTeamId: games.homeTeamId,
       scheduledAt: games.scheduledAt,
     })
     .from(scorecards)
     .innerJoin(games, eq(scorecards.gameId, games.id))
-    .where(inArray(scorecards.status, ["IN_PROGRESS", "PENDING"]))
+    // RETURNED belongs here too. A game sent back is the umpire's to correct,
+    // and it is not a game to claim - leaving it out of both lists made it
+    // disappear off the page entirely.
+    .where(inArray(scorecards.status, ["IN_PROGRESS", "PENDING", "RETURNED"]))
     .orderBy(desc(scorecards.id))
     .limit(20);
 
@@ -94,16 +98,31 @@ export default async function UmpirePage() {
                 href={`/umpire/${row.id}`}
                 className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 transition-colors hover:border-sky-600/50 hover:bg-slate-900"
               >
-                <span className="font-semibold">
-                  {teamById.get(row.awayTeamId)?.name ?? "Away"}{" "}
-                  <span className="text-slate-500">at</span>{" "}
-                  {teamById.get(row.homeTeamId)?.name ?? "Home"}
+                <span className="min-w-0">
+                  <span className="font-semibold">
+                    {teamById.get(row.awayTeamId)?.name ?? "Away"}{" "}
+                    <span className="text-slate-500">at</span>{" "}
+                    {teamById.get(row.homeTeamId)?.name ?? "Home"}
+                  </span>
+                  {/* Why it came back, so the umpire does not have to guess
+                      what to fix before sending it up again. */}
+                  {row.status === "RETURNED" && (
+                    <span className="mt-0.5 block truncate text-xs text-rose-300">
+                      Sent back{row.reviewNote ? `: ${row.reviewNote}` : " for correction"}
+                    </span>
+                  )}
                 </span>
                 <span className="flex items-center gap-4 text-sm">
                   <span className="tabular-nums text-slate-300">
                     {row.awayScore} – {row.homeScore}
                   </span>
-                  <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                  <span
+                    className={`rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                      row.status === "RETURNED"
+                        ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+                        : "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                    }`}
+                  >
                     {row.status.replace("_", " ").toLowerCase()}
                   </span>
                 </span>
