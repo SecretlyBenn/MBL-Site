@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deriveBoxScore } from "../app/derive-box-score.ts";
+import {
+  currentBases,
+  deriveBoxScore,
+  extraInningsRunner,
+  startingBases,
+} from "../app/derive-box-score.ts";
 
 /**
  * Every column the batting and pitching tabs show has to be reachable from
@@ -206,4 +211,64 @@ test("an older play with no runner named still counts the base", () => {
   sequence = 0;
   const box = deriveBoxScore([pa({ result: "1B", stolenBases: 1 })]);
   assert.equal(away(box, 1).stolenBases, 1);
+});
+
+test("extra innings open with the last man out standing on second", () => {
+  sequence = 0;
+  const plays = [
+    pa({ inning: 6, result: "1B", batterPlayerId: 1 }),
+    pa({ inning: 6, result: "K", batterPlayerId: 2, outsRecorded: 3 }),
+  ];
+  assert.equal(extraInningsRunner(plays, 7, false), 2);
+  assert.deepEqual(startingBases(plays, 7, false), { first: null, second: 2, third: null });
+  // Each side gets its own runner, drawn from its own previous inning.
+  assert.equal(extraInningsRunner(plays, 7, true), null);
+});
+
+test("regulation innings start with nobody on", () => {
+  sequence = 0;
+  const plays = [pa({ inning: 5, result: "K", batterPlayerId: 2, outsRecorded: 3 })];
+  assert.equal(extraInningsRunner(plays, 6, false), null);
+  assert.deepEqual(startingBases(plays, 6, false), { first: null, second: null, third: null });
+});
+
+test("the diamond shows the placed runner as soon as the sixth ends", () => {
+  sequence = 0;
+  const plays = [pa({ inning: 6, result: "K", batterPlayerId: 2, isHomeBatting: true, outsRecorded: 3 })];
+  // The sixth is over, so what is on screen is the top of the seventh - and the
+  // away side has nobody placed, because they have no sixth inning here.
+  assert.deepEqual(currentBases(plays), { first: null, second: null, third: null });
+
+  sequence = 0;
+  const both = [
+    pa({ inning: 6, result: "K", batterPlayerId: 9, outsRecorded: 3 }),
+    pa({ inning: 6, result: "K", batterPlayerId: 29, isHomeBatting: true, outsRecorded: 3 }),
+  ];
+  assert.deepEqual(currentBases(both), { first: null, second: 9, third: null });
+});
+
+test("the placed runner scoring is not charged to the pitcher", () => {
+  sequence = 0;
+  const box = deriveBoxScore([
+    pa({ inning: 6, result: "K", batterPlayerId: 9, outsRecorded: 3 }),
+    pa({ inning: 6, result: "K", batterPlayerId: 29, isHomeBatting: true, outsRecorded: 3 }),
+    // Player 9 opens the seventh on second and is driven in.
+    pa({ inning: 7, result: "1B", batterPlayerId: 1, rbis: 1, otherRunsScored: 1, runnersScored: "[9]" }),
+  ]);
+  const pitcher = box.homePitching.find((line) => line.playerId === 90);
+  assert.equal(pitcher.runs, 1);
+  assert.equal(pitcher.earnedRuns, 0);
+  // And the run belongs to the man who scored it.
+  assert.equal(away(box, 9).runs, 1);
+});
+
+test("a runner driven in gets the run, not just the team", () => {
+  sequence = 0;
+  const box = deriveBoxScore([
+    pa({ result: "1B", batterPlayerId: 1 }),
+    pa({ result: "2B", batterPlayerId: 2, rbis: 1, otherRunsScored: 1, runnersScored: "[1]" }),
+  ]);
+  assert.equal(away(box, 1).runs, 1);
+  assert.equal(away(box, 2).runs, 0);
+  assert.equal(box.awayScore, 1);
 });

@@ -1,5 +1,12 @@
 import { isSkip, RESULT_BY_CODE, POSITION_NUMBER, type ResultCode } from "./scoring.ts";
-import { advance, decodeBases, decodeRunners, EMPTY_BASES, runnersOn } from "./bases.ts";
+import {
+  advance,
+  decodeBases,
+  decodeRunners,
+  EMPTY_BASES,
+  runnersOn,
+  type Bases,
+} from "./bases.ts";
 
 /**
  * Turns plate appearances into a box score. Everything public about a scored
@@ -188,6 +195,53 @@ function alignmentAt(fielding: FieldingSlot[], isHome: boolean, sequence: number
   return byPosition;
 }
 
+/** A league game is six innings; anything past that is extra innings. */
+export const REGULATION_INNINGS = 6;
+
+/**
+ * The last man to bat in each half-inning, keyed by inning and side.
+ *
+ * He is two things at once: the batter charged with whatever runners were
+ * left standing, and - in extra innings - the runner his side starts the next
+ * inning with on second.
+ */
+function lastBatterByHalf(ordered: StoredPlateAppearance[]) {
+  const last = new Map<string, number>();
+  for (const pa of ordered) {
+    if (isSkip(pa.result)) continue;
+    last.set(`${pa.inning}:${pa.isHomeBatting}`, pa.batterPlayerId);
+  }
+  return last;
+}
+
+/**
+ * Who a side starts an extra inning with on second base: the batter who made
+ * the last out of their previous inning.
+ *
+ * Returns null in regulation, and in an extra inning whose previous inning has
+ * nobody to draw from - the first inning of a game cannot place a runner, and
+ * neither can a half nobody batted in.
+ */
+export function extraInningsRunner(
+  appearances: StoredPlateAppearance[],
+  inning: number,
+  isHomeBatting: boolean,
+) {
+  if (inning <= REGULATION_INNINGS) return null;
+  const ordered = [...appearances].sort((a, b) => a.sequence - b.sequence);
+  return lastBatterByHalf(ordered).get(`${inning - 1}:${isHomeBatting}`) ?? null;
+}
+
+/** The bases a half-inning opens with - empty, or the placed runner on second. */
+export function startingBases(
+  appearances: StoredPlateAppearance[],
+  inning: number,
+  isHomeBatting: boolean,
+): Bases {
+  const runner = extraInningsRunner(appearances, inning, isHomeBatting);
+  return runner === null ? EMPTY_BASES : { first: null, second: runner, third: null };
+}
+
 export function deriveBoxScore(
   appearances: StoredPlateAppearance[],
   context: BoxContext = {},
@@ -215,6 +269,12 @@ export function deriveBoxScore(
   let half: string | null = null;
   /** The last batter of the half in progress, and what he left behind. */
   let stranding: { side: "home" | "away"; batterPlayerId: number; runners: number } | null = null;
+  /**
+   * The runner placed on second to start an extra inning. He got there without
+   * the pitcher letting him on, so a run he scores is not earned.
+   */
+  let placedRunner: number | null = null;
+  const lastBatter = lastBatterByHalf(ordered);
 
   const flushStranded = () => {
     if (!stranding || stranding.runners === 0) return;
@@ -233,7 +293,16 @@ export function deriveBoxScore(
       // The side has changed, so whoever batted last in the half just gone
       // stranded everyone still standing.
       flushStranded();
-      bases = EMPTY_BASES;
+      // Extra innings open with the batter who made the last out of the
+      // previous inning standing on second.
+      placedRunner =
+        pa.inning > REGULATION_INNINGS
+          ? lastBatter.get(`${pa.inning - 1}:${pa.isHomeBatting}`) ?? null
+          : null;
+      bases =
+        placedRunner === null
+          ? EMPTY_BASES
+          : { first: null, second: placedRunner, third: null };
       half = thisHalf;
     }
 
@@ -287,9 +356,22 @@ export function deriveBoxScore(
       if (definition.isStrikeout) pitcher.strikeouts += 1;
     }
 
+    // A run belongs to the man who crossed the plate. Only the batter coming
+    // round was ever credited, so every runner driven in by somebody else had
+    // his run counted for the team and for nobody.
+    const scorers = decodeRunners(pa.runnersScored);
+    for (const playerId of scorers) {
+      const line = batting[side].get(playerId) ?? emptyBatting(playerId);
+      line.runs += 1;
+      batting[side].set(playerId, line);
+    }
+
     pitcher.outs += pa.outsRecorded;
     pitcher.runs += runs;
-    pitcher.earnedRuns += Math.max(0, runs - pa.unearnedRuns);
+    // The placed runner reached second without the pitcher putting him there,
+    // so his run is not charged to the earned-run average.
+    const placedScored = placedRunner !== null && scorers.includes(placedRunner) ? 1 : 0;
+    pitcher.earnedRuns += Math.max(0, runs - pa.unearnedRuns - placedScored);
 
     if (pa.putoutPlayerId) {
       fielderLine(fieldingSide, pa.putoutPlayerId).putouts += 1;
@@ -499,7 +581,14 @@ function assignDecisions(
  */
 export function currentBases(appearances: StoredPlateAppearance[]) {
   const derived = deriveBoxScore(appearances);
-  if (derived.currentOuts >= 3) return EMPTY_BASES;
+
+  // The half just ended, so what matters is how the next one opens - empty in
+  // regulation, and with the placed runner on second in extra innings.
+  if (derived.currentOuts >= 3) {
+    const nextInning = derived.isHomeBatting ? derived.currentInning + 1 : derived.currentInning;
+    const nextIsHome = !derived.isHomeBatting;
+    return startingBases(appearances, nextInning, nextIsHome);
+  }
 
   const half = appearances
     .filter(
@@ -508,7 +597,7 @@ export function currentBases(appearances: StoredPlateAppearance[]) {
     )
     .sort((a, b) => a.sequence - b.sequence);
 
-  let bases = EMPTY_BASES;
+  let bases = startingBases(appearances, derived.currentInning, derived.isHomeBatting);
   for (const pa of half) {
     // A stored end-state wins: the umpire placed those runners by hand, and
     // re-inferring would quietly overrule them.
@@ -525,7 +614,10 @@ export function currentBases(appearances: StoredPlateAppearance[]) {
   return bases;
 }
 
-export function gameState(appearances: StoredPlateAppearance[], inningsPerGame = 6) {
+export function gameState(
+  appearances: StoredPlateAppearance[],
+  inningsPerGame = REGULATION_INNINGS,
+) {
   const derived = deriveBoxScore(appearances);
   const halfOver = derived.currentOuts >= 3;
 
