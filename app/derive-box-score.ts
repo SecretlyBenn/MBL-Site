@@ -81,7 +81,12 @@ export type BattingLine = {
   caughtStealing: number;
   sacFlies: number;
   sacBunts: number;
-  /** Runners still aboard when this batter's turn ended. */
+  /**
+   * Runners this batter stranded. The league charges the whole inning's
+   * stranded runners to the man who made the last out of it, so this is zero
+   * for everyone else - two aboard when the third out is made is two left on
+   * base against that batter, and nothing against the two who reached.
+   */
   leftOnBase: number;
   totalBases: number;
   /**
@@ -204,10 +209,19 @@ export function deriveBoxScore(
     return line;
   };
 
-  // Bases are replayed alongside the counting stats so that runners left
-  // aboard can be charged to the batter whose turn ended with them there.
+  // Bases are replayed alongside the counting stats so that the runners still
+  // standing when a half-inning ends can be charged to the man who ended it.
   let bases = EMPTY_BASES;
   let half: string | null = null;
+  /** The last batter of the half in progress, and what he left behind. */
+  let stranding: { side: "home" | "away"; batterPlayerId: number; runners: number } | null = null;
+
+  const flushStranded = () => {
+    if (!stranding || stranding.runners === 0) return;
+    const line = batting[stranding.side].get(stranding.batterPlayerId);
+    if (line) line.leftOnBase += stranding.runners;
+    stranding = null;
+  };
 
   for (const pa of ordered) {
     const side = pa.isHomeBatting ? "home" : "away";
@@ -216,6 +230,9 @@ export function deriveBoxScore(
 
     const thisHalf = `${pa.inning}:${pa.isHomeBatting}`;
     if (thisHalf !== half) {
+      // The side has changed, so whoever batted last in the half just gone
+      // stranded everyone still standing.
+      flushStranded();
       bases = EMPTY_BASES;
       half = thisHalf;
     }
@@ -304,7 +321,9 @@ export function deriveBoxScore(
         scored: decodeRunners(pa.runnersScored),
       }).bases;
     }
-    batter.leftOnBase += runnersOn(bases).length;
+    // Held rather than credited: it only becomes a stranding if nobody bats
+    // after him in this half.
+    stranding = { side, batterPlayerId: pa.batterPlayerId, runners: runnersOn(bases).length };
 
     // A steal goes to the runner who made it. Only a play recorded before
     // there was anywhere to put that has to fall back to the batter, and on
@@ -322,6 +341,10 @@ export function deriveBoxScore(
       }
     }
   }
+
+  // The last half-inning of the game has nothing after it to trigger the
+  // flush, so it is closed out here.
+  flushStranded();
 
   // Runners retired between plays. The runner batted for his own side; the
   // fielder who got him bats for the other one.

@@ -75,18 +75,41 @@ test("a tag-play putout counts the same as one on a batted ball", () => {
   assert.equal(home(box, 72).putouts, 2);
 });
 
-test("a batter is charged with the runners he leaves standing there", () => {
+test("the runners stranded in an inning go to the batter who ended it", () => {
   sequence = 0;
   const box = deriveBoxScore([
     pa({ result: "1B", batterPlayerId: 1 }),
     pa({ result: "1B", batterPlayerId: 2 }),
-    pa({ result: "K", batterPlayerId: 3, outsRecorded: 1 }),
+    pa({ result: "K", batterPlayerId: 3, outsRecorded: 3 }),
   ]);
-  // Nobody aboard when the first man batted; one after the second reached, and
-  // the strikeout left both of them there.
-  assert.equal(away(box, 1).leftOnBase, 1);
-  assert.equal(away(box, 2).leftOnBase, 2);
+  // Two men aboard when the strikeout ended it: two left on base, and against
+  // that batter alone. The two who reached stranded nobody.
   assert.equal(away(box, 3).leftOnBase, 2);
+  assert.equal(away(box, 1).leftOnBase, 0);
+  assert.equal(away(box, 2).leftOnBase, 0);
+});
+
+test("an inning that ends with the bases empty strands nobody", () => {
+  sequence = 0;
+  const box = deriveBoxScore([
+    pa({ result: "1B", batterPlayerId: 1 }),
+    pa({ result: "HR", batterPlayerId: 2, batterScored: true, rbis: 2, otherRunsScored: 1 }),
+    pa({ result: "K", batterPlayerId: 3, outsRecorded: 3 }),
+  ]);
+  assert.equal(away(box, 3).leftOnBase, 0);
+});
+
+test("each half-inning is charged separately", () => {
+  sequence = 0;
+  const box = deriveBoxScore([
+    pa({ inning: 1, result: "1B", batterPlayerId: 1 }),
+    pa({ inning: 1, result: "K", batterPlayerId: 2, outsRecorded: 3 }),
+    pa({ inning: 2, result: "1B", batterPlayerId: 3 }),
+    pa({ inning: 2, result: "1B", batterPlayerId: 4 }),
+    pa({ inning: 2, result: "K", batterPlayerId: 5, outsRecorded: 3 }),
+  ]);
+  assert.equal(away(box, 2).leftOnBase, 1);
+  assert.equal(away(box, 5).leftOnBase, 2);
 });
 
 test("defensive outs are served by whoever was standing there", () => {
