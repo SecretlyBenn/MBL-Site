@@ -20,7 +20,7 @@ type LineupRow = {
   position: string;
   pitchingOrder: number | null;
   name: string;
-  /** Set once they have left the game, which takes them out of everything. */
+  /** Set while they are away from the field; they keep their batting slot. */
   leftAtSequence?: number | null;
 };
 
@@ -77,17 +77,22 @@ export function ScoringBoard({
   const state = useMemo(() => gameState(appearances), [appearances]);
   const bases = useMemo(() => currentBases(appearances), [appearances]);
 
-  // A player who has left the game is still on the card - his innings happened
-  // - but he does not bat again and he is not standing anywhere.
-  const stillPlaying = (row: LineupRow) =>
+  // A player who has walked off is not standing anywhere, but he keeps his
+  // place in the order: people in this league come back, and rebuilding the
+  // lineup around every disappearance would be worse than skipping a turn.
+  const onField = (row: LineupRow) =>
     row.leftAtSequence === null || row.leftAtSequence === undefined;
 
   const orderFor = (isHome: boolean) =>
     lineups
-      .filter((row) => row.isHome === isHome && row.battingOrder !== null && stillPlaying(row))
+      .filter((row) => row.isHome === isHome && row.battingOrder !== null)
       .sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0));
 
-  const battingOrder = orderFor(state.isHomeBatting);
+  // Two different lists, on purpose. The card shows every slot, including the
+  // man who has wandered off - his innings are on it and he is coming back.
+  // The turn passes over him, because he is not there to hit, and this is the
+  // list the server uses to decide the same thing.
+  const battingOrder = orderFor(state.isHomeBatting).filter(onField);
   // Whose turn it is, worked out the same way the server works it out when the
   // at-bat is recorded. It used to be a count of plate appearances modulo the
   // lineup size, which drifts the moment the order is not a clean nine - a
@@ -111,7 +116,7 @@ export function ScoringBoard({
     }));
 
   const fieldingSide = lineups.filter(
-    (row) => row.isHome !== state.isHomeBatting && stillPlaying(row),
+    (row) => row.isHome !== state.isHomeBatting && onField(row),
   );
   const defaultPitcher = fieldingSide
     .filter((row) => row.pitchingOrder !== null)
@@ -296,10 +301,10 @@ export function ScoringBoard({
         text: `${nameOf[change.playerId] ?? "Player"} moved to ${change.position} in inning ${change.inning}`,
       }));
     const gone = lineups
-      .filter((row) => row.isHome === fieldingIsHome && !stillPlaying(row))
+      .filter((row) => row.isHome === fieldingIsHome && !onField(row))
       .map((row) => ({
         key: `left-${row.playerId}`,
-        text: `${row.name} left the game`,
+        text: `${row.name} is away from the field`,
       }));
     return [...entered, ...moved, ...gone];
   }, [lineups, fieldingChanges, starters, state.isHomeBatting, nameOf]);
@@ -479,6 +484,20 @@ export function ScoringBoard({
             onWithdraw={(playerId) =>
               send(`/api/scorecards/${scorecardId}/withdraw`, "POST", { playerId })
             }
+            away={lineups
+              .filter((row) => row.isHome !== state.isHomeBatting && !onField(row))
+              .map((row) => ({
+                playerId: row.playerId,
+                name: row.name,
+                position: row.position,
+              }))}
+            onReturn={(playerId, position) =>
+              send(`/api/scorecards/${scorecardId}/withdraw`, "POST", {
+                playerId,
+                undo: true,
+                position,
+              })
+            }
             busy={busy}
             bench={state.isHomeBatting ? bench.away : bench.home}
             inning={state.inning}
@@ -504,7 +523,13 @@ export function ScoringBoard({
           </h3>
           <div className={isHome === state.isHomeBatting ? "" : "opacity-50"}>
             <ScoreGrid
-              order={orderFor(isHome)}
+              // An away player still has his slot, so the card shows a dash
+              // where his position would be - the umpire skips his turn rather
+              // than wondering why nobody is out there.
+              order={orderFor(isHome).map((row) => ({
+                ...row,
+                position: onField(row) ? row.position : "—",
+              }))}
               atBats={atBats.filter((atBat) => atBat.isHomeBatting === isHome)}
               innings={innings}
               activeSlot={batter?.battingOrder ?? null}

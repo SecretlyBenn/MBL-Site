@@ -3,25 +3,29 @@ import { getDb } from "@/db";
 import { plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { deriveBoxScore } from "@/app/derive-box-score";
-import { MINIMUM_LINEUP } from "@/app/scoring";
+import { POSITIONS, type Position } from "@/app/scoring";
 
 type WithdrawPayload = {
   playerId: number;
-  /** Set to put them back, for a misclick. */
+  /** Set to put them back on the field. */
   undo?: boolean;
+  /** Where they are standing on their return; defaults to where they were. */
+  position?: string;
 };
 
 /**
- * Takes a player out of the game with nobody replacing them.
+ * Takes a player off the field, and puts them back on when they return.
  *
  * Neither of the existing routes covers this. A substitution needs someone
  * coming in off the bench, and a position change leaves the player standing
- * somewhere - so a player who had gone home was still occupying his base and
- * blocking anyone else from being moved there.
+ * somewhere - so a player who had walked away was still occupying his
+ * position and blocking anyone else from being moved there.
  *
- * The lineup row stays. Everything already on the card belongs to it: the
- * at-bats he took, the outs he served at his position, the putouts he made.
- * Only what comes after stops counting, which is what leaving the game means.
+ * They keep their lineup row and their batting slot throughout. Players in
+ * this league wander off and come back, and dropping them out of the order
+ * would mean rebuilding it twice; while they are gone their turn is skipped,
+ * and everything already on the card - the at-bats taken, the outs served at
+ * that position, the putouts made - stays theirs.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -54,34 +58,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     if (payload.undo) {
+      if (payload.position && !POSITIONS.includes(payload.position as Position)) {
+        return Response.json({ error: "Unknown position." }, { status: 400 });
+      }
+      // Somebody may have taken their position while they were gone, so the
+      // spot they are given on the way back is stated rather than assumed -
+      // two players on one base is exactly what this route exists to prevent.
+      const taken =
+        payload.position &&
+        (await db.query.scorecardLineups.findFirst({
+          where: and(
+            eq(scorecardLineups.scorecardId, scorecardId),
+            eq(scorecardLineups.isHome, row.isHome),
+            eq(scorecardLineups.position, payload.position),
+            isNull(scorecardLineups.leftAtSequence),
+          ),
+        }));
+      if (taken && taken.playerId !== row.playerId) {
+        return Response.json(
+          { error: `Somebody is already at ${payload.position}.` },
+          { status: 409 },
+        );
+      }
+
       await db
         .update(scorecardLineups)
-        .set({ leftAtSequence: null })
+        .set({ leftAtSequence: null, position: payload.position ?? row.position })
         .where(eq(scorecardLineups.id, row.id));
-      return Response.json({ ok: true, remaining: null });
-    }
-
-    // A side has to keep enough players to go on. Below the minimum the game
-    // cannot continue, so the umpire is told rather than left to discover it
-    // when the batting order runs out.
-    const staying = await db
-      .select({ playerId: scorecardLineups.playerId })
-      .from(scorecardLineups)
-      .where(
-        and(
-          eq(scorecardLineups.scorecardId, scorecardId),
-          eq(scorecardLineups.isHome, row.isHome),
-          isNull(scorecardLineups.leftAtSequence),
-        ),
-      );
-    const remaining = staying.filter((entry) => entry.playerId !== payload.playerId).length;
-    if (remaining < MINIMUM_LINEUP) {
-      return Response.json(
-        {
-          error: `That would leave ${remaining} player${remaining === 1 ? "" : "s"}, and ${MINIMUM_LINEUP} is the minimum to play. Take the game as a forfeit instead.`,
-        },
-        { status: 409 },
-      );
+      return Response.json({ ok: true, back: true, position: payload.position ?? row.position });
     }
 
     // Recorded against where the game has got to, so the outs he served and
@@ -101,7 +105,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     return Response.json({
       ok: true,
-      remaining,
       inning: box.currentInning,
       position: row.position,
       battingOrder: row.battingOrder,

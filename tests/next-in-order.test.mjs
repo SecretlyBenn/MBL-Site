@@ -44,3 +44,14 @@ test("an order given out of sequence is still walked in order", () => {
 test("an empty order has nobody due up", () => {
   assert.equal(nextInOrder([], 1), undefined);
 });
+
+test("a player away from the field keeps his slot but not his turn", () => {
+  // He is still in the order the card draws - slots 1 to 5 - but the list the
+  // turn comes from leaves him out, so it passes from 3 straight to 5.
+  const onField = order(1, 2, 3, 5);
+  assert.equal(nextInOrder(onField, 3).battingOrder, 5);
+});
+
+test("he gets his turn back when he returns", () => {
+  assert.equal(nextInOrder(order(1, 2, 3, 4, 5), 3).battingOrder, 4);
+});

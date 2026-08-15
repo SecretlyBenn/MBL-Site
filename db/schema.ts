@@ -417,14 +417,14 @@ export const scorecardLineups = sqliteTable("scorecard_lineups", {
   /** Order pitchers took the mound: 1 for the starter, then 2, 3 ... */
   pitchingOrder: integer("pitching_order"),
   /**
-   * The at-bat count at which this player left the game for good, or null
-   * while they are still in it.
+   * The at-bat count at which this player walked off the field, or null while
+   * they are out there.
    *
-   * Someone walking out mid-game with nobody to replace them is not a
-   * substitution - there is no incoming player to hand the slot to - and it is
-   * not a position change either, since they are not standing anywhere. The
-   * row stays so their earlier innings keep their place on the card; it just
-   * stops counting from here.
+   * This is not a substitution - nobody came in for them - and not a position
+   * change either, since they are not standing anywhere. They keep their
+   * lineup row and their place in the batting order, because in this league
+   * they usually come back: their turn is skipped while they are gone, and
+   * putting them back on clears this and hands them a position again.
    */
   leftAtSequence: integer("left_at_sequence"),
 });

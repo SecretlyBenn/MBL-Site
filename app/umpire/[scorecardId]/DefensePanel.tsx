@@ -26,6 +26,8 @@ export function DefensePanel({
   fielders,
   changeLog,
   onWithdraw,
+  away,
+  onReturn,
   busy: sending,
   bench,
   inning,
@@ -36,8 +38,12 @@ export function DefensePanel({
   fielders: Fielder[];
   /** Substitutions and moves already made by this side, oldest first. */
   changeLog: { key: string; text: string }[];
-  /** Takes a player out of the game with nobody replacing them. */
+  /** Takes a player off the field; they keep their place in the order. */
   onWithdraw: (playerId: number) => void;
+  /** Players in the lineup who are away from the field right now. */
+  away: { playerId: number; name: string; position: string }[];
+  /** Puts one of them back on, at whatever spot is free. */
+  onReturn: (playerId: number, position: string) => void;
   busy?: boolean;
   bench: { id: number; name: string }[];
   inning: number;
@@ -48,8 +54,8 @@ export function DefensePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  /** Armed once, confirmed on the second click - it cannot be undone here. */
-  const [leaving, setLeaving] = useState<number | null>(null);
+  /** Where a returning player is being put back, keyed by player. */
+  const [returningTo, setReturningTo] = useState<Record<number, string>>({});
 
   const positionOf = (fielder: Fielder) => draft[fielder.playerId] ?? fielder.position;
   const changed = fielders.filter((fielder) => positionOf(fielder) !== fielder.position);
@@ -103,7 +109,7 @@ export function DefensePanel({
       <div className="p-3">
       <p className="mb-2 text-[11px] text-slate-500">
         {teamName} in the field
-        {open && " — “Left” takes a player out for good"}
+        {open && " — “Left” takes a player off the field"}
       </p>
 
       {notice && <p className="mb-2 text-[11px] text-emerald-400">{notice}</p>}
@@ -134,21 +140,11 @@ export function DefensePanel({
                 <button
                   type="button"
                   disabled={sending}
-                  onClick={() => {
-                    if (leaving === fielder.playerId) {
-                      onWithdraw(fielder.playerId);
-                      setLeaving(null);
-                    } else {
-                      setLeaving(fielder.playerId);
-                    }
-                  }}
-                  className={`ml-auto shrink-0 text-[11px] font-semibold ${
-                    leaving === fielder.playerId
-                      ? "text-rose-300"
-                      : "text-slate-500 hover:text-rose-400"
-                  }`}
+                  onClick={() => onWithdraw(fielder.playerId)}
+                  className="ml-auto shrink-0 text-[11px] font-semibold text-slate-500 hover:text-amber-400"
+                  title="Takes them off the field. They keep their spot in the order and can come back."
                 >
-                  {leaving === fielder.playerId ? "Sure?" : "Left"}
+                  Left
                 </button>
               </>
             ) : (
@@ -173,6 +169,47 @@ export function DefensePanel({
           </li>
         ))}
       </ul>
+
+      {away.length > 0 && (
+        <div className="mt-3 rounded-md border border-amber-900/60 bg-amber-950/20 p-2">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-400">
+            Away from the field
+          </p>
+          {/* Still batting: their turn is skipped while they are gone, and the
+              order is waiting for them rather than closed up behind them. */}
+          <ul className="space-y-1.5 text-xs">
+            {away.map((player) => {
+              const spot = returningTo[player.playerId] ?? player.position;
+              const held = fielders.some((fielder) => fielder.position === spot);
+              return (
+                <li key={player.playerId} className="flex items-center gap-1.5">
+                  <span className="truncate text-slate-300">{player.name}</span>
+                  <select
+                    value={spot}
+                    onChange={(event) =>
+                      setReturningTo({ ...returningTo, [player.playerId]: event.target.value })
+                    }
+                    className="ui-select ml-auto !py-0.5 !text-xs"
+                  >
+                    {POSITIONS.map((position) => (
+                      <option key={position} value={position}>{position}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={sending || held}
+                    onClick={() => onReturn(player.playerId, spot)}
+                    title={held ? `Somebody is already at ${spot}.` : undefined}
+                    className="shrink-0 rounded-md border border-emerald-700 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-950/40 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Back on
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       {!open && changeLog.length > 0 && (
         <div className="mt-3 border-t border-slate-800 pt-2">
