@@ -416,6 +416,17 @@ export const scorecardLineups = sqliteTable("scorecard_lineups", {
   isStarter: integer("is_starter", { mode: "boolean" }).notNull().default(true),
   /** Order pitchers took the mound: 1 for the starter, then 2, 3 ... */
   pitchingOrder: integer("pitching_order"),
+  /**
+   * The at-bat count at which this player left the game for good, or null
+   * while they are still in it.
+   *
+   * Someone walking out mid-game with nobody to replace them is not a
+   * substitution - there is no incoming player to hand the slot to - and it is
+   * not a position change either, since they are not standing anywhere. The
+   * row stays so their earlier innings keep their place on the card; it just
+   * stops counting from here.
+   */
+  leftAtSequence: integer("left_at_sequence"),
 });
 
 /**

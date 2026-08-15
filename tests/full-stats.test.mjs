@@ -272,3 +272,18 @@ test("a runner driven in gets the run, not just the team", () => {
   assert.equal(away(box, 2).runs, 0);
   assert.equal(box.awayScore, 1);
 });
+
+test("a player who left the game stops serving outs at his position", () => {
+  sequence = 0;
+  const fielding = [
+    { isHome: true, playerId: 60, position: "1B", fromSequence: 0, untilSequence: 1 },
+    { isHome: true, playerId: 61, position: "SS", fromSequence: 0, untilSequence: null },
+  ];
+  const box = deriveBoxScore(
+    [pa({ result: "GO", outsRecorded: 1 }), pa({ result: "GO", outsRecorded: 1 })],
+    { fielding },
+  );
+  // One out served before he walked off, none after.
+  assert.deepEqual(home(box, 60).positionOuts, { "1B": 1 });
+  assert.deepEqual(home(box, 61).positionOuts, { SS: 2 });
+});

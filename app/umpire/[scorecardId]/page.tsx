@@ -116,6 +116,7 @@ export default async function ScorecardPage({
             battingOrder: row.battingOrder,
             position: row.position,
             pitchingOrder: row.pitchingOrder,
+            leftAtSequence: row.leftAtSequence,
             name: roster.find((player) => player.id === row.playerId)?.displayName ?? "Unknown",
           }))}
           nameOf={Object.fromEntries(roster.map((player) => [player.id, player.displayName]))}

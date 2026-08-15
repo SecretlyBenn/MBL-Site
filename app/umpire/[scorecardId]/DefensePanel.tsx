@@ -25,6 +25,8 @@ export function DefensePanel({
   teamName,
   fielders,
   changeLog,
+  onWithdraw,
+  busy: sending,
   bench,
   inning,
 }: {
@@ -34,6 +36,9 @@ export function DefensePanel({
   fielders: Fielder[];
   /** Substitutions and moves already made by this side, oldest first. */
   changeLog: { key: string; text: string }[];
+  /** Takes a player out of the game with nobody replacing them. */
+  onWithdraw: (playerId: number) => void;
+  busy?: boolean;
   bench: { id: number; name: string }[];
   inning: number;
 }) {
@@ -43,6 +48,8 @@ export function DefensePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  /** Armed once, confirmed on the second click - it cannot be undone here. */
+  const [leaving, setLeaving] = useState<number | null>(null);
 
   const positionOf = (fielder: Fielder) => draft[fielder.playerId] ?? fielder.position;
   const changed = fielders.filter((fielder) => positionOf(fielder) !== fielder.position);
@@ -94,7 +101,10 @@ export function DefensePanel({
       </div>
 
       <div className="p-3">
-      <p className="mb-2 text-[11px] text-slate-500">{teamName} in the field</p>
+      <p className="mb-2 text-[11px] text-slate-500">
+        {teamName} in the field
+        {open && " — “Left” takes a player out for good"}
+      </p>
 
       {notice && <p className="mb-2 text-[11px] text-emerald-400">{notice}</p>}
       {error && <p className="mb-2 text-[11px] text-rose-400">{error}</p>}
@@ -116,6 +126,30 @@ export function DefensePanel({
                   ))}
                 </select>
                 <span className="truncate text-slate-300">{fielder.name}</span>
+                {/* Someone can walk out of a game with nobody to replace
+                    them. A substitution needs an incoming player and a
+                    position change leaves them on the field, so without this
+                    they stay standing where they were - blocking the position
+                    for anyone else. */}
+                <button
+                  type="button"
+                  disabled={sending}
+                  onClick={() => {
+                    if (leaving === fielder.playerId) {
+                      onWithdraw(fielder.playerId);
+                      setLeaving(null);
+                    } else {
+                      setLeaving(fielder.playerId);
+                    }
+                  }}
+                  className={`ml-auto shrink-0 text-[11px] font-semibold ${
+                    leaving === fielder.playerId
+                      ? "text-rose-300"
+                      : "text-slate-500 hover:text-rose-400"
+                  }`}
+                >
+                  {leaving === fielder.playerId ? "Sure?" : "Left"}
+                </button>
               </>
             ) : (
               <>

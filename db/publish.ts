@@ -131,6 +131,9 @@ export async function publishScorecard(scorecardId: number) {
         playerId: row.playerId,
         position: row.position,
         fromSequence: 0,
+        // A player who left partway through served outs up to that point and
+        // none after it.
+        untilSequence: row.leftAtSequence,
       })),
       ...changes.map((row) => ({
         isHome: row.isHome,

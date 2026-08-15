@@ -20,6 +20,8 @@ type LineupRow = {
   position: string;
   pitchingOrder: number | null;
   name: string;
+  /** Set once they have left the game, which takes them out of everything. */
+  leftAtSequence?: number | null;
 };
 
 export function ScoringBoard({
@@ -75,9 +77,14 @@ export function ScoringBoard({
   const state = useMemo(() => gameState(appearances), [appearances]);
   const bases = useMemo(() => currentBases(appearances), [appearances]);
 
+  // A player who has left the game is still on the card - his innings happened
+  // - but he does not bat again and he is not standing anywhere.
+  const stillPlaying = (row: LineupRow) =>
+    row.leftAtSequence === null || row.leftAtSequence === undefined;
+
   const orderFor = (isHome: boolean) =>
     lineups
-      .filter((row) => row.isHome === isHome && row.battingOrder !== null)
+      .filter((row) => row.isHome === isHome && row.battingOrder !== null && stillPlaying(row))
       .sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0));
 
   const battingOrder = orderFor(state.isHomeBatting);
@@ -96,7 +103,9 @@ export function ScoringBoard({
       base: runner.base,
     }));
 
-  const fieldingSide = lineups.filter((row) => row.isHome !== state.isHomeBatting);
+  const fieldingSide = lineups.filter(
+    (row) => row.isHome !== state.isHomeBatting && stillPlaying(row),
+  );
   const defaultPitcher = fieldingSide
     .filter((row) => row.pitchingOrder !== null)
     .sort((a, b) => (b.pitchingOrder ?? 0) - (a.pitchingOrder ?? 0))[0];
@@ -279,7 +288,13 @@ export function ScoringBoard({
         key: `move-${change.id}`,
         text: `${nameOf[change.playerId] ?? "Player"} moved to ${change.position} in inning ${change.inning}`,
       }));
-    return [...entered, ...moved];
+    const gone = lineups
+      .filter((row) => row.isHome === fieldingIsHome && !stillPlaying(row))
+      .map((row) => ({
+        key: `left-${row.playerId}`,
+        text: `${row.name} left the game`,
+      }));
+    return [...entered, ...moved, ...gone];
   }, [lineups, fieldingChanges, starters, state.isHomeBatting, nameOf]);
 
   return (
@@ -454,6 +469,10 @@ export function ScoringBoard({
               errors: fieldingTally.get(fielder.playerId)?.errors ?? 0,
             }))}
             changeLog={changeLog}
+            onWithdraw={(playerId) =>
+              send(`/api/scorecards/${scorecardId}/withdraw`, "POST", { playerId })
+            }
+            busy={busy}
             bench={state.isHomeBatting ? bench.away : bench.home}
             inning={state.inning}
           />

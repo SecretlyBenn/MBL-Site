@@ -62,6 +62,8 @@ export type FieldingSlot = {
   playerId: number;
   position: string;
   fromSequence: number;
+  /** The play they left the game after, if they did. */
+  untilSequence?: number | null;
 };
 
 export type BoxContext = {
@@ -176,6 +178,11 @@ function alignmentAt(fielding: FieldingSlot[], isHome: boolean, sequence: number
   for (const slot of fielding) {
     if (slot.isHome !== isHome) continue;
     if (slot.fromSequence > sequence) continue;
+    // Someone who has gone home is not serving outs at any position.
+    if (slot.untilSequence !== undefined && slot.untilSequence !== null && sequence > slot.untilSequence) {
+      byPlayer.delete(slot.playerId);
+      continue;
+    }
     const held = byPlayer.get(slot.playerId);
     if (!held || slot.fromSequence >= held.from) {
       byPlayer.set(slot.playerId, { position: slot.position, from: slot.fromSequence });
