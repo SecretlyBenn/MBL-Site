@@ -287,3 +287,27 @@ export const MINIMUM_LINEUP = 4;
 
 /** The usual full side, and where the editor starts. */
 export const FULL_LINEUP = 9;
+
+/**
+ * Who bats next, given the order and the slot that batted last.
+ *
+ * Not a count of plate appearances modulo the lineup size. That only holds
+ * while every trip through the order is exactly its length, and it stops
+ * holding the moment an at-bat is deleted, a batter is skipped, a player
+ * leaves the game, or the lineup is short - each of which changes the length
+ * or leaves a gap, and puts the wrong name in the highlighted cell.
+ *
+ * Walking the slot numbers instead survives all of it. The next man is the
+ * first slot above the one just used; past the bottom it comes back to the
+ * top, and a player who has since left the game is simply not in the order
+ * handed in, so the turn passes over him.
+ */
+export function nextInOrder<Row extends { battingOrder: number | null }>(
+  order: Row[],
+  lastSlot: number | null | undefined,
+): Row | undefined {
+  const sorted = [...order].sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0));
+  if (sorted.length === 0) return undefined;
+  if (lastSlot === null || lastSlot === undefined) return sorted[0];
+  return sorted.find((row) => (row.battingOrder ?? 0) > lastSlot) ?? sorted[0];
+}

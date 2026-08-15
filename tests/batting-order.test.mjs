@@ -21,8 +21,14 @@ test("the turn comes from the last slot used, not a count of appearances", () =>
   // A count only holds while every trip through the order is exactly its
   // length. Deleting an at-bat, or a lineup shorter than nine, shifts every
   // turn after it.
-  assert.ok(route.includes("row.battingOrder === lastForSide.battingSlot"));
-  assert.ok(route.includes("order[(lastIndex + 1) % order.length]"));
+  assert.ok(route.includes("nextInOrder(order, lastForSide?.battingSlot ?? null)"));
+  // The same helper the scoring screen highlights the cell with, so the two
+  // cannot disagree about who is up.
+  assert.ok(route.includes('from "@/app/scoring"'));
+});
+
+test("a player who has left the game is not offered a turn", () => {
+  assert.ok(route.includes("row.leftAtSequence === null"));
 });
 
 test("a side with no batting order is refused rather than guessed at", () => {

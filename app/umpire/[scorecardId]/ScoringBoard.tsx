@@ -11,7 +11,7 @@ import { BaseDiamond } from "./BaseDiamond";
 import { LivePitching } from "./LivePitching";
 import { SubstitutionPanel } from "./SubstitutionPanel";
 import type { LoggedAtBat } from "./AtBatLog";
-import type { ResultCode } from "@/app/scoring";
+import { nextInOrder, type ResultCode } from "@/app/scoring";
 
 type LineupRow = {
   playerId: number;
@@ -88,8 +88,15 @@ export function ScoringBoard({
       .sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0));
 
   const battingOrder = orderFor(state.isHomeBatting);
-  const completed = appearances.filter((pa) => pa.isHomeBatting === state.isHomeBatting).length;
-  const batter = battingOrder[battingOrder.length > 0 ? completed % battingOrder.length : 0];
+  // Whose turn it is, worked out the same way the server works it out when the
+  // at-bat is recorded. It used to be a count of plate appearances modulo the
+  // lineup size, which drifts the moment the order is not a clean nine - a
+  // deleted at-bat, a skipped batter, or a player leaving the game all shift
+  // it, and the highlighted cell then names someone who is not up.
+  const lastForSide = atBats
+    .filter((atBat) => atBat.isHomeBatting === state.isHomeBatting)
+    .sort((a, b) => b.sequence - a.sequence)[0];
+  const batter = nextInOrder(battingOrder, lastForSide?.battingSlot ?? null);
 
   // Who is aboard, nearest home first - the order they would score in. The
   // batter is at the plate, not on a base: if a stale reading leaves him among

@@ -13,6 +13,7 @@ import {
 } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
 import {
+  nextInOrder,
   putoutPosition,
   RESULT_BY_CODE,
   validatePlateAppearance,
@@ -85,7 +86,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ),
       );
     const order = lineup
-      .filter((row) => row.battingOrder !== null)
+      // Someone who has left the game does not come up again; his turn passes
+      // to the next man still in the order.
+      .filter((row) => row.battingOrder !== null && row.leftAtSequence === null)
       .sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0));
 
     if (order.length === 0) {
@@ -96,10 +99,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .filter((row) => row.isHomeBatting === state.isHomeBatting)
       .sort((a, b) => b.sequence - a.sequence)[0];
 
-    const lastIndex = lastForSide
-      ? order.findIndex((row) => row.battingOrder === lastForSide.battingSlot)
-      : -1;
-    const dueUp = order[(lastIndex + 1) % order.length];
+    // By slot number rather than by position in the array: the man who batted
+    // last may have left the game since, and looking for his row would find
+    // nothing and send the turn back to the top of the order.
+    const dueUp = nextInOrder(order, lastForSide?.battingSlot ?? null);
+    if (!dueUp) {
+      return Response.json({ error: "That side has no batting order." }, { status: 409 });
+    }
     const batterPlayerId = dueUp.playerId;
 
     // Where the runners end up is worked out here rather than taken from the
