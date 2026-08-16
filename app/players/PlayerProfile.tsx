@@ -3,6 +3,7 @@
 import { Fragment, useState } from "react";
 import { TeamLogo } from "@/app/TeamLogo";
 import { formatInnings } from "@/app/formatStats";
+import { earnedRunAverage } from "@/app/scoring";
 
 type SeasonRow = Record<string, string | number | null | undefined> & {
   seasonId: number;
@@ -95,7 +96,7 @@ function careerTotals(rows: SeasonRow[], columns: Column[]) {
   result.onBasePct = atBats + walks ? (sum("hits") + walks) / (atBats + walks) : null;
   result.sluggingPct = atBats ? totalBases / atBats : null;
   result.ops = (result.onBasePct ?? 0) + (result.sluggingPct ?? 0);
-  result.era = innings ? (sum("earnedRuns") * 9) / innings : null;
+  result.era = earnedRunAverage(sum("earnedRuns"), innings);
   result.whip = innings ? (sum("walksAllowed") + sum("hitsAllowed")) / innings : null;
   const putouts = sum("putouts");
   const errors = sum("errors");

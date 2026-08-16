@@ -1,6 +1,7 @@
 import type { getPlayerHistoricalStats } from "@/db/queries";
 import { HistoricalTeamLink } from "@/app/EntityLinks";
 import { formatInnings } from "@/app/formatStats";
+import { earnedRunAverage } from "@/app/scoring";
 
 type HistoryRow = Awaited<ReturnType<typeof getPlayerHistoricalStats>>[number];
 type Column = { key: keyof HistoryRow; label: string; format?: "rate" | "innings" };
@@ -51,7 +52,7 @@ function totalRows(rows: HistoryRow[]) {
   total.onBasePct = ab + walks ? (hits + walks) / (ab + walks) : null;
   total.sluggingPct = ab ? (total.totalBases ?? 0) / ab : null;
   total.ops = total.onBasePct === null || total.sluggingPct === null ? null : total.onBasePct + total.sluggingPct;
-  total.era = innings ? ((total.earnedRuns ?? 0) * 9) / innings : null;
+  total.era = earnedRunAverage(total.earnedRuns, innings);
   total.whip = innings ? ((total.hitsAllowed ?? 0) + (total.walksAllowed ?? 0)) / innings : null;
   return total;
 }

@@ -2,6 +2,7 @@ import { and, asc, desc, eq, getTableColumns, isNotNull, like, sql } from "drizz
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
 import { playedOnValue } from "@/app/formatStats";
+import { earnedRunAverage } from "@/app/scoring";
 import {
   games,
   historicalGameStats,
@@ -187,14 +188,14 @@ export async function getPlayerLiveStats(playerId: number) {
     ...totals,
     gamesLogged: rows.length,
     average: totals.atBats === 0 ? 0 : totals.hits / totals.atBats,
-    era: totals.inningsPitched === 0 ? 0 : (totals.earnedRuns * 9) / totals.inningsPitched,
+    era: earnedRunAverage(totals.earnedRuns, totals.inningsPitched) ?? 0,
   };
 }
 
 /** Historical (imported) season lines for a player, newest season first. */
 export async function getPlayerHistoricalStats(playerName: string) {
   const db = getDb();
-  return db
+  const rows = await db
     .select({
       historicalTeamId: historicalTeams.id,
       seasonId: historicalSeasons.id,
@@ -241,6 +242,16 @@ export async function getPlayerHistoricalStats(playerName: string) {
     )
     .where(eq(historicalPlayerStats.playerName, playerName))
     .orderBy(desc(historicalSeasons.sortOrder));
+
+  // The archive's stored ERA was worked out over nine innings, which is not
+  // the length of a game in this league. Recomputing from the earned runs and
+  // the innings - which are just counts, and are right either way - keeps
+  // every ERA on the site on the same footing instead of leaving the imported
+  // seasons a third higher than the ones scored here.
+  return rows.map((row) => ({
+    ...row,
+    era: earnedRunAverage(row.earnedRuns, row.inningsPitched),
+  }));
 }
 
 export async function getHistoricalSeasons() {
@@ -313,6 +324,9 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
         ops: historicalPlayerStats.ops,
         inningsPitched: historicalPlayerStats.inningsPitched,
         strikeoutsPitched: historicalPlayerStats.strikeoutsPitched,
+        // Selected so the ERA can be worked out over a six-inning game rather
+        // than taken from the archive, which recorded it over nine.
+        earnedRuns: historicalPlayerStats.earnedRuns,
         era: historicalPlayerStats.era,
         whip: historicalPlayerStats.whip,
       })
@@ -326,6 +340,7 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
     byName.set(line.playerName, {
       ...(byName.get(line.playerName) ?? { jerseyNumber: null, positions: null }),
       ...line,
+      era: earnedRunAverage(line.earnedRuns, line.inningsPitched),
       played: true,
     });
   }
@@ -615,7 +630,7 @@ function recalculateRates(row: HistoricalStatViewRow) {
   row.ops = row.onBasePct === null || row.sluggingPct === null ? null : row.onBasePct + row.sluggingPct;
   // No assists in this league, so a chance is a play made or a play muffed.
   row.fieldingPct = chances ? putouts / chances : null;
-  row.era = innings ? ((row.earnedRuns ?? 0) * 9) / innings : null;
+  row.era = earnedRunAverage(row.earnedRuns, innings);
   row.whip = innings ? ((row.walksAllowed ?? 0) + (row.hitsAllowed ?? 0)) / innings : null;
   row.walksPerGame = pitchingGames ? (row.walksAllowed ?? 0) / pitchingGames : null;
   row.strikeoutsPerGame = pitchingGames ? (row.strikeoutsPitched ?? 0) / pitchingGames : null;
@@ -714,7 +729,7 @@ export function aggregateSeasonLines(rows: SeasonStatLine[]) {
         atBats > 0
           ? ((totals.hits ?? 0) + walks) / (atBats + walks) + (totals.totalBases ?? 0) / atBats
           : null,
-      era: innings > 0 ? ((totals.earnedRuns ?? 0) * 9) / innings : null,
+      era: earnedRunAverage(totals.earnedRuns, innings),
       whip: innings > 0 ? ((totals.hitsAllowed ?? 0) + (totals.walksAllowed ?? 0)) / innings : null,
     };
   });

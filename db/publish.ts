@@ -17,6 +17,7 @@ import {
   teams,
 } from "@/db/schema";
 import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/derive-box-score";
+import { earnedRunAverage } from "@/app/scoring";
 
 /**
  * Publishing an approved scorecard writes it into the historical tables the
@@ -518,7 +519,7 @@ export async function recomputeSeason(seasonId: number) {
       homeRunsAllowed: totals.homeRunsAllowed ?? null,
       strikeoutsPitched: totals.strikeoutsPitched ?? null,
       walksAllowed: totals.walksAllowed ?? null,
-      era: innings > 0 ? ((totals.earnedRuns ?? 0) * 9) / innings : null,
+      era: earnedRunAverage(totals.earnedRuns, innings),
       whip: innings > 0 ? ((totals.walksAllowed ?? 0) + (totals.hitsAllowed ?? 0)) / innings : null,
       walksPerGame: pitchingGames > 0 ? (totals.walksAllowed ?? 0) / pitchingGames : null,
       strikeoutsPerGame:

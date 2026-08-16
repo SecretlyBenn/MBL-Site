@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { TeamLogo } from "../TeamLogo";
 import { formatInnings } from "../formatStats";
+import { earnedRunAverage } from "@/app/scoring";
 import { HistoricalTeamLink, PlayerProfileLink } from "../EntityLinks";
 import { PlayerHead } from "../PlayerHead";
 
@@ -104,7 +105,7 @@ function leagueAverage(rows: StatRow[], kind: "batting" | "pitching") {
     result.ops = Number(result.onBasePct ?? 0) + Number(result.sluggingPct ?? 0);
   } else {
     const ip = sum("inningsPitched");
-    result.era = ip ? sum("earnedRuns") * 9 / ip : null;
+    result.era = earnedRunAverage(sum("earnedRuns"), ip);
     result.whip = ip ? (sum("walksAllowed") + sum("hitsAllowed")) / ip : null;
   }
   return result;

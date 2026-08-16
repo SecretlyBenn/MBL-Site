@@ -317,3 +317,22 @@ export function nextInOrder<Row extends { battingOrder: number | null }>(
   if (lastSlot === null || lastSlot === undefined) return sorted[0];
   return sorted.find((row) => (row.battingOrder ?? 0) > lastSlot) ?? sorted[0];
 }
+
+/**
+ * Innings an earned run average is expressed over.
+ *
+ * A league game here is six innings, not nine, so a pitcher who goes the
+ * distance has thrown a complete game and an ERA over nine would quietly
+ * inflate every one of them by half. Six is the whole game, which is what the
+ * number is meant to mean: runs allowed per game pitched.
+ */
+export const ERA_INNINGS = 6;
+
+/** Earned runs per full game, or null when nobody has pitched. */
+export function earnedRunAverage(
+  earnedRuns: number | null | undefined,
+  inningsPitched: number | null | undefined,
+) {
+  if (!inningsPitched) return null;
+  return ((earnedRuns ?? 0) * ERA_INNINGS) / inningsPitched;
+}
