@@ -238,7 +238,6 @@ export const historicalPlayerStats = sqliteTable("historical_player_stats", {
   completeGames: integer("complete_games"),
   shutouts: integer("shutouts"),
   blownSaves: integer("blown_saves"),
-  pitchCount: integer("pitch_count"),
   // Walks and strikeouts per game, as the source publishes them.
   walksPerGame: real("walks_per_game"),
   strikeoutsPerGame: real("strikeouts_per_game"),

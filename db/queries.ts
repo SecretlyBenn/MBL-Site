@@ -565,7 +565,7 @@ const COUNTING_STATS = [
   // Pitching
   "pitchingGames", "gamesStarted", "wins", "losses", "saves", "inningsPitched", "hitsAllowed",
   "runsAllowed", "earnedRuns", "homeRunsAllowed", "strikeoutsPitched", "walksAllowed",
-  "completeGames", "shutouts", "blownSaves", "pitchCount",
+  "completeGames", "shutouts", "blownSaves",
 ] as const;
 
 /**

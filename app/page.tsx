@@ -103,18 +103,31 @@ export default async function Home() {
               { href: "/statistics/batting", label: "Stats" },
               { href: "/standings", label: "Standings" },
               { href: "/rosters", label: "Rosters" },
-              // A "Join Discord" button belongs here too, but the league's
-              // invite link is not recorded anywhere in the project and a wrong
-              // one is worse than none.
-            ].map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-md bg-sky-600 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-sky-500"
-              >
-                {link.label}
-              </Link>
-            ))}
+              // Where the league actually gathers, so it leads off to one side
+              // in Discord's own colour rather than sitting in the row of grey
+              // -blue buttons as though it were another page of the site.
+              { href: "https://discord.gg/mbl", label: "Join Discord", external: true },
+            ].map((link) =>
+              link.external ? (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-md bg-[#5865F2] px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#4752c4]"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className="rounded-md bg-sky-600 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-sky-500"
+                >
+                  {link.label}
+                </Link>
+              ),
+            )}
           </div>
         </div>
       </section>
