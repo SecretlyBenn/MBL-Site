@@ -1,8 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { fieldingChanges, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import { fieldingChanges, plateAppearances, players, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
+import { attachCreated, recordAction } from "@/db/undo";
 import { gameState } from "@/app/derive-box-score";
 import { POSITIONS } from "@/app/scoring";
 
@@ -51,7 +52,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .where(eq(plateAppearances.scorecardId, scorecardId));
     const state = gameState(appearances);
 
-    await db.insert(fieldingChanges).values(
+    // Snapshotted before anything moves, so undo can put every position back
+    // as one action rather than leaving half a rearrangement behind.
+    const affected = await db
+      .select()
+      .from(scorecardLineups)
+      .where(
+        and(
+          eq(scorecardLineups.scorecardId, scorecardId),
+          inArray(
+            scorecardLineups.playerId,
+            assignments.map((assignment) => assignment.playerId),
+          ),
+        ),
+      );
+    const nameOf = new Map(
+      (await db.select().from(players)).map((player) => [player.id, player.displayName]),
+    );
+    const summary = assignments
+      .map(
+        (assignment) =>
+          `${nameOf.get(assignment.playerId) ?? "Player"} to ${assignment.position}`,
+      )
+      .join(", ");
+    const action = await recordAction(scorecardId, "POSITION_CHANGE", summary, {
+      lineups: affected,
+    });
+
+    const created = await db.insert(fieldingChanges).values(
       assignments.map((assignment) => ({
         scorecardId,
         isHome,
@@ -60,7 +88,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         playerId: assignment.playerId,
         position: assignment.position,
       })),
-    );
+    ).returning();
+
+    await attachCreated(action.id, {
+      deleteFieldingChangeIds: created.map((row) => row.id),
+    });
 
     // The change also has to reach the lineup, which is where every other
     // part of the game reads a player's position from - the diamond, the tag

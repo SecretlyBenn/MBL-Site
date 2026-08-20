@@ -2,12 +2,14 @@ import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   games,
+  players,
   plateAppearances,
   runnerOuts,
   scorecardLineups,
   scorecards,
 } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
+import { attachCreated, recordAction } from "@/db/undo";
 import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
 import { BASE_NAMES, decodeBases, encodeBases, type BaseName } from "@/app/bases";
 import { RUNNER_OUT_KINDS, putoutPosition, type RunnerOutKind } from "@/app/scoring";
@@ -92,13 +94,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const next: Record<BaseName, number | null> = { ...bases, [from]: null };
 
-    await db.insert(runnerOuts).values({
+    const retired = await db.query.players.findFirst({ where: eq(players.id, payload.playerId) });
+    const action = await recordAction(
+      scorecardId,
+      "RUNNER_OUT",
+      `${retired?.displayName ?? "Runner"} ${payload.kind.toLowerCase().replace("_", " ")}`,
+      { plateAppearances: [standing] },
+    );
+
+    const [recordedOut] = await db.insert(runnerOuts).values({
       scorecardId,
       plateAppearanceId: standing.id,
       runnerPlayerId: payload.playerId,
       kind: payload.kind,
       base: from,
       putoutPlayerId: fielder?.playerId ?? null,
+    }).returning();
+
+    await attachCreated(action.id, {
+      deleteRunnerOutIds: recordedOut ? [recordedOut.id] : [],
     });
 
     await db

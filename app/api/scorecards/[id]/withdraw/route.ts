@@ -1,9 +1,10 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import { players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { deriveBoxScore } from "@/app/derive-box-score";
 import { POSITIONS, type Position } from "@/app/scoring";
+import { recordAction } from "@/db/undo";
 
 type WithdrawPayload = {
   playerId: number;
@@ -81,6 +82,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         );
       }
 
+      const back = await db.query.players.findFirst({ where: eq(players.id, row.playerId) });
+      await recordAction(
+        scorecardId,
+        "RETURNED_TO_FIELD",
+        `${back?.displayName ?? "A player"} came back on at ${payload.position ?? row.position}`,
+        { lineups: [row] },
+      );
+
       await db
         .update(scorecardLineups)
         .set({ leftAtSequence: null, position: payload.position ?? row.position })
@@ -95,6 +104,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
     const sequence = appearances.reduce((highest, pa) => Math.max(highest, pa.sequence), 0);
+
+    const leaving = await db.query.players.findFirst({ where: eq(players.id, row.playerId) });
+    await recordAction(
+      scorecardId,
+      "LEFT_FIELD",
+      `${leaving?.displayName ?? "A player"} left the field`,
+      { lineups: [row] },
+    );
 
     await db
       .update(scorecardLineups)

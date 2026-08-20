@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import { games, players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
 import {
@@ -11,6 +11,7 @@ import {
   type BaseName,
 } from "@/app/bases";
 import { POSITION_NUMBER } from "@/app/scoring";
+import { recordAction } from "@/db/undo";
 
 /** Why a runner moved between plays. */
 export const ADVANCE_REASONS = ["PLAY", "STEAL", "ERROR", "OTHER"] as const;
@@ -141,6 +142,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // their run belongs to them: recording it as another runner's leaves the
     // batter with no run to their name in the box score.
     const batterCameRound = scoredNow && payload.playerId === standing.batterPlayerId;
+
+    // The whole standing play is snapshotted: a move rewrites its bases, its
+    // runs, its steals and sometimes its note and its error, and undoing has
+    // to put all of that back rather than only the bases.
+    const mover = await db.query.players.findFirst({ where: eq(players.id, payload.playerId) });
+    await recordAction(
+      scorecardId,
+      "RUNNER_MOVE",
+      `${mover?.displayName ?? "Runner"} to ${payload.to === "home" ? "home" : payload.to}`,
+      { plateAppearances: [standing] },
+    );
 
     await db
       .update(plateAppearances)

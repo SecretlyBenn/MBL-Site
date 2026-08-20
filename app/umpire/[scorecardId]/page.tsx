@@ -12,6 +12,7 @@ import {
   teams,
 } from "@/db/schema";
 import { requireRole } from "@/app/roles";
+import { latestAction } from "@/db/undo";
 import { PageShell } from "@/app/SiteNav";
 import { POSITION_NUMBER, type RunnerOutKind } from "@/app/scoring";
 import { LineupEditor } from "./LineupEditor";
@@ -97,6 +98,10 @@ export default async function ScorecardPage({
       .filter((player) => player.teamId === teamId && !inLineup.has(player.id))
       .map((player) => ({ id: player.id, name: player.displayName }));
 
+  // What the undo button will take back, named so the umpire can see what
+  // they are about to reverse before they press it.
+  const undoable = await latestAction(scorecardId);
+
   const awayLineup = lineups.filter((row) => !row.isHome);
   const homeLineup = lineups.filter((row) => row.isHome);
   const ready = awayLineup.length > 0 && homeLineup.length > 0;
@@ -129,6 +134,7 @@ export default async function ScorecardPage({
             inning: move.inning,
           }))}
           starters={lineups.filter((row) => row.isStarter).map((row) => row.playerId)}
+          undoable={undoable?.summary ?? null}
           runnerOuts={outs.map((out) => ({
             id: out.id,
             runnerPlayerId: out.runnerPlayerId,

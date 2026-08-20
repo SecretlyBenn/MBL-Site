@@ -36,6 +36,7 @@ export function ScoringBoard({
   runnerOuts,
   fieldingChanges,
   starters,
+  undoable,
 }: {
   scorecardId: number;
   awayName: string;
@@ -65,6 +66,8 @@ export function ScoringBoard({
   }[];
   /** Who was on the card at the first pitch, so a substitute reads as one. */
   starters: number[];
+  /** What the undo button would take back, or null when nothing would. */
+  undoable: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -72,7 +75,8 @@ export function ScoringBoard({
   const [notice, setNotice] = useState("");
   const [draft, setDraft] = useState<AtBatDraft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<LoggedAtBat | null>(null);
-  const [pitcherId, setPitcherId] = useState<number | null>(null);
+  /** Who the umpire is about to bring in, before they confirm it. */
+  const [warmingUp, setWarmingUp] = useState<string>("");
 
   const state = useMemo(() => gameState(appearances), [appearances]);
   const bases = useMemo(() => currentBases(appearances), [appearances]);
@@ -118,10 +122,14 @@ export function ScoringBoard({
   const fieldingSide = lineups.filter(
     (row) => row.isHome !== state.isHomeBatting && onField(row),
   );
-  const defaultPitcher = fieldingSide
-    .filter((row) => row.pitchingOrder !== null)
-    .sort((a, b) => (b.pitchingOrder ?? 0) - (a.pitchingOrder ?? 0))[0];
-  const activePitcher = pitcherId ?? defaultPitcher?.playerId ?? null;
+  // The mound is read from the lineup rather than held in the browser. It was
+  // a dropdown whose value existed only on this page: it decided who every
+  // later at-bat was charged to, left no record that a change had happened,
+  // and a refresh put the old pitcher back.
+  const activePitcher =
+    fieldingSide
+      .filter((row) => row.pitchingOrder !== null)
+      .sort((a, b) => (b.pitchingOrder ?? 0) - (a.pitchingOrder ?? 0))[0]?.playerId ?? null;
 
   const innings = Math.max(6, state.inning);
 
@@ -252,6 +260,16 @@ export function ScoringBoard({
     });
   }
 
+  async function undo() {
+    if (!undoable) return;
+    if (!confirm(`Undo "${undoable}"?`)) return;
+    if (await send(`/api/scorecards/${scorecardId}/undo`, "POST")) {
+      // The entry panel may be holding the play that just stopped existing.
+      setEditing(null);
+      setDraft(EMPTY_DRAFT);
+    }
+  }
+
   async function finish() {
     if (!confirm("Finish the game and send it to the head umpire? Scoring stops here.")) return;
     if (await send(`/api/scorecards/${scorecardId}/finish`, "POST")) router.push("/umpire");
@@ -320,8 +338,7 @@ export function ScoringBoard({
    * came in for whom, and who moved where. Only where everyone is standing now
    * was visible before, which made a mistaken substitution impossible to spot.
    */
-  const changeLog = useMemo(() => {
-    const fieldingIsHome = !state.isHomeBatting;
+  const changeLogFor = (fieldingIsHome: boolean) => {
     const entered = lineups
       .filter((row) => row.isHome === fieldingIsHome && !starters.includes(row.playerId))
       .map((row) => ({
@@ -341,7 +358,7 @@ export function ScoringBoard({
         text: `${row.name} is away from the field`,
       }));
     return [...entered, ...moved, ...gone];
-  }, [lineups, fieldingChanges, starters, state.isHomeBatting, nameOf]);
+  };
 
   return (
     <div className="space-y-4">
@@ -368,6 +385,22 @@ export function ScoringBoard({
               ))}
             </span>
           </span>
+          {/* One undo for everything, at the top where the game state is. An
+              umpire who has just done the wrong thing does not think about
+              which panel it belonged to - and before this, some actions could
+              be taken back, some needed an at-bat deleted to get at them, and
+              a pitching change could not be reversed at all. It names what it
+              will take back, because undoing blind mid-game is its own
+              mistake. */}
+          <button
+            type="button"
+            onClick={undo}
+            disabled={busy || !undoable}
+            title={undoable ?? "Nothing to undo"}
+            className="rounded-md border border-amber-700/70 px-3 py-1.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-950/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+          >
+            {undoable ? `Undo: ${undoable}` : "Nothing to undo"}
+          </button>
           <button
             type="button"
             onClick={finish}
@@ -474,15 +507,50 @@ export function ScoringBoard({
             <h3 className="panel-title">On the mound</h3>
           </div>
           <div className="p-3">
-            <select
-              value={activePitcher ?? ""}
-              onChange={(event) => setPitcherId(Number(event.target.value))}
-              className="ui-select w-full"
-            >
-              {fieldingSide.map((row) => (
-                <option key={row.playerId} value={row.playerId}>{row.name}</option>
-              ))}
-            </select>
+            {/* Bringing a reliever in is one of the biggest things an umpire
+                does - it decides the win, the loss, the save and every earned
+                run after it - so it is a deliberate act with a confirm, not a
+                dropdown that rewrites the game as a side effect of being
+                clicked. */}
+            <p className="mb-2 text-xs text-slate-400">
+              Pitching:{" "}
+              <span className="font-bold text-slate-100">
+                {activePitcher ? nameOf[activePitcher] ?? "Unknown" : "Nobody yet"}
+              </span>
+            </p>
+            <div className="flex gap-1.5">
+              <select
+                value={warmingUp}
+                onChange={(event) => setWarmingUp(event.target.value)}
+                className="ui-select w-full !py-1 text-xs"
+              >
+                <option value="">Bring in a reliever…</option>
+                {fieldingSide
+                  .filter((row) => row.playerId !== activePitcher)
+                  .map((row) => (
+                    <option key={row.playerId} value={row.playerId}>
+                      {row.name}
+                    </option>
+                  ))}
+              </select>
+              <button
+                type="button"
+                disabled={!warmingUp || busy}
+                onClick={async () => {
+                  const name = nameOf[Number(warmingUp)] ?? "that player";
+                  if (!confirm(`Bring ${name} in to pitch?`)) return;
+                  const done = await send(
+                    `/api/scorecards/${scorecardId}/pitching-change`,
+                    "POST",
+                    { playerId: Number(warmingUp) },
+                  );
+                  if (done) setWarmingUp("");
+                }}
+                className="shrink-0 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
+              >
+                Bring in
+              </button>
+            </div>
           </div>
 
           <LivePitching
@@ -505,37 +573,49 @@ export function ScoringBoard({
             busy={busy}
           />
 
-          <DefensePanel
-            scorecardId={scorecardId}
-            isHome={!state.isHomeBatting}
-            teamName={state.isHomeBatting ? awayName : homeName}
-            fielders={fielderList.map((fielder) => ({
-              ...fielder,
-              putouts: fieldingTally.get(fielder.playerId)?.putouts ?? 0,
-              errors: fieldingTally.get(fielder.playerId)?.errors ?? 0,
-            }))}
-            changeLog={changeLog}
-            onWithdraw={(playerId) =>
-              send(`/api/scorecards/${scorecardId}/withdraw`, "POST", { playerId })
-            }
-            away={lineups
-              .filter((row) => row.isHome !== state.isHomeBatting && !onField(row))
-              .map((row) => ({
-                playerId: row.playerId,
-                name: row.name,
-                position: row.position,
-              }))}
-            onReturn={(playerId, position) =>
-              send(`/api/scorecards/${scorecardId}/withdraw`, "POST", {
-                playerId,
-                undo: true,
-                position,
-              })
-            }
-            busy={busy}
-            bench={state.isHomeBatting ? bench.away : bench.home}
-            inning={state.inning}
-          />
+          {/* Both sides, not just the one in the field. A position change is
+              agreed between innings as often as during one, and an umpire who
+              can only touch the fielding team has to wait for the sides to
+              turn over before recording something that has already happened. */}
+          {[false, true].map((isHome) => (
+            <DefensePanel
+              key={String(isHome)}
+              scorecardId={scorecardId}
+              isHome={isHome}
+              teamName={isHome ? homeName : awayName}
+              inTheField={isHome !== state.isHomeBatting}
+              fielders={lineups
+                .filter((row) => row.isHome === isHome && onField(row))
+                .map((row) => ({
+                  playerId: row.playerId,
+                  name: row.name,
+                  position: row.position,
+                  putouts: fieldingTally.get(row.playerId)?.putouts ?? 0,
+                  errors: fieldingTally.get(row.playerId)?.errors ?? 0,
+                }))}
+              changeLog={changeLogFor(isHome)}
+              onWithdraw={(playerId) =>
+                send(`/api/scorecards/${scorecardId}/withdraw`, "POST", { playerId })
+              }
+              away={lineups
+                .filter((row) => row.isHome === isHome && !onField(row))
+                .map((row) => ({
+                  playerId: row.playerId,
+                  name: row.name,
+                  position: row.position,
+                }))}
+              onReturn={(playerId, position) =>
+                send(`/api/scorecards/${scorecardId}/withdraw`, "POST", {
+                  playerId,
+                  undo: true,
+                  position,
+                })
+              }
+              busy={busy}
+              bench={isHome ? bench.home : bench.away}
+              inning={state.inning}
+            />
+          ))}
         </div>
       </div>
 

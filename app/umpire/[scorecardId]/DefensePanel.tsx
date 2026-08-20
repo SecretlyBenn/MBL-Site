@@ -23,6 +23,7 @@ export function DefensePanel({
   scorecardId,
   isHome,
   teamName,
+  inTheField,
   fielders,
   changeLog,
   onWithdraw,
@@ -35,6 +36,8 @@ export function DefensePanel({
   scorecardId: number;
   isHome: boolean;
   teamName: string;
+  /** Whether this side is the one currently out there, which is only a label. */
+  inTheField: boolean;
   fielders: Fielder[];
   /** Substitutions and moves already made by this side, oldest first. */
   changeLog: { key: string; text: string }[];
@@ -96,7 +99,7 @@ export function DefensePanel({
   return (
     <section className="panel">
       <div className="panel-head">
-        <h3 className="panel-title">Position changes</h3>
+        <h3 className="panel-title">{teamName}</h3>
         <button
           type="button"
           onClick={() => { setOpen(!open); setNotice(""); }}
@@ -108,7 +111,8 @@ export function DefensePanel({
 
       <div className="p-3">
       <p className="mb-2 text-[11px] text-slate-500">
-        {teamName} in the field
+        {teamName}
+        {inTheField ? " — in the field" : " — batting"}
         {open && " — “Left” takes a player off the field"}
       </p>
 

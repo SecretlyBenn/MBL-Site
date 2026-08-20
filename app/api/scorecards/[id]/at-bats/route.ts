@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, plateAppearances, runnerOuts, scorecardLineups, scorecards } from "@/db/schema";
+import { games, players, plateAppearances, runnerOuts, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore, gameState } from "@/app/derive-box-score";
 import {
@@ -12,6 +12,7 @@ import {
   runnersOn,
 } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
+import { attachCreated, recordAction } from "@/db/undo";
 import {
   nextInOrder,
   putoutPosition,
@@ -177,6 +178,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? atPosition(putoutPosition(body.result, named.batter ?? body.fielders ?? null))
       : null;
 
+    // The entry goes in before the play does, so a play that fails to insert
+    // leaves an action describing nothing rather than one claiming a play that
+    // does not exist.
+    const nameOf = new Map(
+      (await db.select().from(players)).map((player) => [player.id, player.displayName]),
+    );
+    const action = await recordAction(
+      scorecardId,
+      "AT_BAT",
+      `${nameOf.get(batterPlayerId) ?? "Batter"}: ${body.result}`,
+      {},
+    );
+
     const [inserted] = await db.insert(plateAppearances).values({
       scorecardId,
       sequence,
@@ -209,6 +223,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // it; destructuring an insert that returns nothing throws, which is what
       // turned a fielder's choice into "could not record the at-bat".
       .returning();
+
+    await attachCreated(action.id, { deletePlateAppearanceIds: inserted ? [inserted.id] : [] });
 
     await resequenceInnings(scorecardId);
     const box = await syncScore(scorecardId, scorecard.gameId);

@@ -560,3 +560,33 @@ export const runnerOuts = sqliteTable("runner_outs", {
   putoutPlayerId: integer("putout_player_id").references(() => players.id),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+/**
+ * What the umpire did, in order, with enough of the old state to put it back.
+ *
+ * Scoring a live game is done in a hurry and half of it is irreversible by
+ * hand: a pitching change rewrites who every later at-bat is charged to, a
+ * substitution takes a lineup slot with it, moving a runner rewrites the
+ * standing play's runs. Asking an umpire to reconstruct that from memory is
+ * how a card ends up quietly wrong.
+ *
+ * Rather than an inverse operation per action - seven of them, each able to
+ * drift from the thing it undoes - every action snapshots the rows it is about
+ * to touch and names the rows it created. Undo restores the one and deletes
+ * the other, so it works the same way whatever was done.
+ */
+export const scorecardActions = sqliteTable("scorecard_actions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scorecardId: integer("scorecard_id")
+    .notNull()
+    .references(() => scorecards.id),
+  /** AT_BAT, AT_BAT_EDIT, RUNNER_MOVE, RUNNER_OUT, SUBSTITUTION, POSITION_CHANGE, PITCHING_CHANGE, LEFT_FIELD, RETURNED_TO_FIELD. */
+  kind: text("kind").notNull(),
+  /** Shown on the undo button, so the umpire knows what is about to go. */
+  summary: text("summary").notNull(),
+  /** JSON: rows to put back, and rows to delete. See db/undo.ts. */
+  payload: text("payload").notNull(),
+  /** Cleared when undone, so the trail stays but is not undone twice. */
+  undoneAt: text("undone_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

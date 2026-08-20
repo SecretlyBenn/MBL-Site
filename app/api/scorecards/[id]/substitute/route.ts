@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
+import { recordAction } from "@/db/undo";
 import { POSITIONS, type Position } from "@/app/scoring";
 
 type SubstitutionPayload = {
@@ -72,6 +73,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       where: eq(players.id, payload.inPlayerId),
     });
     if (!incoming) return Response.json({ error: "No such player." }, { status: 404 });
+
+    const outgoing = await db.query.players.findFirst({
+      where: eq(players.id, payload.outPlayerId),
+    });
+    await recordAction(
+      scorecardId,
+      "SUBSTITUTION",
+      `${incoming.displayName} in for ${outgoing?.displayName ?? "a player"}`,
+      { lineups: [outRow] },
+    );
 
     await db
       .update(scorecardLineups)
