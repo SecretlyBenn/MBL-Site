@@ -2,8 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { currentBases, gameState, type StoredPlateAppearance } from "@/app/derive-box-score";
-import { advance, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
+import {
+  currentBases,
+  extraInningsRunner,
+  gameState,
+  REGULATION_INNINGS,
+  type StoredPlateAppearance,
+} from "@/app/derive-box-score";
+import { advance, decodeRunners, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
 import { AtBatDialog, EMPTY_DRAFT, type AtBatDraft } from "./AtBatDialog";
 import { ScoreGrid } from "./ScoreGrid";
 import { DefensePanel } from "./DefensePanel";
@@ -274,6 +280,47 @@ export function ScoringBoard({
     if (!confirm("Finish the game and send it to the head umpire? Scoring stops here.")) return;
     if (await send(`/api/scorecards/${scorecardId}/finish`, "POST")) router.push("/umpire");
   }
+
+  /**
+   * The extra-innings runner, marked on his own line.
+   *
+   * He is placed on second without batting, so nothing appears in his row for
+   * that inning - and if he came round, the run showed in the total with no
+   * sign of where it came from. The cell says he was put there, and what
+   * became of him.
+   */
+  const placedRunners = useMemo(() => {
+    const marks = new Map<string, { scored: boolean; out: boolean }>();
+    const lastInning = Math.max(REGULATION_INNINGS, ...atBats.map((atBat) => atBat.inning));
+
+    for (let inning = REGULATION_INNINGS + 1; inning <= lastInning; inning += 1) {
+      for (const isHome of [false, true]) {
+        const runner = extraInningsRunner(appearances, inning, isHome);
+        if (runner === null) continue;
+
+        // His slot comes from the play he made last inning rather than from
+        // the lineup, which may have changed hands under him since.
+        const previous = atBats
+          .filter((atBat) => atBat.inning === inning - 1 && atBat.isHomeBatting === isHome)
+          .sort((a, b) => b.sequence - a.sequence)[0];
+        if (!previous) continue;
+
+        const half = appearances.filter(
+          (pa) => pa.inning === inning && pa.isHomeBatting === isHome,
+        );
+        marks.set(`${isHome}:${inning}:${previous.battingSlot}`, {
+          scored: half.some((pa) => decodeRunners(pa.runnersScored).includes(runner)),
+          out: runnerOuts.some(
+            (out) =>
+              out.inning === inning &&
+              out.isHomeBatting === isHome &&
+              out.runnerPlayerId === runner,
+          ),
+        });
+      }
+    }
+    return marks;
+  }, [appearances, atBats, runnerOuts]);
 
   const fielderList = fieldingSide.map((row) => ({
     playerId: row.playerId,
@@ -645,6 +692,8 @@ export function ScoringBoard({
                 position: onField(row) ? row.position : "—",
               }))}
               atBats={atBats.filter((atBat) => atBat.isHomeBatting === isHome)}
+              placedRunners={placedRunners}
+              isHomeSide={isHome}
               innings={innings}
               activeSlot={batter?.battingOrder ?? null}
               activeInning={state.inning}

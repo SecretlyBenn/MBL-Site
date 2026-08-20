@@ -14,6 +14,8 @@ import type { LoggedAtBat } from "./AtBatLog";
 export function ScoreGrid({
   order,
   atBats,
+  placedRunners,
+  isHomeSide,
   innings,
   activeSlot,
   activeInning,
@@ -23,6 +25,13 @@ export function ScoreGrid({
 }: {
   order: { playerId: number; battingOrder: number | null; name: string; position: string }[];
   atBats: LoggedAtBat[];
+  /**
+   * Extra-innings runners, keyed by side, inning and slot. They reach second
+   * without batting, so they have no cell of their own to fill and their run -
+   * if it comes - otherwise appears only in the inning total.
+   */
+  placedRunners: Map<string, { scored: boolean; out: boolean }>;
+  isHomeSide: boolean;
   innings: number;
   activeSlot: number | null;
   activeInning: number;
@@ -81,6 +90,7 @@ export function ScoreGrid({
                 {Array.from({ length: innings }, (_, index) => {
                   const inning = index + 1;
                   const entries = cellFor(slot, inning);
+                  const placed = placedRunners.get(`${isHomeSide}:${inning}:${slot}`);
                   const waiting = isActive && slot === activeSlot && inning === activeInning;
                   const selected = entries.some((entry) => entry.id === selectedId);
 
@@ -89,7 +99,7 @@ export function ScoreGrid({
                       <button
                         type="button"
                         onClick={() => onPick(entries[0] ?? null, slot, inning)}
-                        disabled={entries.length === 0 && !waiting}
+                        disabled={entries.length === 0 && !waiting && !placed}
                         className={`flex h-9 w-full items-center justify-center gap-0.5 px-1 transition-colors ${
                           selected
                             ? "bg-amber-400/25 font-bold text-amber-200 ring-2 ring-inset ring-amber-400"
@@ -99,9 +109,19 @@ export function ScoreGrid({
                                 ? "text-slate-200 hover:bg-slate-700/50"
                                 : "text-slate-700"
                         }`}
-                        title={entries.map((entry) => entry.note ?? "").filter(Boolean).join(" · ")}
+                        title={
+                          placed && entries.length === 0
+                            ? "Placed on second to start the inning"
+                            : entries.map((entry) => entry.note ?? "").filter(Boolean).join(" · ")
+                        }
                       >
-                        {entries.length > 0
+                        {entries.length === 0 && placed ? (
+                          // Not an at-bat, and deliberately not written like
+                          // one: he was put on second to start the inning.
+                          <span className="whitespace-nowrap text-violet-300">
+                            {placed.out ? "ER + OUT" : placed.scored ? "ER + R" : "ER"}
+                          </span>
+                        ) : entries.length > 0
                           ? entries.map((entry) => (
                               // The whole plate appearance, not the result
                               // alone: what was driven in, stolen, scored, and
