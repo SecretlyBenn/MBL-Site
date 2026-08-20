@@ -17,7 +17,7 @@ import {
   teams,
 } from "@/db/schema";
 import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/derive-box-score";
-import { earnedRunAverage } from "@/app/scoring";
+import { earnedRunAverage, perGame } from "@/app/scoring";
 
 /**
  * Publishing an approved scorecard writes it into the historical tables the
@@ -469,7 +469,6 @@ export async function recomputeSeason(seasonId: number) {
     const reached = hits + walks + hitByPitch;
     const putouts = totals.putouts ?? 0;
     const fieldingChances = putouts + (totals.errors ?? 0);
-    const pitchingGames = totals.pitchingGames ?? 0;
 
     return {
       ...priorByKey.get(`${playerName}::${teamId}`),
@@ -521,9 +520,8 @@ export async function recomputeSeason(seasonId: number) {
       walksAllowed: totals.walksAllowed ?? null,
       era: earnedRunAverage(totals.earnedRuns, innings),
       whip: innings > 0 ? ((totals.walksAllowed ?? 0) + (totals.hitsAllowed ?? 0)) / innings : null,
-      walksPerGame: pitchingGames > 0 ? (totals.walksAllowed ?? 0) / pitchingGames : null,
-      strikeoutsPerGame:
-        pitchingGames > 0 ? (totals.strikeoutsPitched ?? 0) / pitchingGames : null,
+      walksPerGame: perGame(totals.walksAllowed, innings),
+      strikeoutsPerGame: perGame(totals.strikeoutsPitched, innings),
     };
   });
 

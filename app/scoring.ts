@@ -333,6 +333,23 @@ export function earnedRunAverage(
   earnedRuns: number | null | undefined,
   inningsPitched: number | null | undefined,
 ) {
+  return perGame(earnedRuns, inningsPitched);
+}
+
+/**
+ * Any pitching count expressed per full game - walks and strikeouts as well as
+ * earned runs. All of them are innings-based rates, so all of them scale by
+ * the length of a game rather than by how many times the pitcher appeared.
+ *
+ * The archive already published its BB and SO rates this way, over six. The
+ * live path was dividing by appearances instead, which disagreed with every
+ * imported season: five walks in 19.2 innings across four games is 1.53, not
+ * 1.25.
+ */
+export function perGame(
+  count: number | null | undefined,
+  inningsPitched: number | null | undefined,
+) {
   if (!inningsPitched) return null;
-  return ((earnedRuns ?? 0) * ERA_INNINGS) / inningsPitched;
+  return ((count ?? 0) * ERA_INNINGS) / inningsPitched;
 }

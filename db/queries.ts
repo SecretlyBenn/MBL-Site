@@ -2,7 +2,7 @@ import { and, asc, desc, eq, getTableColumns, isNotNull, like, sql } from "drizz
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
 import { playedOnValue } from "@/app/formatStats";
-import { earnedRunAverage } from "@/app/scoring";
+import { earnedRunAverage, perGame } from "@/app/scoring";
 import {
   games,
   historicalGameStats,
@@ -623,7 +623,6 @@ function recalculateRates(row: HistoricalStatViewRow) {
   const timesUp = atBats + walks + hitByPitch + sacFlies;
   const putouts = row.putouts ?? 0;
   const chances = putouts + (row.errors ?? 0);
-  const pitchingGames = row.pitchingGames ?? 0;
   row.battingAverage = atBats ? hits / atBats : null;
   row.onBasePct = timesUp ? (hits + walks + hitByPitch) / timesUp : null;
   row.sluggingPct = atBats ? (row.totalBases ?? 0) / atBats : null;
@@ -632,8 +631,8 @@ function recalculateRates(row: HistoricalStatViewRow) {
   row.fieldingPct = chances ? putouts / chances : null;
   row.era = earnedRunAverage(row.earnedRuns, innings);
   row.whip = innings ? ((row.walksAllowed ?? 0) + (row.hitsAllowed ?? 0)) / innings : null;
-  row.walksPerGame = pitchingGames ? (row.walksAllowed ?? 0) / pitchingGames : null;
-  row.strikeoutsPerGame = pitchingGames ? (row.strikeoutsPitched ?? 0) / pitchingGames : null;
+  row.walksPerGame = perGame(row.walksAllowed, innings);
+  row.strikeoutsPerGame = perGame(row.strikeoutsPitched, innings);
   return row;
 }
 

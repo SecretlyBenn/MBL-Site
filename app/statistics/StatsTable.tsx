@@ -73,8 +73,8 @@ const PITCHING: Column[] = [
   { key: "completeGames", label: "CG" }, { key: "shutouts", label: "SHO" },
   { key: "blownSaves", label: "BS" },
   { key: "era", label: "ERA", rate: true }, { key: "whip", label: "WHIP", rate: true },
-  { key: "walksPerGame", label: "BB/X", rate: true },
-  { key: "strikeoutsPerGame", label: "SO/X", rate: true },
+  { key: "walksPerGame", label: "BB/6", rate: true },
+  { key: "strikeoutsPerGame", label: "SO/6", rate: true },
 ];
 
 /** A column's value for a row, computing it when the column is derived. */
