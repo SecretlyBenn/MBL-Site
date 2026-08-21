@@ -684,3 +684,22 @@ export function gameState(
     isComplete: inning > inningsPerGame && !halfOver ? false : inning > inningsPerGame,
   };
 }
+
+/**
+ * The inning a change belongs to, worked out from the card rather than read
+ * from a stored column.
+ *
+ * A change is recorded against the sequence it was made at. Storing the inning
+ * alongside it means holding the same fact twice, and the two drift apart the
+ * moment an at-bat is deleted - a change made in the seventh went on claiming
+ * the seventh after the seventh was wiped and the sixth was back in progress.
+ * The play it was made after still knows which inning it was, so ask that, and
+ * never let the answer run ahead of where the game has actually got to.
+ */
+export function inningAt(appearances: StoredPlateAppearance[], sequence: number) {
+  const now = gameState(appearances).inning;
+  const at = appearances
+    .filter((pa) => pa.sequence <= sequence)
+    .sort((a, b) => b.sequence - a.sequence)[0];
+  return Math.min(at?.inning ?? now, now);
+}

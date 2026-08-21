@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { atBatSummary, type ResultCode } from "@/app/scoring";
 import type { LoggedAtBat } from "./AtBatLog";
 
@@ -53,6 +54,47 @@ export function ScoreGrid({
   selectedId?: number | null;
   onPick: (atBat: LoggedAtBat | null, slot: number, inning: number) => void;
 }) {
+  // Slots the order walked straight past, because the player was away from
+  // the field when their turn came round. Nothing is written for them - no
+  // at-bat happened - so the cell was simply blank, which reads as an at-bat
+  // the umpire forgot to enter rather than a turn that was skipped.
+  //
+  // Worked out from the card instead of stored: inside one half-inning the
+  // order is contiguous, so any gap between two consecutive at-bats is
+  // somebody who was passed over. Across a half-inning boundary there is no
+  // gap to read - the inning simply ended - so those are left alone.
+  const passedOver = useMemo(() => {
+    const slots = order.map((batter) => batter.battingOrder ?? 0).sort((a, b) => a - b);
+    const marks = new Set<string>();
+    if (slots.length === 0) return marks;
+
+    const walk = (fromSlot: number, toSlot: number, inning: number) => {
+      let index = slots.indexOf(fromSlot);
+      if (index < 0) return;
+      for (let step = 0; step < slots.length; step += 1) {
+        index = (index + 1) % slots.length;
+        if (slots[index] === toSlot) return;
+        marks.add(`${slots[index]}:${inning}`);
+      }
+    };
+
+    const played = [...atBats].sort((a, b) => a.sequence - b.sequence);
+    played.forEach((atBat, index) => {
+      const previous = played[index - 1];
+      if (previous && previous.inning === atBat.inning) {
+        walk(previous.battingSlot, atBat.battingSlot, atBat.inning);
+      }
+    });
+
+    // The turn the game is waiting on counts too - that is where the skip has
+    // just happened, and where the umpire is looking.
+    const last = played[played.length - 1];
+    if (isActive && last && activeSlot !== null && last.inning === activeInning) {
+      walk(last.battingSlot, activeSlot, activeInning);
+    }
+    return marks;
+  }, [order, atBats, isActive, activeSlot, activeInning]);
+
   // A slot can bat more than once in an inning; the grid shows them stacked in
   // the same cell rather than inventing a column.
   const cellFor = (slot: number, inning: number) =>
@@ -100,6 +142,7 @@ export function ScoreGrid({
                   const placed = placedRunners.get(`${isHomeSide}:${inning}:${slot}`);
                   const relief = entries.map((entry) => reliefAt.get(entry.id)).find(Boolean);
                   const waiting = isActive && slot === activeSlot && inning === activeInning;
+                  const skipped = entries.length === 0 && !placed && passedOver.has(`${slot}:${inning}`);
                   const selected = entries.some((entry) => entry.id === selectedId);
 
                   return (
@@ -118,7 +161,9 @@ export function ScoreGrid({
                                 : "text-slate-700"
                         }`}
                         title={
-                          placed && entries.length === 0
+                          skipped
+                            ? "Passed over - away from the field when their turn came"
+                          : placed && entries.length === 0
                             ? "Placed on second to start the inning"
                             : entries.map((entry) => entry.note ?? "").filter(Boolean).join(" · ")
                         }
@@ -158,7 +203,13 @@ export function ScoreGrid({
                             ))
                           : waiting
                             ? "•"
-                            : ""}
+                            : skipped
+                              ? (
+                                  <span className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                                    skipped
+                                  </span>
+                                )
+                              : ""}
                       </button>
                     </td>
                   );

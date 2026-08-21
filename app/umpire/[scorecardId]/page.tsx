@@ -11,6 +11,7 @@ import {
   scorecards,
   teams,
 } from "@/db/schema";
+import { inningAt } from "@/app/derive-box-score";
 import { requireRole } from "@/app/roles";
 import { latestAction } from "@/db/undo";
 import { PageShell } from "@/app/SiteNav";
@@ -132,6 +133,12 @@ export default async function ScorecardPage({
             playerId: move.playerId,
             position: move.position,
             appliedAtSequence: move.appliedAtSequence,
+            // Derived here as well as on the screen. The stored inning goes
+            // stale the moment an at-bat is deleted, and a browser holding an
+            // older copy of the page reads this field rather than working it
+            // out - which printed "inning undefined" once the raw column
+            // stopped being sent.
+            inning: inningAt(appearances, move.appliedAtSequence),
           }))}
           starters={lineups.filter((row) => row.isStarter).map((row) => row.playerId)}
           undoable={undoable?.summary ?? null}
