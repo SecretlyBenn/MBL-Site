@@ -150,7 +150,7 @@ export default async function ScorecardPage({
             inning: row.inning,
             isHomeBatting: row.isHomeBatting,
             batterPlayerId: row.batterPlayerId,
-                        // The slot stored with the play, so a substitution never moves an
+            // The slot stored with the play, so a substitution never moves an
             // at-bat out of the row it was scored in. Plays recorded before the
             // column existed fall back to the lineup.
             battingSlot: row.battingSlot ?? slotOf.get(row.batterPlayerId) ?? 0,
@@ -162,6 +162,11 @@ export default async function ScorecardPage({
             unearnedRuns: row.unearnedRuns,
             outsRecorded: row.outsRecorded,
             errorPosition: row.errorPosition,
+            // Both of these are read back when a play is reopened to correct
+            // it. Without them the form opens blank and saves that blank over
+            // whatever was there - the error charged, and the runs scored.
+            errorPlayerId: row.errorPlayerId,
+            runnersScored: row.runnersScored,
             stolenBases: row.stolenBases,
             note: row.note,
             ...(() => {

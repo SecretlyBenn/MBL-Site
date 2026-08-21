@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
+  basesBefore,
   currentBases,
   extraInningsRunner,
   gameState,
@@ -117,8 +118,17 @@ export function ScoringBoard({
   // batter is at the plate, not on a base: if a stale reading leaves him among
   // the runners he can be ticked as having scored and counted again as the
   // batter, which is one man and two runs.
-  const runners = runnersOn(bases)
-    .filter((runner) => runner.playerId !== batter?.playerId)
+  //
+  // While correcting an earlier play this is the bases as they stood when that
+  // play began, not as they stand now. The live diamond answers "who is on
+  // now", which is the wrong question in a half-inning that is already over -
+  // and it made a run that was missed at the time impossible to add, because
+  // the man who scored it was not in the list to tick.
+  const entryBases = editing ? basesBefore(appearances, editing.sequence) : bases;
+  const entryBatter = editing ? editing.batterPlayerId : batter?.playerId;
+
+  const runners = runnersOn(entryBases)
+    .filter((runner) => runner.playerId !== entryBatter)
     .map((runner) => ({
       playerId: runner.playerId,
       name: nameOf[runner.playerId] ?? "Runner",
@@ -258,7 +268,10 @@ export function ScoringBoard({
       // opening a play to fix the RBI would otherwise wipe the error off it.
       errorPlayerId: atBat.errorPlayerId ? String(atBat.errorPlayerId) : "",
       stolenBases: atBat.stolenBases ?? 0,
-      scoredRunners: [],
+      // Loaded for the same reason the error is: the form sends whatever is in
+      // it, so a blank here would clear the runs off any play reopened to fix
+      // something else.
+      scoredRunners: decodeRunners(atBat.runnersScored),
       outRunners: [],
       batterOut: (atBat.outsRecorded ?? 0) > 0,
       outPutouts: {},

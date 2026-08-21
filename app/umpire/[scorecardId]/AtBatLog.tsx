@@ -22,6 +22,8 @@ export type LoggedAtBat = {
   errorPosition: number | null;
   /** The fielder charged with the error, so an edit can show it again. */
   errorPlayerId?: number | null;
+  /** Runners who scored on this play, as a JSON array of player ids. */
+  runnersScored?: string | null;
   /** Bases stolen during this plate appearance. */
   stolenBases?: number;
   note: string | null;

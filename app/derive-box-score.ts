@@ -581,6 +581,42 @@ function assignDecisions(
 }
 
 /**
+ * Who was standing on the bases when a given play began.
+ *
+ * The live diamond answers "who is on now", which is the wrong question for a
+ * play in a half-inning that is already over: correcting the seventh from the
+ * ninth needs the runners as they stood then, and offering the current ones
+ * makes a runner who scored back then impossible to name.
+ */
+export function basesBefore(appearances: StoredPlateAppearance[], sequence: number): Bases {
+  const play = appearances.find((pa) => pa.sequence === sequence);
+  if (!play) return EMPTY_BASES;
+
+  const earlier = appearances
+    .filter(
+      (pa) =>
+        pa.inning === play.inning &&
+        pa.isHomeBatting === play.isHomeBatting &&
+        pa.sequence < sequence,
+    )
+    .sort((a, b) => a.sequence - b.sequence);
+
+  let bases = startingBases(appearances, play.inning, play.isHomeBatting);
+  for (const pa of earlier) {
+    if (pa.basesAfter) {
+      bases = decodeBases(pa.basesAfter);
+      continue;
+    }
+    bases = advance(bases, {
+      batterPlayerId: pa.batterPlayerId,
+      result: pa.result,
+      scored: decodeRunners(pa.runnersScored),
+    }).bases;
+  }
+  return bases;
+}
+
+/**
  * Who is on base right now, replayed from the plays of the current
  * half-inning. The bases start empty each half, so only the plays since the
  * last change of sides matter - and replaying rather than storing a running

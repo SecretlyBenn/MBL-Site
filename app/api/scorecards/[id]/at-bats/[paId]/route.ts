@@ -2,7 +2,7 @@ import { and, desc, eq, gt, lt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, plateAppearances, runnerOuts, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
-import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
+import { basesBefore, deriveBoxScore } from "@/app/derive-box-score";
 import { advance, decodeRunners, encodeBases, encodeRunners, runnersOn } from "@/app/bases";
 import { resequenceInnings } from "@/db/resequence";
 import { RESULT_BY_CODE, type PlateAppearanceInput, type ResultCode } from "@/app/scoring";
@@ -99,7 +99,7 @@ export async function PATCH(
 
     // Recomputed from the bases as they stood before this play, and limited
     // to runners who were actually on them.
-    const standing = currentBases(before.filter((row) => row.sequence < existing.sequence));
+    const standing = basesBefore(before, existing.sequence);
     const aboard = new Set(runnersOn(standing).map((runner) => runner.playerId));
     const scoredHere = decodeRunners(body.runnersScored ?? existing.runnersScored).filter((id) =>
       aboard.has(id),
