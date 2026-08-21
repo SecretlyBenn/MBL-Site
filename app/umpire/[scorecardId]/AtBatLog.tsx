@@ -10,6 +10,8 @@ export type LoggedAtBat = {
   inning: number;
   isHomeBatting: boolean;
   batterPlayerId: number;
+  /** Who was on the mound, so the card can mark where a reliever came in. */
+  pitcherPlayerId: number;
   /** Derived from the lineup - the order slot this at-bat belongs to. */
   battingSlot: number;
   result: string;

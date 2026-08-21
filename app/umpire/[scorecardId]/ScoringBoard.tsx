@@ -69,7 +69,8 @@ export function ScoringBoard({
     isHome: boolean;
     playerId: number;
     position: string;
-    inning: number;
+    /** The play it took effect from, which is what dates it. */
+    appliedAtSequence: number;
   }[];
   /** Who was on the card at the first pitch, so a substitute reads as one. */
   starters: number[];
@@ -142,10 +143,19 @@ export function ScoringBoard({
   // a dropdown whose value existed only on this page: it decided who every
   // later at-bat was charged to, left no record that a change had happened,
   // and a refresh put the old pitcher back.
+  // Whoever is standing at P, first. The pitching order says who came in after
+  // whom, which is what the box score needs, but it is a second record of the
+  // same fact and the two can disagree: a change made before moving to P was
+  // treated as taking the mound left the old pitcher holding the order while
+  // standing at first base, and every at-bat went on his line.
+  //
+  // The position is the one an umpire can see and fix, so it wins.
   const activePitcher =
+    fieldingSide.find((row) => row.position === "P")?.playerId ??
     fieldingSide
       .filter((row) => row.pitchingOrder !== null)
-      .sort((a, b) => (b.pitchingOrder ?? 0) - (a.pitchingOrder ?? 0))[0]?.playerId ?? null;
+      .sort((a, b) => (b.pitchingOrder ?? 0) - (a.pitchingOrder ?? 0))[0]?.playerId ??
+    null;
 
   const innings = Math.max(6, state.inning);
 
@@ -405,11 +415,23 @@ export function ScoringBoard({
         key: `sub-${row.playerId}`,
         text: `${row.name} entered the game at ${row.position}`,
       }));
+    // The inning is worked out from the play the move was anchored to, not
+    // from the number stored with it. Deleting at-bats takes innings off the
+    // end of the game, and a frozen inning number then describes an inning
+    // that no longer exists - a move made in the sixth kept claiming it
+    // happened in the seventh after the seventh was deleted.
+    const inningOf = (sequence: number) => {
+      const at = appearances.filter((pa) => pa.sequence <= sequence).sort((a, b) => b.sequence - a.sequence)[0];
+      return at?.inning ?? state.inning;
+    };
     const moved = fieldingChanges
       .filter((change) => change.isHome === fieldingIsHome)
       .map((change) => ({
         key: `move-${change.id}`,
-        text: `${nameOf[change.playerId] ?? "Player"} moved to ${change.position} in inning ${change.inning}`,
+        text: `${nameOf[change.playerId] ?? "Player"} moved to ${change.position} in inning ${Math.min(
+          inningOf(change.appliedAtSequence),
+          state.inning,
+        )}`,
       }));
     const gone = lineups
       .filter((row) => row.isHome === fieldingIsHome && !onField(row))
@@ -419,6 +441,28 @@ export function ScoringBoard({
       }));
     return [...entered, ...moved, ...gone];
   };
+
+  /**
+   * The at-bat each reliever came in on, by at-bat id. Walking a side's plays
+   * in order, the mound changing hands marks the play it changed on - the
+   * starter is not marked, since he did not come in for anybody.
+   */
+  const reliefAt = useMemo(() => {
+    const marks = new Map<number, string>();
+    for (const isHome of [false, true]) {
+      const half = atBats
+        .filter((atBat) => atBat.isHomeBatting === isHome)
+        .sort((a, b) => a.sequence - b.sequence);
+      let onMound: number | null = null;
+      for (const atBat of half) {
+        if (onMound !== null && atBat.pitcherPlayerId !== onMound) {
+          marks.set(atBat.id, nameOf[atBat.pitcherPlayerId] ?? "New pitcher");
+        }
+        onMound = atBat.pitcherPlayerId;
+      }
+    }
+    return marks;
+  }, [atBats, nameOf]);
 
   return (
     <div className="space-y-4">
@@ -716,6 +760,7 @@ export function ScoringBoard({
               }))}
               atBats={atBats.filter((atBat) => atBat.isHomeBatting === isHome)}
               placedRunners={placedRunners}
+              reliefAt={reliefAt}
               isHomeSide={isHome}
               innings={innings}
               activeSlot={batter?.battingOrder ?? null}

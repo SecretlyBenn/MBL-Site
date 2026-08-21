@@ -84,7 +84,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         scorecardId,
         isHome,
         inning: state.inning,
-        appliedAtSequence: appearances.length,
+        // The sequence of the last play, not how many plays there are. Those
+        // are the same number only until an at-bat is deleted, and everything
+        // that reads this - who was standing where when a play happened, and
+        // which inning the move belongs to - compares it against real
+        // sequences.
+        appliedAtSequence: appearances.reduce((last, pa) => Math.max(last, pa.sequence), 0),
         playerId: assignment.playerId,
         position: assignment.position,
       })),
@@ -98,10 +103,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // part of the game reads a player's position from - the diamond, the tag
     // pickers, the scorecard. Recording only the history left the move visible
     // nowhere: the panel said it had happened and every position stayed put.
+    // Moving somebody to P is a pitching change, whatever panel it was done
+    // from. The mound has an order of its own - who came in after whom - and a
+    // position change that did not touch it left the new pitcher standing on
+    // the mound while every at-bat was still charged to the man he replaced.
+    const side = await db
+      .select()
+      .from(scorecardLineups)
+      .where(
+        and(eq(scorecardLineups.scorecardId, scorecardId), eq(scorecardLineups.isHome, isHome)),
+      );
+    const highest = Math.max(0, ...side.map((row) => row.pitchingOrder ?? 0));
+    const takingTheMound = assignments.find((assignment) => assignment.position === "P");
+    const alreadyPitching =
+      takingTheMound &&
+      side.find((row) => row.playerId === takingTheMound.playerId)?.pitchingOrder === highest &&
+      highest > 0;
+
     for (const assignment of assignments) {
+      const arriving = assignment.position === "P" && !alreadyPitching;
       await db
         .update(scorecardLineups)
-        .set({ position: assignment.position })
+        .set({
+          position: assignment.position,
+          ...(arriving ? { pitchingOrder: highest + 1 } : {}),
+        })
         .where(
           and(
             eq(scorecardLineups.scorecardId, scorecardId),

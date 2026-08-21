@@ -131,7 +131,7 @@ export default async function ScorecardPage({
             isHome: move.isHome,
             playerId: move.playerId,
             position: move.position,
-            inning: move.inning,
+            appliedAtSequence: move.appliedAtSequence,
           }))}
           starters={lineups.filter((row) => row.isStarter).map((row) => row.playerId)}
           undoable={undoable?.summary ?? null}
@@ -148,6 +148,7 @@ export default async function ScorecardPage({
             id: row.id,
             sequence: row.sequence,
             inning: row.inning,
+            pitcherPlayerId: row.pitcherPlayerId,
             isHomeBatting: row.isHomeBatting,
             batterPlayerId: row.batterPlayerId,
             // The slot stored with the play, so a substitution never moves an

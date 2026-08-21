@@ -15,6 +15,7 @@ export function ScoreGrid({
   order,
   atBats,
   placedRunners,
+  reliefAt,
   isHomeSide,
   innings,
   activeSlot,
@@ -31,6 +32,12 @@ export function ScoreGrid({
    * if it comes - otherwise appears only in the inning total.
    */
   placedRunners: Map<string, { scored: boolean; out: boolean }>;
+  /**
+   * The reliever who took the mound at a given at-bat, keyed by at-bat id.
+   * Only the play he came in on is in here, so the mark lands once rather than
+   * on every batter he then faced.
+   */
+  reliefAt: Map<number, string>;
   isHomeSide: boolean;
   innings: number;
   activeSlot: number | null;
@@ -91,6 +98,7 @@ export function ScoreGrid({
                   const inning = index + 1;
                   const entries = cellFor(slot, inning);
                   const placed = placedRunners.get(`${isHomeSide}:${inning}:${slot}`);
+                  const relief = entries.map((entry) => reliefAt.get(entry.id)).find(Boolean);
                   const waiting = isActive && slot === activeSlot && inning === activeInning;
                   const selected = entries.some((entry) => entry.id === selectedId);
 
@@ -100,7 +108,7 @@ export function ScoreGrid({
                         type="button"
                         onClick={() => onPick(entries[0] ?? null, slot, inning)}
                         disabled={entries.length === 0 && !waiting && !placed}
-                        className={`flex h-9 w-full items-center justify-center gap-0.5 px-1 transition-colors ${
+                        className={`flex min-h-9 w-full flex-col items-center justify-center gap-0.5 px-1 py-0.5 transition-colors ${
                           selected
                             ? "bg-amber-400/25 font-bold text-amber-200 ring-2 ring-inset ring-amber-400"
                             : waiting
@@ -115,6 +123,18 @@ export function ScoreGrid({
                             : entries.map((entry) => entry.note ?? "").filter(Boolean).join(" · ")
                         }
                       >
+                        {/* A reliever changes everything charged from this
+                            batter on, so the cell where he came in is marked -
+                            which is what a paper scorebook does by drawing a
+                            line across the order at that point. */}
+                        {relief && (
+                          <span
+                            className="mb-0.5 block truncate text-[9px] font-bold uppercase tracking-wide text-orange-300"
+                            title={`${relief} came in here`}
+                          >
+                            ↻ {relief}
+                          </span>
+                        )}
                         {entries.length === 0 && placed ? (
                           // Not an at-bat, and deliberately not written like
                           // one: he was put on second to start the inning.
