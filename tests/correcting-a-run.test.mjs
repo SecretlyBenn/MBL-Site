@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { basesBefore } from "../app/derive-box-score.ts";
 import { runnersOn } from "../app/bases.ts";
+import { readFileSync } from "node:fs";
 
 /**
  * Adding a run that was missed at the time, to a half-inning that is already
@@ -56,9 +57,19 @@ const seventh = [
 ];
 
 test("the placed runner is on second when the inning's first batter comes up", () => {
-  // Nobody batted before him, so this is the extra-innings placement alone.
-  const bases = basesBefore(seventh, 47);
-  assert.equal(bases.second, COOKIE);
+  // He is found from the half-inning before, so that has to be in the record
+  // too - the placement is not written down anywhere, it is derived from who
+  // batted last.
+  const withSixth = [
+    {
+      sequence: 40, inning: 6, isHomeBatting: false, batterPlayerId: COOKIE,
+      pitcherPlayerId: 1, result: "K", fielders: null, rbis: 0, batterScored: false,
+      otherRunsScored: 0, unearnedRuns: 0, outsRecorded: 3, errorPosition: null,
+      errorPlayerId: null, stolenBases: 0, runnersScored: "[]", basesAfter: null,
+    },
+    ...seventh,
+  ];
+  assert.equal(basesBefore(withSixth, 47).second, COOKIE);
 });
 
 test("he is on second when the single is reopened, so he can be ticked", () => {
@@ -87,4 +98,19 @@ test("the third out does not empty the bases for a play being corrected", () => 
   // cannot use it.
   const bases = basesBefore(seventh, 50);
   assert.ok(runnersOn(bases).length > 0);
+});
+
+test("the diamond is told when it is drawing a past moment", () => {
+  // The form offered the runner who was on then while the diamond beside it
+  // drew whoever is on now, and the disagreement read as the form naming the
+  // wrong man.
+  const board = readFileSync(
+    new URL("../app/umpire/[scorecardId]/ScoringBoard.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.ok(board.includes("bases={entryBases}"));
+  assert.ok(board.includes("asOf={editing ?"));
+  // And it cannot be dragged while it is showing one, since the move would go
+  // against the live half-inning instead.
+  assert.ok(board.includes("busy={busy || Boolean(editing)}"));
 });

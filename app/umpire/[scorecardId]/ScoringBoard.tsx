@@ -528,10 +528,20 @@ export function ScoringBoard({
           </div>
         </section>
 
+        {/* While a past play is open for correction the diamond shows the
+            bases as they stood when that play began, not as they stand now.
+            The two panels sat side by side answering different questions -
+            the form offering the runner who was on then, the diamond drawing
+            whoever is on in the current inning - and the disagreement read as
+            the form naming the wrong man.
+
+            Moves are shut off there: a drag would be sent against the live
+            half-inning, which is not the one on screen. */}
         <BaseDiamond
-          bases={bases}
+          bases={entryBases}
+          asOf={editing ? `inning ${editing.inning}, before this play` : null}
           nameOf={nameOf}
-          busy={busy}
+          busy={busy || Boolean(editing)}
           fielders={fielderList}
           onMove={(playerId, to, reason, note, errorPlayerId) =>
             send(`/api/scorecards/${scorecardId}/runners`, "POST", {

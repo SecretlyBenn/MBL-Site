@@ -20,6 +20,7 @@ type Runner = { playerId: number; name: string; base: BaseName };
  */
 export function BaseDiamond({
   bases,
+  asOf,
   nameOf,
   onMove,
   onOut,
@@ -29,6 +30,13 @@ export function BaseDiamond({
   busy,
 }: {
   bases: Bases;
+  /**
+   * Set when these are not the bases as they stand now, but as they stood
+   * before some earlier play being corrected. Says so on the panel, because a
+   * diamond that silently draws a different moment than the one the umpire
+   * thinks they are looking at is worse than no diamond.
+   */
+  asOf?: string | null;
   nameOf: Record<number, string>;
   /** Called with the runner, where they went, and why. */
   onMove: (
@@ -227,6 +235,11 @@ export function BaseDiamond({
       {/* Each base is centred on its point and then pulled back by half its
           own size, so the top one reaches above the box. The margin gives it
           somewhere to go other than over the text above. */}
+      {asOf && (
+        <p className="mb-1 rounded-md border border-amber-800/70 bg-amber-950/30 px-2 py-1 text-center text-[11px] font-semibold text-amber-300">
+          Showing {asOf}
+        </p>
+      )}
       <div className="relative mx-auto mt-10 h-56 w-52">
         {spots.map((spot) => (
           <div
