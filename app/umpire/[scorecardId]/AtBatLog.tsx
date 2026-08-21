@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RESULTS, type ResultCode } from "@/app/scoring";
+import { readJson } from "@/app/read-json";
 
 export type LoggedAtBat = {
   id: number;
@@ -80,8 +81,7 @@ export function AtBatLog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draft),
       });
-      const body = (await response.json()) as { error?: string; inningsShifted?: number };
-      if (!response.ok) throw new Error(body.error ?? "Could not save the change.");
+      const body = await readJson<{ inningsShifted?: number }>(response, "Could not save the change.");
       setEditing(null);
       if (body.inningsShifted) {
         setNotice(`${body.inningsShifted} later at-bat${body.inningsShifted === 1 ? "" : "s"} moved to a different half-inning.`);
@@ -100,8 +100,7 @@ export function AtBatLog({
     setError("");
     try {
       const response = await fetch(`/api/scorecards/${scorecardId}/at-bats/${id}`, { method: "DELETE" });
-      const body = (await response.json()) as { error?: string; inningsShifted?: number };
-      if (!response.ok) throw new Error(body.error ?? "Could not delete.");
+      const body = await readJson<{ inningsShifted?: number }>(response, "Could not delete.");
       setEditing(null);
       router.refresh();
     } catch (problem) {

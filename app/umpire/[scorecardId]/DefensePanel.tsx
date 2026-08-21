@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { POSITIONS } from "@/app/scoring";
+import { readJson } from "@/app/read-json";
 
 type Fielder = {
   playerId: number;
@@ -83,8 +84,7 @@ export function DefensePanel({
           })),
         }),
       });
-      const body = (await response.json()) as { error?: string; inning?: number; moves?: number };
-      if (!response.ok) throw new Error(body.error ?? "Could not record the change.");
+      const body = await readJson<{ inning?: number; moves?: number }>(response, "Could not record the change.");
       setNotice(`${body.moves} position change${body.moves === 1 ? "" : "s"} recorded in inning ${body.inning}.`);
       setDraft({});
       setOpen(false);

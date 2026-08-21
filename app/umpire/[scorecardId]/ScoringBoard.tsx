@@ -19,6 +19,7 @@ import { LivePitching } from "./LivePitching";
 import { SubstitutionPanel } from "./SubstitutionPanel";
 import type { LoggedAtBat } from "./AtBatLog";
 import { nextInOrder, POSITION_NUMBER, type ResultCode } from "@/app/scoring";
+import { readJson } from "@/app/read-json";
 
 type LineupRow = {
   playerId: number;
@@ -168,13 +169,11 @@ export function ScoringBoard({
         headers: body ? { "Content-Type": "application/json" } : undefined,
         body: body ? JSON.stringify(body) : undefined,
       });
-      const result = (await response.json()) as {
-        error?: string;
+      const result = await readJson<{
         inningsShifted?: number;
         movedOuts?: number;
         lostOuts?: number;
-      };
-      if (!response.ok) throw new Error(result.error ?? "Something went wrong.");
+      }>(response);
 
       // Anything the change did beyond what was asked for is said out loud,
       // rather than left for the umpire to notice in the outs.

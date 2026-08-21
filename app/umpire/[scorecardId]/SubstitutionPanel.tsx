@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { POSITIONS, type Position } from "@/app/scoring";
+import { readJson } from "@/app/read-json";
 
 type LineupMember = { playerId: number; name: string; position: string; battingOrder: number | null };
 type BenchMember = { id: number; name: string };
@@ -62,12 +63,10 @@ export function SubstitutionPanel({
           position: position || undefined,
         }),
       });
-      const body = (await response.json()) as {
-        error?: string;
-        battingOrder?: number | null;
-        keptAtBats?: number;
-      };
-      if (!response.ok) throw new Error(body.error ?? "Could not make the substitution.");
+      const body = await readJson<{ battingOrder?: number | null; keptAtBats?: number }>(
+        response,
+        "Could not make the substitution.",
+      );
       setNotice(
         body.battingOrder
           ? `In at ${body.battingOrder} in the order. ${body.keptAtBats ?? 0} earlier at-bat${

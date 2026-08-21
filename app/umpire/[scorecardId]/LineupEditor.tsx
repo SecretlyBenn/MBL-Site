@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FULL_LINEUP, MINIMUM_LINEUP, POSITIONS } from "@/app/scoring";
+import { readJson } from "@/app/read-json";
 
 type Player = { id: number; name: string };
 type Slot = { playerId: string; position: string };
@@ -90,8 +91,7 @@ export function LineupEditor({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isHome, rows }),
       });
-      const body = (await response.json()) as { error?: string };
-      if (!response.ok) throw new Error(body.error ?? "Could not save the lineup.");
+      const body = await readJson<{ error?: string }>(response, "Could not save the lineup.");
       setSaved(true);
       router.refresh();
     } catch (problem) {
