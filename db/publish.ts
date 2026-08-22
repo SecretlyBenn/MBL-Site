@@ -361,10 +361,19 @@ export async function recomputeSeason(seasonId: number) {
 
   if (gameIds.length === 0) return;
 
+  // Matched through a subquery rather than a list of ids. A season carries
+  // hundreds of games, and binding one parameter per game overruns the limit
+  // D1 puts on a single statement - which failed the whole approval, with the
+  // query and every id in it printed on the head umpire's screen.
   const stats = await db
     .select()
     .from(historicalGameStats)
-    .where(inArray(historicalGameStats.gameId, gameIds));
+    .where(
+      inArray(
+        historicalGameStats.gameId,
+        db.select({ id: historicalGames.id }).from(historicalGames).where(eq(historicalGames.seasonId, seasonId)),
+      ),
+    );
 
   /**
    * Season stats that were scraped rather than scored carry columns a box score
@@ -451,6 +460,22 @@ export async function recomputeSeason(seasonId: number) {
   await db.delete(historicalPlayerStats).where(inArray(historicalPlayerStats.historicalTeamId, teamIds));
 
   const rows = [...byPlayerTeam.values()].map(({ playerName, teamId, totals }) => {
+    const prior = priorByKey.get(`${playerName}::${teamId}`);
+    /**
+     * A win, a loss, a save, a start, a complete game and a shutout are the
+     * only figures here that a scraped season records on the season line and
+     * nowhere else - the archive keeps no per-game copy of them to add up.
+     * Left to the recomputation alone they come back null, so approving a
+     * single game into an archived season would wipe every pitcher's record
+     * in it.
+     *
+     * A season that was actually scored writes them on every game, so totals
+     * holds a real number - zero included - and the old line is not consulted.
+     * No rate is derived from any of them, so keeping one cannot leave a total
+     * and its percentage disagreeing.
+     */
+    const kept = (counted: number | undefined, before: number | null | undefined) =>
+      counted ?? before ?? null;
     const atBats = totals.atBats ?? 0;
     const hits = totals.hits ?? 0;
     const walks = totals.walks ?? 0;
@@ -471,7 +496,7 @@ export async function recomputeSeason(seasonId: number) {
     const fieldingChances = putouts + (totals.errors ?? 0);
 
     return {
-      ...priorByKey.get(`${playerName}::${teamId}`),
+      ...prior,
       seasonId,
       historicalTeamId: teamId,
       playerName,
@@ -504,13 +529,13 @@ export async function recomputeSeason(seasonId: number) {
       sluggingPct: atBats > 0 ? totalBases / atBats : null,
       ops: atBats > 0 ? reached / Math.max(1, onBase) + totalBases / atBats : null,
       pitchingGames: totals.pitchingGames ?? null,
-      gamesStarted: totals.gamesStarted ?? null,
-      completeGames: totals.completeGames ?? null,
-      shutouts: totals.shutouts ?? null,
-      wins: totals.wins ?? null,
-      losses: totals.losses ?? null,
-      saves: totals.saves ?? null,
-      blownSaves: totals.blownSaves ?? null,
+      gamesStarted: kept(totals.gamesStarted, prior?.gamesStarted),
+      completeGames: kept(totals.completeGames, prior?.completeGames),
+      shutouts: kept(totals.shutouts, prior?.shutouts),
+      wins: kept(totals.wins, prior?.wins),
+      losses: kept(totals.losses, prior?.losses),
+      saves: kept(totals.saves, prior?.saves),
+      blownSaves: kept(totals.blownSaves, prior?.blownSaves),
       inningsPitched: totals.inningsPitched ?? null,
       hitsAllowed: totals.hitsAllowed ?? null,
       runsAllowed: totals.runsAllowed ?? null,
