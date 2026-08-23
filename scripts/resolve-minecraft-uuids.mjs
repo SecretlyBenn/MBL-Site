@@ -1,5 +1,5 @@
 /**
- * Resolves every archived player name to a Minecraft UUID.
+ * Resolves every player name, archived and current, to a Minecraft UUID.
  *
  *   node scripts/resolve-minecraft-uuids.mjs [out.json]
  *
@@ -21,10 +21,26 @@ const dbFile = fs
   .sort((a, b) => fs.statSync(b).size - fs.statSync(a).size)[0];
 
 const db = new DatabaseSync(dbFile);
-const names = db
-  .prepare("SELECT DISTINCT player_name FROM historical_player_stats ORDER BY player_name")
-  .all()
-  .map((row) => row.player_name);
+/**
+ * Both the archive and the current league.
+ *
+ * This used to walk the archive alone, which meant a player added to the live
+ * league through the admin had no UUID until their first season was published
+ * into it - and until then their head rendered as the blank grey block that
+ * stands for "no account on file".
+ */
+const names = [
+  ...new Set([
+    ...db
+      .prepare("SELECT DISTINCT player_name FROM historical_player_stats")
+      .all()
+      .map((row) => row.player_name),
+    ...db
+      .prepare("SELECT DISTINCT display_name FROM players")
+      .all()
+      .map((row) => row.display_name),
+  ]),
+].sort();
 
 const resolved = {};
 const unresolved = [];
