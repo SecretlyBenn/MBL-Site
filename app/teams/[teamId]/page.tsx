@@ -87,7 +87,7 @@ export default async function TeamPage({
                     className="flex items-center justify-between rounded border border-slate-800/80 bg-slate-900/40 px-3 py-2"
                   >
                     <span>
-                      <span className={won ? "text-green-400" : "text-red-400"}>
+                      <span className={won ? "text-emerald-400" : "text-rose-400"}>
                         {won ? "W" : "L"}
                       </span>{" "}
                       {isHome ? "vs" : "@"} {opponent ? <Link href={`/teams/${opponent.id}`} className="hover:underline">{opponent.name}</Link> : "Unknown"}

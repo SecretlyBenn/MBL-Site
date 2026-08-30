@@ -3,8 +3,10 @@ import {
   getHistoricalSeasonStandings,
   getHistoricalSeasons,
   getHistoricalTeamRoster,
+  getPlayerAvatars,
 } from "@/db/queries";
-import { EmptyState, PageShell } from "@/app/SiteNav";
+import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
+import { PlayerHead } from "@/app/PlayerHead";
 import { TeamLogo } from "@/app/TeamLogo";
 import { formatInnings } from "@/app/formatStats";
 import { HistoricalTeamLink, PlayerProfileLink } from "@/app/EntityLinks";
@@ -40,6 +42,7 @@ export default async function RostersPage({
         getHistoricalSchedule(season.id, team.id),
       ])
     : [[], []];
+  const avatars = await getPlayerAvatars();
 
   const wins = team?.wins ?? 0;
   const losses = team?.losses ?? 0;
@@ -85,9 +88,7 @@ export default async function RostersPage({
           </div>
 
           <section className="mb-10">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
-              Batting ({batters.length})
-            </h3>
+            <SectionHeader title="Batting" meta={`${batters.length} players`} />
             {batters.length === 0 ? (
               <EmptyState>No batting stats recorded.</EmptyState>
             ) : (
@@ -109,7 +110,16 @@ export default async function RostersPage({
                   <tbody>
                     {batters.map((row) => (
                       <tr key={row.playerName}>
-                        <td><PlayerProfileLink name={row.playerName} /></td>
+                        <td>
+                          <span className="flex min-w-0 items-center gap-2">
+                            <PlayerHead
+                              uuid={avatars[row.playerName]}
+                              name={row.playerName}
+                              size={18}
+                            />
+                            <PlayerProfileLink name={row.playerName} className="truncate" />
+                          </span>
+                        </td>
                         <td>{row.games ?? 0}</td>
                         <td>{row.atBats ?? 0}</td>
                         <td>{row.hits ?? 0}</td>
@@ -130,9 +140,7 @@ export default async function RostersPage({
           </section>
 
           <section className="mb-10">
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
-              Pitching ({pitchers.length})
-            </h3>
+            <SectionHeader title="Pitching" meta={`${pitchers.length} players`} />
             {pitchers.length === 0 ? (
               <EmptyState>No pitching stats recorded.</EmptyState>
             ) : (
@@ -151,10 +159,17 @@ export default async function RostersPage({
                   <tbody>
                     {pitchers.map((row) => (
                       <tr key={row.playerName}>
-                        <td><PlayerProfileLink name={row.playerName} /></td>
                         <td>
-                          {formatInnings(row.inningsPitched)}
+                          <span className="flex min-w-0 items-center gap-2">
+                            <PlayerHead
+                              uuid={avatars[row.playerName]}
+                              name={row.playerName}
+                              size={18}
+                            />
+                            <PlayerProfileLink name={row.playerName} className="truncate" />
+                          </span>
                         </td>
+                        <td>{formatInnings(row.inningsPitched)}</td>
                         <td>
                           {row.strikeoutsPitched ?? "-"}
                         </td>
@@ -173,9 +188,7 @@ export default async function RostersPage({
           </section>
 
           <section>
-            <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
-              Schedule &amp; scores ({schedule.length})
-            </h3>
+            <SectionHeader title="Schedule &amp; scores" meta={`${schedule.length} games`} />
             {schedule.length === 0 ? (
               <EmptyState>No games recorded for this team.</EmptyState>
             ) : (
@@ -198,7 +211,7 @@ export default async function RostersPage({
                         {played && (
                           <span
                             className={
-                              tied ? "text-slate-500" : won ? "text-green-400" : "text-red-400"
+                              tied ? "text-slate-500" : won ? "text-emerald-400" : "text-rose-400"
                             }
                           >
                             {tied ? "T" : won ? "W" : "L"}

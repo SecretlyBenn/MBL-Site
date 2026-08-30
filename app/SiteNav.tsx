@@ -124,6 +124,49 @@ export function PageShell({
   );
 }
 
+/**
+ * The heading that opens a block of content.
+ *
+ * The home page set the pattern - a rule under a small upright label, with the
+ * way to the full page on the right - and the pages behind it each invented
+ * their own, so a leaderboard on the front page and the same leaderboard on
+ * its own page did not look like the same site. One definition now, used by
+ * both.
+ */
+export function SectionHeader({
+  title,
+  meta,
+  action,
+}: {
+  title: string;
+  /** A qualification that belongs with the title, like a count or a minimum. */
+  meta?: React.ReactNode;
+  /** Usually a link onward. */
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-b border-slate-800/80 pb-2">
+      <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-0.5">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">{title}</h2>
+        {meta && <p className="text-xs text-slate-500">{meta}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+/** A link onward, as it appears at the right of a SectionHeader. */
+export function SectionLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="text-xs font-medium text-sky-400 transition-colors hover:text-sky-300"
+    >
+      {children}
+    </Link>
+  );
+}
+
 export function EmptyState({ children }: { children: React.ReactNode }) {
   return (
     <p className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-6 text-center text-sm text-slate-500">

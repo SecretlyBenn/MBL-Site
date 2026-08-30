@@ -6,7 +6,7 @@ import {
   getHistoricalSeasons,
   getPlayerAvatars,
 } from "@/db/queries";
-import { EmptyState, SiteNav } from "@/app/SiteNav";
+import { EmptyState, SectionHeader, SectionLink, SiteNav } from "@/app/SiteNav";
 import { StandingsTable } from "@/app/standings/StandingsTable";
 import { PlayerProfileLink } from "@/app/EntityLinks";
 import { PlayerHead } from "@/app/PlayerHead";
@@ -135,17 +135,10 @@ export default async function Home() {
       <main className="mx-auto max-w-[1600px] px-6 py-5">
         <div className="grid gap-5 xl:grid-cols-2">
           <section className="flex min-w-0 flex-col">
-            <div className="mb-3 flex items-baseline justify-between border-b border-slate-800/80 pb-2">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">
-                Standings
-              </h2>
-              <Link
-                href="/standings"
-                className="text-xs font-medium text-sky-400 transition-colors hover:text-sky-300"
-              >
-                Full standings →
-              </Link>
-            </div>
+            <SectionHeader
+              title="Standings"
+              action={<SectionLink href="/standings">Full standings →</SectionLink>}
+            />
             {standings.length === 0 || !latestSeason ? (
               <EmptyState>No teams yet.</EmptyState>
             ) : (
@@ -159,17 +152,16 @@ export default async function Home() {
           </section>
 
           <section className="min-w-0">
-            <div className="mb-3 flex items-baseline justify-between border-b border-slate-800/80 pb-2">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">
-                Leaders
-              </h2>
-              <Link
-                href={`/statistics/batting${latestSeason ? `?season=${latestSeason.id}` : ""}`}
-                className="text-xs font-medium text-sky-400 transition-colors hover:text-sky-300"
-              >
-                All statistics →
-              </Link>
-            </div>
+            <SectionHeader
+              title="Leaders"
+              action={
+                <SectionLink
+                  href={`/statistics/batting${latestSeason ? `?season=${latestSeason.id}` : ""}`}
+                >
+                  All statistics →
+                </SectionLink>
+              }
+            />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {leaders.map((board) => (
                 <div key={board.column} className="data-table-shell">
@@ -216,15 +208,10 @@ export default async function Home() {
         </div>
 
         <section className="mt-6">
-          <div className="mb-3 flex items-baseline justify-between border-b border-slate-800/80 pb-2">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-300">Seasons</h2>
-            <Link
-              href="/seasons"
-              className="text-xs font-medium text-sky-400 transition-colors hover:text-sky-300"
-            >
-              All seasons →
-            </Link>
-          </div>
+          <SectionHeader
+            title="Seasons"
+            action={<SectionLink href="/seasons">All seasons →</SectionLink>}
+          />
           <div className="flex flex-wrap gap-2">
             {seasons.slice(0, 10).map((season) => (
               <Link
