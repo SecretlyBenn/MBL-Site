@@ -36,6 +36,74 @@ function useSubmit(path: string) {
   return { submit, status, error };
 }
 
+/**
+ * Renames a player everywhere at once.
+ *
+ * Players here rename their Minecraft accounts often, and the archive keys a
+ * career by name across six tables rather than by an id - so a rename done in
+ * one place quietly splits a career in two and drops the player's head. This
+ * does all six or refuses, and says afterwards how much moved.
+ */
+export function RenamePlayerForm({ names }: { names: string[] }) {
+  const { submit, status, error } = useSubmit("/api/players/rename");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [done, setDone] = useState<string | null>(null);
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setDone(null);
+    submit({ from, to }, () => {
+      setDone(`${from} is now ${to}.`);
+      setFrom("");
+      setTo("");
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 rounded border p-4">
+      <h3 className="font-semibold">Rename player</h3>
+      <p className="text-xs text-gray-500">
+        Changes the name on their profile, every season and game line, their roster entries and
+        their skin. Their stats and their head come with them.
+      </p>
+      {/* Free text with suggestions rather than a plain menu: plenty of names
+          on the site have no row in the current player pool - anyone who has
+          not played since the archive was imported - and they can be renamed
+          too. */}
+      <input
+        className="w-full rounded border p-2 text-sm"
+        placeholder="Current name"
+        list="rename-player-names"
+        value={from}
+        onChange={(event) => setFrom(event.target.value)}
+        required
+      />
+      <datalist id="rename-player-names">
+        {names.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      <input
+        className="w-full rounded border p-2 text-sm"
+        placeholder="New name"
+        value={to}
+        onChange={(event) => setTo(event.target.value)}
+        required
+      />
+      <button
+        type="submit"
+        disabled={status === "saving"}
+        className="rounded bg-blue-600 px-3 py-2 text-sm text-white disabled:opacity-50"
+      >
+        {status === "saving" ? "Renaming..." : "Rename"}
+      </button>
+      {done && <p className="text-sm text-green-600">{done}</p>}
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </form>
+  );
+}
+
 export function CreateTeamForm() {
   const { submit, status, error } = useSubmit("/api/teams");
   const [name, setName] = useState("");

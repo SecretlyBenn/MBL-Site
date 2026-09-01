@@ -1,7 +1,13 @@
 import { getDb } from "@/db";
-import { games, players, teams, users } from "@/db/schema";
+import { games, historicalPlayerStats, players, teams, users } from "@/db/schema";
 import { requireRole } from "@/app/roles";
-import { CreatePlayerForm, CreateTeamForm, CreateUserForm, ScheduleGameForm } from "./AdminForms";
+import {
+  CreatePlayerForm,
+  CreateTeamForm,
+  CreateUserForm,
+  RenamePlayerForm,
+  ScheduleGameForm,
+} from "./AdminForms";
 import { UserRoleRow } from "./UserRoleRow";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +20,14 @@ export default async function AdminPage() {
   const allPlayers = await db.select().from(players);
   const allUsers = await db.select().from(users);
   const allGames = await db.select().from(games);
+  // Every name the site knows, not just the current pool: most names on the
+  // site belong to the archive alone, and those can be renamed too.
+  const archived = await db
+    .selectDistinct({ name: historicalPlayerStats.playerName })
+    .from(historicalPlayerStats);
+  const knownNames = [
+    ...new Set([...allPlayers.map((player) => player.displayName), ...archived.map((row) => row.name)]),
+  ].sort((a, b) => a.localeCompare(b));
   const teamNameById = new Map(allTeams.map((team) => [team.id, team.name]));
 
   return (
@@ -28,6 +42,7 @@ export default async function AdminPage() {
         <CreatePlayerForm />
         <CreateUserForm teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
         <ScheduleGameForm teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
+        <RenamePlayerForm names={knownNames} />
       </div>
 
       <section className="mb-8">
