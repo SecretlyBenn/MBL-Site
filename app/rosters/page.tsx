@@ -26,9 +26,9 @@ function count(value: number | null) {
 /**
  * A player's name at the head of a stat line.
  *
- * The column is capped rather than given a share of the table. A roster line
- * is mostly figures, and handing 42% of the width to the one text column left
- * the handful of numbers strung out across the rest of the page.
+ * The name is the only text in a line of figures, so it takes whatever the
+ * longest name needs and no more. It used to be given a fixed 42% of the
+ * table, which on a wide screen was most of the row.
  */
 function NameCell({ name, uuid }: { name: string; uuid?: string }) {
   return (
@@ -117,12 +117,15 @@ export default async function RostersPage({
             {batters.length === 0 ? (
               <EmptyState>No batting stats recorded.</EmptyState>
             ) : (
-              // Sized to its contents rather than stretched to the page, and
-              // allowed to scroll sideways on a narrow one. A full batting line
-              // is eighteen columns; it was the six-column version forced to
-              // the container width that left so much air between the figures.
+              // Sized to its contents rather than stretched to the page.
+              // Stretching is what made these tables look so wide: the figures
+              // were pushed apart to fill the width, and the leftover went to
+              // the name column, which took 206px to say "Jpearjr7". Left to
+              // size itself the same table is 770px instead of 1375px, and
+              // scrolls inside its own box rather than pushing the page when
+              // the screen is too narrow for it.
               <div className="data-table-shell overflow-x-auto">
-                <table className="data-table w-full">
+                <table className="data-table w-auto">
                   <thead>
                     <tr>
                       <th className="is-name">Player</th>
@@ -180,7 +183,7 @@ export default async function RostersPage({
               <EmptyState>No pitching stats recorded.</EmptyState>
             ) : (
               <div className="data-table-shell overflow-x-auto">
-                <table className="data-table w-full">
+                <table className="data-table w-auto">
                   <thead>
                     <tr>
                       <th className="is-name">Player</th>
