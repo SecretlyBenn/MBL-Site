@@ -315,15 +315,42 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
     db
       .select({
         playerName: historicalPlayerStats.playerName,
+        // Batting, as a full line. The roster used to select six figures and
+        // show them across a table stretched to the width of the page, which
+        // is a lot of space to say very little.
         games: historicalPlayerStats.games,
         atBats: historicalPlayerStats.atBats,
+        runs: historicalPlayerStats.runs,
         hits: historicalPlayerStats.hits,
+        doubles: historicalPlayerStats.doubles,
+        triples: historicalPlayerStats.triples,
         homeRuns: historicalPlayerStats.homeRuns,
         rbis: historicalPlayerStats.rbis,
+        walks: historicalPlayerStats.walks,
+        strikeouts: historicalPlayerStats.strikeouts,
+        stolenBases: historicalPlayerStats.stolenBases,
         battingAverage: historicalPlayerStats.battingAverage,
+        onBasePct: historicalPlayerStats.onBasePct,
+        sluggingPct: historicalPlayerStats.sluggingPct,
         ops: historicalPlayerStats.ops,
+        // Fielding travels with the batting line in the archive.
+        putouts: historicalPlayerStats.putouts,
+        errors: historicalPlayerStats.errors,
+        fieldingPct: historicalPlayerStats.fieldingPct,
+        // Pitching.
+        pitchingGames: historicalPlayerStats.pitchingGames,
+        gamesStarted: historicalPlayerStats.gamesStarted,
+        wins: historicalPlayerStats.wins,
+        losses: historicalPlayerStats.losses,
+        saves: historicalPlayerStats.saves,
         inningsPitched: historicalPlayerStats.inningsPitched,
+        hitsAllowed: historicalPlayerStats.hitsAllowed,
+        runsAllowed: historicalPlayerStats.runsAllowed,
+        homeRunsAllowed: historicalPlayerStats.homeRunsAllowed,
+        walksAllowed: historicalPlayerStats.walksAllowed,
         strikeoutsPitched: historicalPlayerStats.strikeoutsPitched,
+        completeGames: historicalPlayerStats.completeGames,
+        shutouts: historicalPlayerStats.shutouts,
         // Selected so the ERA can be worked out over a six-inning game rather
         // than taken from the archive, which recorded it over nine.
         earnedRuns: historicalPlayerStats.earnedRuns,
@@ -354,13 +381,36 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
     played: boolean;
     games: number | null;
     atBats: number | null;
+    runs: number | null;
     hits: number | null;
+    doubles: number | null;
+    triples: number | null;
     homeRuns: number | null;
     rbis: number | null;
+    walks: number | null;
+    strikeouts: number | null;
+    stolenBases: number | null;
     battingAverage: number | null;
+    onBasePct: number | null;
+    sluggingPct: number | null;
     ops: number | null;
+    putouts: number | null;
+    errors: number | null;
+    fieldingPct: number | null;
+    pitchingGames: number | null;
+    gamesStarted: number | null;
+    wins: number | null;
+    losses: number | null;
+    saves: number | null;
     inningsPitched: number | null;
+    hitsAllowed: number | null;
+    runsAllowed: number | null;
+    earnedRuns: number | null;
+    homeRunsAllowed: number | null;
+    walksAllowed: number | null;
     strikeoutsPitched: number | null;
+    completeGames: number | null;
+    shutouts: number | null;
     era: number | null;
     whip: number | null;
   }>;

@@ -107,6 +107,19 @@ body {
     font-size: 0.8125rem;
   }
 
+  /* The one text column in a table of figures.
+
+     Capped rather than given a share of the width. A roster line is mostly
+     numbers, and letting the name take whatever it wants strings the figures
+     out across the page - which is what made the roster tables look so wide
+     while saying so little. */
+  .data-table .is-name {
+    max-width: 16ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   /* Header ------------------------------------------------------------------ */
 
   .data-table thead th {
