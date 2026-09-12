@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { getHistoricalGame } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
-import { formatInnings, isForfeit } from "@/app/formatStats";
+import { formatInnings, hasInningByInning, isForfeit } from "@/app/formatStats";
 import { PlayerProfileLink } from "@/app/EntityLinks";
 
 export const dynamic = "force-dynamic";
@@ -105,6 +105,11 @@ export default async function GamePage({
     ...lineScores.map((row) => (row.innings ?? "").split(",").filter(Boolean).length),
     0,
   );
+  // Seasons before XI recorded only the totals, so their per-inning cells are
+  // zeros that contradict the score - those games show R/H/E alone below.
+  const showInnings = hasInningByInning(game.seasonSortOrder) && innings > 0;
+  // Older seasons still show R/H/E; only the per-inning columns drop away.
+  const inningCount = showInnings ? innings : 0;
 
   const side = (isHome: boolean, kind: "BATTING" | "PITCHING") =>
     stats.filter((row) => row.isHome === isHome && row.kind === kind);
@@ -197,7 +202,7 @@ export default async function GamePage({
         </div>
       </div>
 
-      {lineScores.length > 0 && innings > 0 && (
+      {lineScores.length > 0 && (
         <section className="mb-10">
           <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
             Line score
@@ -207,7 +212,7 @@ export default async function GamePage({
               <thead>
                 <tr>
                   <th>Team</th>
-                  {Array.from({ length: innings }, (_, index) => (
+                  {Array.from({ length: inningCount }, (_, index) => (
                     <th key={index}>
                       {index + 1}
                     </th>
@@ -223,7 +228,7 @@ export default async function GamePage({
                   return (
                     <tr key={row.id}>
                       <td>{row.teamLabel}</td>
-                      {Array.from({ length: innings }, (_, index) => (
+                      {Array.from({ length: inningCount }, (_, index) => (
                         <td key={index}>
                           {perInning[index] ?? "-"}
                         </td>

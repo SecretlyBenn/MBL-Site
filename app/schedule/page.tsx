@@ -1,31 +1,19 @@
 import Link from "next/link";
-import { SEASON_XII_SERIES, ALL_STAR_BREAK_AFTER_SERIES } from "@/app/season-series";
+import {
+  ALL_STAR_BREAK_AFTER_SERIES,
+  SEASON_XII_SERIES,
+  seriesScheduleFor,
+} from "@/app/season-series";
 import { getHistoricalSchedule, getHistoricalSeasons } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
 import { StandingsSeasonSelect } from "@/app/standings/StandingsSeasonSelect";
-import { isForfeit } from "@/app/formatStats";
+import { hasInningByInning, isForfeit } from "@/app/formatStats";
 import { getLeagueUser } from "@/app/roles";
 import { getScheduledTimes } from "@/db/queries";
 import { ScheduleGame } from "./ScheduleGame";
 
 export const dynamic = "force-dynamic";
-
-/**
- * Only Season XII was played as a series schedule, where a block of games runs
- * against one opponent before the matchups rotate. Every other season is a
- * plain calendar of dates, so grouping those by series would invent structure
- * the league never had.
- */
-const SERIES_SEASONS = /Season XII$/;
-
-/**
- * Season XII's real series structure, as published by the league. Games inside
- * a series can be played on any date in its window, so the boundaries can't be
- * derived from the calendar or from matchup rotation - they're a fact about the
- * schedule. Counts sum to 110, which is the number of games on record.
- */
-
 
 /**
  * "June 15" plus the season's year, as a date. Accepts either a bare day or a
@@ -83,13 +71,13 @@ export default async function SchedulePage({
 
   const groups: { label: string; detail: string; games: Game[] }[] = [];
 
-  const seriesSeason = SERIES_SEASONS.test(season.name);
+  const schedule = seriesScheduleFor(season.name);
 
-  if (seriesSeason) {
+  if (schedule) {
     // Walk the published series lengths in schedule order. Any games beyond the
     // published structure still get shown rather than silently dropped.
     let cursor = 0;
-    for (const [index, series] of SEASON_XII_SERIES.entries()) {
+    for (const [index, series] of schedule.entries()) {
       const block = games.slice(cursor, cursor + series.games);
       cursor += series.games;
       if (block.length === 0) continue;
@@ -101,7 +89,7 @@ export default async function SchedulePage({
       const to = shortDate(block.at(-1)?.playedOn);
       const played = from === to ? from : `${from} – ${to}`;
       groups.push({
-        label: `Series ${index + 1}`,
+        label: series.label ?? `Series ${index + 1}`,
         detail: windowCovers(series.window, block) ? series.window : played,
         games: block,
       });
@@ -150,7 +138,7 @@ export default async function SchedulePage({
             <section key={group.label}>
               {/* The league pauses here, so the gap in play reads as a break
                   rather than a hole in the schedule. */}
-              {seriesSeason && groupIndex === ALL_STAR_BREAK_AFTER_SERIES && (
+              {schedule === SEASON_XII_SERIES && groupIndex === ALL_STAR_BREAK_AFTER_SERIES && (
                 <p className="mb-6 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.2em] text-amber-400">
                   <span className="h-px flex-1 bg-amber-500/30" />
                   All-Star Break · July 24 – August 1
@@ -175,6 +163,7 @@ export default async function SchedulePage({
                     showDate={false}
                     arrangement={game.sourceGameId ? arrangements[game.sourceGameId] : undefined}
                     mayArrange={mayArrange}
+                    seasonSortOrder={season.sortOrder}
                   />
                 ))}
               </div>
@@ -193,14 +182,21 @@ function GameCard({
   showDate,
   arrangement,
   mayArrange,
+  seasonSortOrder,
 }: {
   game: Game;
   showDate: boolean;
   /** The agreed time for this fixture, if one has been set. */
   arrangement?: { scheduledAt: string; claimed: boolean };
   mayArrange: boolean;
+  /** Decides whether this season's per-inning runs are trustworthy. */
+  seasonSortOrder: number;
 }) {
   const isFinal = game.homeScore !== null && game.awayScore !== null;
+  // A fixture the series never reached: scheduled, never played, and never
+  // going to be. It stays visible so the published series still reads as three
+  // games, but it is not a game anyone is waiting on.
+  const notNeeded = game.status === "NOT_NEEDED";
   const forfeit = isForfeit(game);
   const awayWon = isFinal && (game.awayScore ?? 0) > (game.homeScore ?? 0);
   const homeWon = isFinal && (game.homeScore ?? 0) > (game.awayScore ?? 0);
@@ -209,7 +205,13 @@ function GameCard({
   const awayInnings = cells(game.away?.innings);
   const homeInnings = cells(game.home?.innings);
   const innings = Math.max(awayInnings.length, homeInnings.length);
-  const hasLineScore = isFinal && !forfeit && innings > 0;
+  // Older seasons recorded only the totals, so their per-inning cells are
+  // zeros that contradict the score. Those games show R/H/E alone.
+  const showInnings = hasInningByInning(seasonSortOrder) && innings > 0;
+  const hasTotals =
+    game.away?.runs !== null || game.home?.runs !== null || game.away?.hits !== null;
+  const hasLineScore = isFinal && !forfeit && (showInnings || hasTotals);
+  const inningCount = showInnings ? innings : 0;
 
   const side = (
     name: string | null,
@@ -242,16 +244,22 @@ function GameCard({
     >
       <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wider text-slate-500">
         <span>{showDate ? shortDateOf(game.playedOn) : ""}</span>
-        <span className={forfeit ? "font-semibold text-amber-400" : ""}>
-          {forfeit
-            ? "Forfeit"
-            : game.note
-              ? `Ended ${game.note}`
-              : isFinal
-                ? "Final"
-                : arrangement
-                  ? "Time set"
-                  : "Upcoming"}
+        <span
+          className={
+            forfeit ? "font-semibold text-amber-400" : notNeeded ? "text-slate-600" : ""
+          }
+        >
+          {notNeeded
+            ? "Not needed"
+            : forfeit
+              ? "Forfeit"
+              : game.note
+                ? `Ended ${game.note}`
+                : isFinal
+                  ? "Final"
+                  : arrangement
+                    ? "Time set"
+                    : "Upcoming"}
         </span>
       </div>
 
@@ -269,7 +277,7 @@ function GameCard({
               <thead>
                 <tr>
                   <th />
-                  {Array.from({ length: innings }, (_, index) => (
+                  {Array.from({ length: inningCount }, (_, index) => (
                     <th key={index}>{index + 1}</th>
                   ))}
                   <th className="is-total is-total-start">R</th>
@@ -284,7 +292,7 @@ function GameCard({
                 ].map((team, index) => (
                   <tr key={index} className={team.won ? "font-semibold text-white" : ""}>
                     <th scope="row">{team.abbr ?? team.name?.slice(0, 3).toUpperCase() ?? "—"}</th>
-                    {Array.from({ length: innings }, (_, inning) => (
+                    {Array.from({ length: inningCount }, (_, inning) => (
                       <td key={inning}>{team.per[inning] ?? ""}</td>
                     ))}
                     <td className="is-total is-total-start">{team.line?.runs ?? "-"}</td>
@@ -296,7 +304,13 @@ function GameCard({
             </table>
           ) : (
             <p className="text-xs text-slate-600">
-              {forfeit ? "No game played" : isFinal ? "No line score recorded" : "Not yet played"}
+              {notNeeded
+                ? "Series already decided"
+                : forfeit
+                  ? "No game played"
+                  : isFinal
+                    ? "No line score recorded"
+                    : "Not yet played"}
             </p>
           )}
         </div>

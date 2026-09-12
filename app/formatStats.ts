@@ -1,14 +1,21 @@
 /**
- * A forfeit is recorded as a 1-0 win with no box score - nobody played, so no
- * player accumulated a stat. Real 1-0 games are common and do carry stats, so
- * the missing box score is the part that identifies a forfeit.
+ * A game nobody finished.
+ *
+ * A club that never shows up forfeits 1-0 with no box score, and that shape is
+ * recognisable on its own - real 1-0 games carry stats. But a club can also
+ * quit part way through a game it is losing, which leaves a genuine score and a
+ * partial box score behind and looks like an ordinary loss. Nothing in the
+ * numbers distinguishes that from a game played out, so it has to be recorded:
+ * `status` is set to "FORFEIT" by hand and wins over the shape test.
  */
 export function isForfeit(game: {
   homeScore: number | null;
   awayScore: number | null;
   hasStats: boolean;
+  status?: string | null;
 }) {
-  const { homeScore: home, awayScore: away, hasStats } = game;
+  const { homeScore: home, awayScore: away, hasStats, status } = game;
+  if (status === "FORFEIT") return true;
   if (hasStats || home === null || away === null) return false;
   return (home === 1 && away === 0) || (home === 0 && away === 1);
 }
@@ -40,4 +47,18 @@ export function playedOnValue(playedOn: string | null | undefined): number | nul
   const [, month, day, year] = match;
   if (!(month in MONTHS)) return null;
   return Date.UTC(Number(year), MONTHS[month], Number(day));
+}
+
+/**
+ * The first season whose per-inning runs were actually recorded.
+ *
+ * Before Season XI the league's stat takers entered a game's final runs, hits
+ * and errors but not the inning-by-inning line, so those rows hold zeros that
+ * do not add up to the score. Showing that grid would contradict the result, so
+ * older games show the totals alone.
+ */
+export const FIRST_SEASON_WITH_INNINGS = 12;
+
+export function hasInningByInning(seasonSortOrder: number | null | undefined) {
+  return (seasonSortOrder ?? 0) >= FIRST_SEASON_WITH_INNINGS;
 }

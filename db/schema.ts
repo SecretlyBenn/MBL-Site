@@ -283,6 +283,9 @@ export const historicalGames = sqliteTable("historical_games", {
   homeScore: integer("home_score"),
   // e.g. "7th" when a game was called early.
   note: text("note"),
+  // "NOT_NEEDED" for a fixture the series never reached - a best-of-three that
+  // ended 2-0 still has a published third game. Null for an ordinary fixture.
+  status: text("status"),
   sortOrder: integer("sort_order").notNull().default(0),
 });
 

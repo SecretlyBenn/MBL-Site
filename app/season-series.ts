@@ -23,6 +23,31 @@ export const SEASON_XII_SERIES = [
 export const ALL_STAR_BREAK_AFTER_SERIES = 5;
 
 /**
+ * The postseason is arranged the same way - clubs meet somewhere inside a
+ * window - but the league runs a whole round at once rather than one matchup
+ * at a time, so the round is a single block covering all four series rather
+ * than four blocks of three. `label` names it, since "Series 1" would say
+ * nothing about which round it is.
+ */
+export const SEASON_XII_PLAYOFF_SERIES = [
+  { label: "Divisional Round", window: "September 4 – September 14", games: 12 },
+] as const;
+
+/** A published block of games: the shape both schedules above share. */
+export type SeriesBlock = {
+  readonly label?: string;
+  readonly window: string;
+  readonly games: number;
+};
+
+/** The published blocks for a season, by name, or null if it had none. */
+export function seriesScheduleFor(seasonName: string): readonly SeriesBlock[] | null {
+  if (/Season XII Playoffs$/.test(seasonName)) return SEASON_XII_PLAYOFF_SERIES;
+  if (/Season XII$/.test(seasonName)) return SEASON_XII_SERIES;
+  return null;
+}
+
+/**
  * Which series a game belongs to, from its 1-based place in the season's game
  * order. Returns null for a position past the published schedule rather than
  * inventing a series for it.
