@@ -1,0 +1,19 @@
+# Copy this file to `.dev.vars` and fill in real values for local development.
+# `.dev.vars` is gitignored - never commit real secrets.
+#
+# In production these are set once per environment with:
+#   npx wrangler secret put AUTH_SECRET
+#   npx wrangler secret put DISCORD_CLIENT_ID
+#   npx wrangler secret put DISCORD_CLIENT_SECRET
+
+# Signs the session cookie (app/session.ts). Any long random string; changing it
+# signs everyone out. Generate one with:
+#   node -e "console.log(crypto.randomUUID() + crypto.randomUUID())"
+AUTH_SECRET=
+
+# Discord OAuth application credentials, from
+# https://discord.com/developers/applications -> your app -> OAuth2.
+# Add a redirect URI there matching where the app runs, e.g.
+#   http://localhost:3000/api/auth/discord/callback
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
