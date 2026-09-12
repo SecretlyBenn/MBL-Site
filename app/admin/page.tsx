@@ -1,11 +1,24 @@
+import { asc, isNotNull, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, historicalPlayerStats, players, teams, users } from "@/db/schema";
+import {
+  games,
+  historicalGames,
+  historicalPlayerStats,
+  historicalSeasons,
+  historicalTeams,
+  players,
+  teams,
+  users,
+} from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import {
   CreatePlayerForm,
   CreateTeamForm,
   CreateUserForm,
+  MarkForfeitForm,
+  RecomputeSeasonForm,
   RenamePlayerForm,
+  RetireFixtureForm,
   ScheduleGameForm,
 } from "./AdminForms";
 import { UserRoleRow } from "./UserRoleRow";
@@ -30,6 +43,58 @@ export default async function AdminPage() {
   ].sort((a, b) => a.localeCompare(b));
   const teamNameById = new Map(allTeams.map((team) => [team.id, team.name]));
 
+  const allSeasons = await db
+    .select({ id: historicalSeasons.id, name: historicalSeasons.name })
+    .from(historicalSeasons)
+    .orderBy(asc(historicalSeasons.sortOrder));
+
+  // Only unplayed fixtures can be retired, so those are the only ones offered -
+  // along with any already retired, so the choice can be undone.
+  const archiveTeams = await db.select().from(historicalTeams);
+  const archiveTeamName = new Map(archiveTeams.map((row) => [row.id, row.name]));
+  const seasonName = new Map(allSeasons.map((row) => [row.id, row.name]));
+  const openFixtures = await db
+    .select()
+    .from(historicalGames)
+    .where(isNull(historicalGames.homeScore))
+    .orderBy(asc(historicalGames.seasonId), asc(historicalGames.sortOrder));
+  const fixtureLabel = (fixture: {
+    seasonId: number;
+    awayTeamId: number | null;
+    homeTeamId: number | null;
+    playedOn: string | null;
+  }) =>
+    `${seasonName.get(fixture.seasonId) ?? "Season"}: ${
+      archiveTeamName.get(fixture.awayTeamId ?? -1) ?? "Away"
+    } @ ${archiveTeamName.get(fixture.homeTeamId ?? -1) ?? "Home"}${
+      fixture.playedOn ? ` - ${fixture.playedOn}` : ""
+    }`;
+
+  // Only played games can be quit part way through, so those are the ones the
+  // forfeit control offers. Newest season first - that is where corrections
+  // almost always land.
+  const playedGames = await db
+    .select()
+    .from(historicalGames)
+    .where(isNotNull(historicalGames.homeScore))
+    .orderBy(asc(historicalGames.seasonId), asc(historicalGames.sortOrder));
+  const forfeitOptions = playedGames.map((game) => ({
+    id: game.id,
+    forfeit: game.status === "FORFEIT",
+    note: game.note,
+    label: `${fixtureLabel(game)} (${game.awayScore}-${game.homeScore})`,
+  }));
+
+  const fixtureOptions = openFixtures.map((fixture) => ({
+    id: fixture.id,
+    retired: fixture.status === "NOT_NEEDED",
+    label: `${seasonName.get(fixture.seasonId) ?? "Season"}: ${
+      archiveTeamName.get(fixture.awayTeamId ?? -1) ?? "Away"
+    } @ ${archiveTeamName.get(fixture.homeTeamId ?? -1) ?? "Home"}${
+      fixture.playedOn ? ` - ${fixture.playedOn}` : ""
+    }`,
+  }));
+
   return (
     <main className="mx-auto max-w-4xl p-8">
       <h1 className="mb-1 text-2xl font-bold">League admin</h1>
@@ -43,6 +108,9 @@ export default async function AdminPage() {
         <CreateUserForm teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
         <ScheduleGameForm teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
         <RenamePlayerForm names={knownNames} />
+        <RecomputeSeasonForm seasons={allSeasons} />
+        <RetireFixtureForm fixtures={fixtureOptions} />
+        <MarkForfeitForm games={forfeitOptions} />
       </div>
 
       <section className="mb-8">

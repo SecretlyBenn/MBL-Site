@@ -329,3 +329,199 @@ export function ScheduleGameForm({ teams }: { teams: Team[] }) {
     </form>
   );
 }
+
+/**
+ * Rebuilds a season's standings and player totals from its box scores.
+ *
+ * Season totals and per-game stats are separate records. Approving a scorecard
+ * writes both, but a season imported from the source site arrives as totals
+ * first and box scores later, so the totals keep describing whatever had been
+ * played when they were captured - a player shows twelve games when his box
+ * scores add up to twenty-one. This recounts them from the games on record.
+ */
+export function RecomputeSeasonForm({ seasons }: { seasons: Team[] }) {
+  const { submit, status, error } = useSubmit("/api/seasons/recompute");
+  const [seasonId, setSeasonId] = useState("");
+  const [done, setDone] = useState<string | null>(null);
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setDone(null);
+    const name = seasons.find((season) => String(season.id) === seasonId)?.name ?? "season";
+    submit({ seasonId: Number(seasonId) }, () => setDone(`Recounted ${name}.`));
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 rounded border p-4">
+      <h3 className="font-semibold">Recount season totals</h3>
+      <p className="text-xs text-gray-500">
+        Rebuilds standings and every player&apos;s season line from the box scores already on
+        record. Safe to run at any time - it only recounts what is there.
+      </p>
+      <select
+        className="w-full rounded border p-2 text-sm"
+        value={seasonId}
+        onChange={(event) => setSeasonId(event.target.value)}
+        required
+      >
+        <option value="">Choose a season</option>
+        {seasons.map((season) => (
+          <option key={season.id} value={season.id}>
+            {season.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="submit"
+        disabled={status === "saving" || !seasonId}
+        className="rounded bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
+      >
+        {status === "saving" ? "Recounting..." : "Recount"}
+      </button>
+      {done && <p className="text-xs text-green-700">{done}</p>}
+      {status === "error" && <p className="text-xs text-red-600">{error}</p>}
+    </form>
+  );
+}
+
+/**
+ * Retires a fixture the season never reached.
+ *
+ * A best-of-three publishes three games and stops at two wins, so the last one
+ * is real - it was scheduled - but was never played. Deleting it would lose the
+ * fact that it was scheduled; leaving it alone shows it as upcoming forever.
+ */
+export function RetireFixtureForm({
+  fixtures,
+}: {
+  fixtures: { id: number; label: string; retired: boolean }[];
+}) {
+  const { submit, status, error } = useSubmit("/api/fixtures/status");
+  const [fixtureId, setFixtureId] = useState("");
+  const [done, setDone] = useState<string | null>(null);
+
+  const chosen = fixtures.find((fixture) => String(fixture.id) === fixtureId);
+  const restoring = chosen?.retired ?? false;
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setDone(null);
+    submit({ fixtureId: Number(fixtureId), status: restoring ? null : "NOT_NEEDED" }, () => {
+      setDone(restoring ? "Put back in the schedule." : "Marked as not needed.");
+      setFixtureId("");
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 rounded border p-4">
+      <h3 className="font-semibold">Game not needed</h3>
+      <p className="text-xs text-gray-500">
+        For a series that ended early. The game stays on the schedule marked &quot;not needed&quot;
+        instead of sitting there as upcoming. Choose a retired game to put it back.
+      </p>
+      <select
+        className="w-full rounded border p-2 text-sm"
+        value={fixtureId}
+        onChange={(event) => setFixtureId(event.target.value)}
+        required
+      >
+        <option value="">Choose a game</option>
+        {fixtures.map((fixture) => (
+          <option key={fixture.id} value={fixture.id}>
+            {fixture.retired ? "↩ " : ""}
+            {fixture.label}
+          </option>
+        ))}
+      </select>
+      <button
+        type="submit"
+        disabled={status === "saving" || !fixtureId}
+        className="rounded bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
+      >
+        {status === "saving" ? "Saving..." : restoring ? "Put back" : "Mark not needed"}
+      </button>
+      {done && <p className="text-xs text-green-700">{done}</p>}
+      {status === "error" && <p className="text-xs text-red-600">{error}</p>}
+    </form>
+  );
+}
+
+/**
+ * Records that a club quit a game part way through.
+ *
+ * A no-show forfeits 1-0 with no box score and the site recognises that shape
+ * on its own. Quitting a game already in progress leaves a real score and a
+ * partial box score, which is indistinguishable from an ordinary loss - so it
+ * has to be recorded by hand. The inning play stopped in is shown beside it.
+ */
+export function MarkForfeitForm({
+  games,
+}: {
+  games: { id: number; label: string; forfeit: boolean; note: string | null }[];
+}) {
+  const { submit, status, error } = useSubmit("/api/fixtures/status");
+  const [gameId, setGameId] = useState("");
+  const [note, setNote] = useState("");
+  const [done, setDone] = useState<string | null>(null);
+
+  const chosen = games.find((game) => String(game.id) === gameId);
+  const clearing = chosen?.forfeit ?? false;
+
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    setDone(null);
+    submit(
+      {
+        fixtureId: Number(gameId),
+        status: clearing ? null : "FORFEIT",
+        note: clearing ? null : note.trim() || null,
+      },
+      () => {
+        setDone(clearing ? "No longer a forfeit." : "Recorded as a forfeit.");
+        setGameId("");
+        setNote("");
+      },
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 rounded border p-4">
+      <h3 className="font-semibold">Mark a forfeit</h3>
+      <p className="text-xs text-gray-500">
+        For a game a club quit while it was being played. Choose a game already marked
+        &quot;forfeit&quot; to undo it.
+      </p>
+      <select
+        className="w-full rounded border p-2 text-sm"
+        value={gameId}
+        onChange={(event) => setGameId(event.target.value)}
+        required
+      >
+        <option value="">Choose a game</option>
+        {games.map((game) => (
+          <option key={game.id} value={game.id}>
+            {game.forfeit ? "↩ " : ""}
+            {game.label}
+          </option>
+        ))}
+      </select>
+      {!clearing && (
+        <input
+          className="w-full rounded border p-2 text-sm"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          placeholder="Inning play stopped in, e.g. 4th (optional)"
+        />
+      )}
+      <button
+        type="submit"
+        disabled={status === "saving" || !gameId}
+        className="rounded bg-black px-3 py-2 text-sm text-white disabled:opacity-50"
+      >
+        {status === "saving" ? "Saving..." : clearing ? "Not a forfeit" : "Mark forfeit"}
+      </button>
+      {done && <p className="text-xs text-green-700">{done}</p>}
+      {status === "error" && <p className="text-xs text-red-600">{error}</p>}
+    </form>
+  );
+}
