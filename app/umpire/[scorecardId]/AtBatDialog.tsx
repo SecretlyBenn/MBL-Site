@@ -68,16 +68,23 @@ export function AtBatDialog({
    * are the count of the runners named, and RBI defaults to the runs - the
    * umpire only touches RBI when the credit differs from the runs, which is
    * the unusual case rather than every play.
+   *
+   * A home run is the exception twice over: everyone aboard scores, so the
+   * umpire is never asked to name them, and the batter is credited for all of
+   * them plus himself. Counting the named runners here would score a grand
+   * slam as one RBI, because on a home run nobody is ever named.
    */
   function patch(change: Partial<AtBatDraft>) {
     const next = { ...draft, ...change };
     const touchedRuns = "scoredRunners" in change || "batterScored" in change || "result" in change;
 
     if (touchedRuns) {
-      const scoredBatter = next.result === "HR" || next.batterScored;
-      next.otherRunsScored = next.scoredRunners.length;
+      const homeRun = next.result === "HR";
+      const scoredBatter = homeRun || next.batterScored;
+      const runnersHome = homeRun ? runners.length : next.scoredRunners.length;
+      next.otherRunsScored = runnersHome;
       if (!("rbis" in change)) {
-        next.rbis = next.scoredRunners.length + (scoredBatter ? 1 : 0);
+        next.rbis = runnersHome + (scoredBatter ? 1 : 0);
       }
     }
     setDraft(next);
@@ -295,8 +302,22 @@ export function AtBatDialog({
 
           {/* RBI follows the runs by default, and is only worth asking about
               once a run has actually scored. It stays editable because a run
-              scored on an error or a double play is not credited. */}
-          {runsOnPlay > 0 && (
+              scored on an error or a double play is not credited - but a home
+              run always credits the batter for himself and everyone aboard,
+              so there is nothing to ask and the figure is simply stated. */}
+          {isHomeRun && runsOnPlay > 0 && (
+            <p className="ui-field-label">
+              RBI credited: <span className="font-semibold">{runsOnPlay}</span>
+              {runners.length > 0 && (
+                <span className="text-slate-500">
+                  {" "}
+                  - the batter and {runners.length} on base
+                </span>
+              )}
+            </p>
+          )}
+
+          {!isHomeRun && runsOnPlay > 0 && (
             <label className="ui-field-label flex-col !items-start gap-1.5">
               RBI credited
               <select

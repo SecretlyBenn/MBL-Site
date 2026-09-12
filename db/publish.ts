@@ -145,10 +145,6 @@ export async function publishScorecard(scorecardId: number) {
     ],
   });
 
-  const seasonId = await currentSeasonId();
-  const awayTeamId = await seasonTeamId(seasonId, game.awayTeamId);
-  const homeTeamId = await seasonTeamId(seasonId, game.homeTeamId);
-
   // A fixture carried over from the archive keeps the archive's id, so it
   // publishes into the row already sitting on the schedule as unplayed.
   const sourceGameId = game.sourceGameId ?? `live-${game.id}`;
@@ -158,6 +154,15 @@ export async function publishScorecard(scorecardId: number) {
   const existingGame = await db.query.historicalGames.findFirst({
     where: eq(historicalGames.sourceGameId, sourceGameId),
   });
+
+  // A fixture already on a season's schedule belongs to that season, which is
+  // not always the season being played: the postseason is its own season, and
+  // publishing a playoff game into the regular season would add its lines to
+  // the wrong totals and leave the playoffs with none. Only a game the archive
+  // has never heard of falls back to the current season.
+  const seasonId = existingGame?.seasonId ?? (await currentSeasonId());
+  const awayTeamId = await seasonTeamId(seasonId, game.awayTeamId);
+  const homeTeamId = await seasonTeamId(seasonId, game.homeTeamId);
   if (existingGame) {
     await db.delete(historicalGameStats).where(eq(historicalGameStats.gameId, existingGame.id));
     await db.delete(historicalLineScores).where(eq(historicalLineScores.gameId, existingGame.id));
