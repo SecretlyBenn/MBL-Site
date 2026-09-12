@@ -8,7 +8,16 @@
  * Players with no resolved account fall back to a neutral block, so a missing
  * mapping reads as "unknown player" rather than a broken image.
  */
-const HEAD_SERVICE = "https://mc-heads.net/avatar";
+/**
+ * Heads come from this site rather than straight from a skin service.
+ *
+ * Asking a service directly meant twenty connections to a third party per
+ * roster page - slow - and a throttled request came back from mc-heads as the
+ * default Steve rather than an error, so pages quietly filled with strangers.
+ * /api/head caches each head at Cloudflare's edge and falls back between
+ * services, so the browser only ever talks to this origin.
+ */
+const HEAD_SERVICE = "/api/head";
 
 export function PlayerHead({
   uuid,
@@ -37,7 +46,7 @@ export function PlayerHead({
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`${HEAD_SERVICE}/${uuid}/${size * 2}`}
+      src={`${HEAD_SERVICE}/${uuid}?s=${size * 2}`}
       alt={name ? `${name}'s Minecraft skin` : ""}
       width={size}
       height={size}
