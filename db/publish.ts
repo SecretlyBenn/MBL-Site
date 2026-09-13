@@ -497,8 +497,17 @@ export async function recomputeSeason(seasonId: number) {
     // bunts are excluded from both by convention - they are not attempts to
     // reach.
     const reached = hits + walks + hitByPitch;
-    const putouts = totals.putouts ?? 0;
-    const fieldingChances = putouts + (totals.errors ?? 0);
+    // Fielding and baserunning columns only exist on box scores imported since
+    // the importer learned to read them; older per-game rows carry nothing for
+    // them. Writing `totals.x ?? null` here replaced a season's scraped totals
+    // with nothing on every recompute - Season XII lost all 1,100-odd putouts
+    // that way. These fall back to the line already there, and the fielding
+    // percentage is derived from whichever values survive so the total and
+    // its rate cannot disagree.
+    const keptPutouts = kept(totals.putouts, prior?.putouts);
+    const keptErrors = kept(totals.errors, prior?.errors);
+    const putouts = keptPutouts ?? 0;
+    const fieldingChances = putouts + (keptErrors ?? 0);
 
     return {
       ...prior,
@@ -516,13 +525,13 @@ export async function recomputeSeason(seasonId: number) {
       rbis: totals.rbis ?? null,
       walks: totals.walks ?? null,
       strikeouts: totals.strikeouts ?? null,
-      hitByPitch: totals.hitByPitch ?? null,
-      stolenBases: totals.stolenBases ?? null,
-      caughtStealing: totals.caughtStealing ?? null,
-      sacFlies: totals.sacFlies ?? null,
-      leftOnBase: totals.leftOnBase ?? null,
-      putouts: totals.putouts ?? null,
-      errors: totals.errors ?? null,
+      hitByPitch: kept(totals.hitByPitch, prior?.hitByPitch),
+      stolenBases: kept(totals.stolenBases, prior?.stolenBases),
+      caughtStealing: kept(totals.caughtStealing, prior?.caughtStealing),
+      sacFlies: kept(totals.sacFlies, prior?.sacFlies),
+      leftOnBase: kept(totals.leftOnBase, prior?.leftOnBase),
+      putouts: keptPutouts,
+      errors: keptErrors,
       // The league scores no assists, so a fielder's chances are the plays he
       // made plus the ones he dropped.
       fieldingPct: fieldingChances > 0 ? putouts / fieldingChances : null,

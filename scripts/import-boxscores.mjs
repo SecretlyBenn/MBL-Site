@@ -57,16 +57,27 @@ const knownSourceIds = new Set(ids.seasons.flatMap((season) => season.gameIds));
 const BAT = {
   AB: "atBats", R: "runs", H: "hits", "2B": "doubles", "3B": "triples",
   HR: "homeRuns", RBI: "rbis", BB: "walks", SO: "strikeouts",
+  // Fielding and baserunning are on the same box score and were simply never
+  // read. Leaving them out meant recomputing a season replaced the scraped
+  // season totals with nothing, because a rebuild can only total what the
+  // per-game rows carry.
+  PO: "putouts", E: "errors", SB: "stolenBases", CS: "caughtStealing",
+  SF: "sacFlies", LOB: "leftOnBase",
 };
 const PIT = {
   IP: "inningsPitched", ER: "earnedRuns", H: "hitsAllowed", R: "runsAllowed",
-  SO: "strikeoutsPitched", BB: "walksAllowed",
+  SO: "strikeoutsPitched", BB: "walksAllowed", HR: "homeRunsAllowed",
+  W: "wins", L: "losses", SV: "saves", BS: "blownSaves",
+  CG: "completeGames", SHO: "shutouts", GS: "gamesStarted",
 };
 
 const COLUMNS = [
   "atBats", "runs", "hits", "doubles", "triples", "homeRuns", "rbis", "walks",
-  "strikeouts", "inningsPitched", "earnedRuns", "hitsAllowed", "runsAllowed",
-  "strikeoutsPitched", "walksAllowed",
+  "strikeouts", "putouts", "errors", "stolenBases", "caughtStealing",
+  "sacFlies", "leftOnBase", "inningsPitched", "earnedRuns", "hitsAllowed",
+  "runsAllowed", "strikeoutsPitched", "walksAllowed", "homeRunsAllowed",
+  "wins", "losses", "saves", "blownSaves", "completeGames", "shutouts",
+  "gamesStarted",
 ];
 const snake = (name) => name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 
