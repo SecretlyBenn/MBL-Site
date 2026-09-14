@@ -75,7 +75,7 @@ async function currentSeasonId() {
   return created.id;
 }
 
-async function seasonTeamId(seasonId: number, teamId: number) {
+export async function seasonTeamId(seasonId: number, teamId: number) {
   const db = getDb();
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
   if (!team) throw new Error(`Unknown team ${teamId}`);

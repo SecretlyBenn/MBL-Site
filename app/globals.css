@@ -373,6 +373,73 @@ body {
     cursor: not-allowed;
   }
 
+  /* Text fields, matching .ui-select so a form reads as one piece. */
+  .ui-input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid rgb(91 101 114 / 0.55);
+    border-radius: 0.5rem;
+    background-color: rgb(20 26 34);
+    color: rgb(232 236 239);
+    font-size: 0.875rem;
+    transition: border-color 120ms ease;
+  }
+
+  .ui-input::placeholder {
+    color: rgb(113 124 137);
+  }
+
+  .ui-input:hover {
+    border-color: rgb(139 149 161 / 0.8);
+  }
+
+  .ui-input:focus {
+    outline: none;
+    border-color: rgb(94 179 255 / 0.7);
+    box-shadow: 0 0 0 3px rgb(94 179 255 / 0.15);
+  }
+
+  /* The main action in a form. */
+  .ui-button-primary {
+    padding: 0.45rem 0.9rem;
+    border-radius: 0.45rem;
+    background: rgb(2 132 199);
+    color: white;
+    font-size: 0.8rem;
+    font-weight: 700;
+    transition: background-color 120ms ease;
+  }
+
+  .ui-button-primary:hover:not(:disabled) {
+    background: rgb(14 165 233);
+  }
+
+  .ui-button-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* An action that removes something. Quiet until hovered, so it is never
+     the button a hand lands on by default. */
+  .ui-button-danger {
+    padding: 0.35rem 0.75rem;
+    border: 1px solid rgb(159 18 57 / 0.7);
+    border-radius: 0.4rem;
+    color: rgb(253 164 175);
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: background-color 120ms ease;
+  }
+
+  .ui-button-danger:hover:not(:disabled) {
+    background: rgb(76 5 25 / 0.5);
+  }
+
+  .ui-button-danger:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+
   /* Numeric emphasis inside tables. */
   .data-table td.is-key,
   .data-table th.is-key {

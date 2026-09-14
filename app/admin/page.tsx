@@ -1,173 +1,95 @@
 import type { Metadata } from "next";
-import { asc, isNotNull, isNull } from "drizzle-orm";
+import Link from "next/link";
+import { eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import {
-  games,
-  historicalGames,
-  historicalPlayerStats,
-  historicalSeasons,
-  historicalTeams,
-  players,
-  teams,
-  users,
-} from "@/db/schema";
+import { games, historicalSeasons, minecraftProfiles, players, scorecards, teams, users } from "@/db/schema";
 import { requireRole } from "@/app/roles";
-import {
-  CreatePlayerForm,
-  CreateTeamForm,
-  CreateUserForm,
-  MarkForfeitForm,
-  RecomputeSeasonForm,
-  RenamePlayerForm,
-  RetireFixtureForm,
-  ScheduleGameForm,
-} from "./AdminForms";
-import { UserRoleRow } from "./UserRoleRow";
+import { SectionHeader } from "@/app/SiteNav";
 
-export const metadata: Metadata = {
-  title: "League Admin",
-  robots: { index: false },
-};
-
+export const metadata: Metadata = { title: "Overview" };
 export const dynamic = "force-dynamic";
 
-export default async function AdminPage() {
+/**
+ * Where an admin starts: what needs attention, and a door into each section.
+ * Only counts are read here - each section loads its own rows - so this page
+ * stays light however large the league grows.
+ */
+export default async function AdminOverviewPage() {
   const leagueUser = await requireRole(["ADMIN"], "/admin");
-
   const db = getDb();
-  const allTeams = await db.select().from(teams);
-  const allPlayers = await db.select().from(players);
-  const allUsers = await db.select().from(users);
-  const allGames = await db.select().from(games);
-  // Every name the site knows, not just the current pool: most names on the
-  // site belong to the archive alone, and those can be renamed too.
-  const archived = await db
-    .selectDistinct({ name: historicalPlayerStats.playerName })
-    .from(historicalPlayerStats);
-  const knownNames = [
-    ...new Set([...allPlayers.map((player) => player.displayName), ...archived.map((row) => row.name)]),
-  ].sort((a, b) => a.localeCompare(b));
-  const teamNameById = new Map(allTeams.map((team) => [team.id, team.name]));
+  const n = sql<number>`count(*)`;
+  const one = async (query: Promise<{ n: number }[]>) => Number((await query)[0]?.n ?? 0);
 
-  const allSeasons = await db
-    .select({ id: historicalSeasons.id, name: historicalSeasons.name })
-    .from(historicalSeasons)
-    .orderBy(asc(historicalSeasons.sortOrder));
+  const [teamCount, playerCount, unlinked, scheduled, pendingReview, seasonCount, accountCount] = await Promise.all([
+    one(db.select({ n }).from(teams)),
+    one(db.select({ n }).from(players)),
+    one(
+      db
+        .select({ n })
+        .from(players)
+        .leftJoin(minecraftProfiles, eq(minecraftProfiles.playerName, players.displayName))
+        .where(isNull(minecraftProfiles.uuid)),
+    ),
+    one(db.select({ n }).from(games).where(eq(games.status, "SCHEDULED"))),
+    one(db.select({ n }).from(scorecards).where(eq(scorecards.status, "PENDING"))),
+    one(db.select({ n }).from(historicalSeasons)),
+    one(db.select({ n }).from(users)),
+  ]);
 
-  // Only unplayed fixtures can be retired, so those are the only ones offered -
-  // along with any already retired, so the choice can be undone.
-  const archiveTeams = await db.select().from(historicalTeams);
-  const archiveTeamName = new Map(archiveTeams.map((row) => [row.id, row.name]));
-  const seasonName = new Map(allSeasons.map((row) => [row.id, row.name]));
-  const openFixtures = await db
-    .select()
-    .from(historicalGames)
-    .where(isNull(historicalGames.homeScore))
-    .orderBy(asc(historicalGames.seasonId), asc(historicalGames.sortOrder));
-  const fixtureLabel = (fixture: {
-    seasonId: number;
-    awayTeamId: number | null;
-    homeTeamId: number | null;
-    playedOn: string | null;
-  }) =>
-    `${seasonName.get(fixture.seasonId) ?? "Season"}: ${
-      archiveTeamName.get(fixture.awayTeamId ?? -1) ?? "Away"
-    } @ ${archiveTeamName.get(fixture.homeTeamId ?? -1) ?? "Home"}${
-      fixture.playedOn ? ` - ${fixture.playedOn}` : ""
-    }`;
-
-  // Only played games can be quit part way through, so those are the ones the
-  // forfeit control offers. Newest season first - that is where corrections
-  // almost always land.
-  const playedGames = await db
-    .select()
-    .from(historicalGames)
-    .where(isNotNull(historicalGames.homeScore))
-    .orderBy(asc(historicalGames.seasonId), asc(historicalGames.sortOrder));
-  const forfeitOptions = playedGames.map((game) => ({
-    id: game.id,
-    forfeit: game.status === "FORFEIT",
-    note: game.note,
-    label: `${fixtureLabel(game)} (${game.awayScore}-${game.homeScore})`,
-  }));
-
-  const fixtureOptions = openFixtures.map((fixture) => ({
-    id: fixture.id,
-    retired: fixture.status === "NOT_NEEDED",
-    label: `${seasonName.get(fixture.seasonId) ?? "Season"}: ${
-      archiveTeamName.get(fixture.awayTeamId ?? -1) ?? "Away"
-    } @ ${archiveTeamName.get(fixture.homeTeamId ?? -1) ?? "Home"}${
-      fixture.playedOn ? ` - ${fixture.playedOn}` : ""
-    }`,
-  }));
+  const sections = [
+    {
+      href: "/admin/teams",
+      title: "Teams",
+      stat: `${teamCount} clubs`,
+      body: "Add a club, rename it, change its colours, upload its logo, or remove one added by mistake.",
+    },
+    {
+      href: "/admin/players",
+      title: "Players",
+      stat: `${playerCount} in the pool`,
+      alert: unlinked > 0 ? `${unlinked} without a Minecraft account` : undefined,
+      body: "Add a draft class, move players between teams, rename them, and link Minecraft accounts so heads show.",
+    },
+    {
+      href: "/admin/games",
+      title: "Games",
+      stat: `${scheduled} scheduled`,
+      body: "Build a season's schedule, remove a game, retire a game a series never reached, record a forfeit.",
+    },
+    {
+      href: "/admin/seasons",
+      title: "Seasons",
+      stat: `${seasonCount} seasons`,
+      body: "Start the next season or its playoffs, and recount a season's standings and stats.",
+    },
+    {
+      href: "/admin/accounts",
+      title: "Accounts",
+      stat: `${accountCount} accounts`,
+      alert: pendingReview > 0 ? `${pendingReview} scorecard${pendingReview === 1 ? "" : "s"} waiting for review` : undefined,
+      body: "Give umpires, head umpires, GMs and admins access, and change their roles.",
+    },
+  ];
 
   return (
-    <main className="mx-auto max-w-4xl p-8">
-      <h1 className="mb-1 text-2xl font-bold">League admin</h1>
-      <p className="mb-6 text-sm text-gray-500">
-        Signed in as {leagueUser.displayName} ({leagueUser.role})
-      </p>
-
-      <div className="mb-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <CreateTeamForm />
-        <CreatePlayerForm />
-        <CreateUserForm teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
-        <ScheduleGameForm teams={allTeams.map((team) => ({ id: team.id, name: team.name }))} />
-        <RenamePlayerForm names={knownNames} />
-        <RecomputeSeasonForm seasons={allSeasons} />
-        <RetireFixtureForm fixtures={fixtureOptions} />
-        <MarkForfeitForm games={forfeitOptions} />
+    <>
+      <SectionHeader title={`Signed in as ${leagueUser.displayName}`} />
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {sections.map((section) => (
+          <Link
+            key={section.href}
+            href={section.href}
+            className="ui-card group flex flex-col gap-1.5 p-4 transition-colors hover:border-sky-700/60"
+          >
+            <span className="flex items-baseline justify-between gap-2">
+              <span className="text-base font-bold text-slate-100 group-hover:text-sky-300">{section.title}</span>
+              <span className="text-xs text-slate-500">{section.stat}</span>
+            </span>
+            <span className="text-sm leading-relaxed text-slate-400">{section.body}</span>
+            {section.alert && <span className="text-xs font-semibold text-amber-400">{section.alert}</span>}
+          </Link>
+        ))}
       </div>
-
-      <section className="mb-8">
-        <h2 className="mb-2 font-semibold">Teams ({allTeams.length})</h2>
-        <ul className="space-y-1 text-sm">
-          {allTeams.map((team) => (
-            <li key={team.id}>
-              {team.name} ({team.abbreviation})
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="mb-8">
-        <h2 className="mb-2 font-semibold">Player pool ({allPlayers.length})</h2>
-        <ul className="space-y-1 text-sm">
-          {allPlayers.map((player) => (
-            <li key={player.id}>
-              {player.displayName} - {player.status}
-              {player.teamId ? ` (${teamNameById.get(player.teamId) ?? "unknown team"})` : ""}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="mb-8">
-        <h2 className="mb-2 font-semibold">League accounts ({allUsers.length})</h2>
-        <ul className="space-y-2">
-          {allUsers.map((user) => (
-            <UserRoleRow
-              key={user.id}
-              user={user}
-              teams={allTeams.map((team) => ({ id: team.id, name: team.name }))}
-            />
-          ))}
-        </ul>
-      </section>
-
-      <section>
-        <h2 className="mb-2 font-semibold">Schedule ({allGames.length})</h2>
-        <ul className="space-y-1 text-sm">
-          {allGames.map((game) => (
-            <li key={game.id}>
-              {teamNameById.get(game.awayTeamId) ?? "Away"} @{" "}
-              {teamNameById.get(game.homeTeamId) ?? "Home"} -{" "}
-              {new Date(game.scheduledAt).toLocaleString()} - {game.status}
-              {game.status === "FINAL" ? ` (${game.awayScore}-${game.homeScore})` : ""}
-            </li>
-          ))}
-        </ul>
-      </section>
-    </main>
+    </>
   );
 }
