@@ -46,11 +46,11 @@ export function RosterActionButton({
         type="button"
         disabled={busy}
         onClick={act}
-        className={className ?? "rounded bg-gray-800 px-2 py-1 text-xs text-white disabled:opacity-50"}
+        className={className ?? "ui-button"}
       >
         {busy ? "..." : label}
       </button>
-      {error && <span role="alert" className="text-xs text-red-600">{error}</span>}
+      {error && <span role="alert" className="text-xs text-rose-400">{error}</span>}
     </span>
   );
 }

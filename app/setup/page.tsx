@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -27,30 +28,35 @@ export default function SetupPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center gap-4 p-8 text-center">
-      <h1 className="text-2xl font-bold">First-time setup</h1>
-      <p className="text-gray-500">
-        No league accounts exist yet. If this is the first time this site is
-        being set up, sign in with Discord above, then claim the admin role
-        below. This only works once - it does nothing if any account already
-        exists.
+    <div className="ui-card mx-auto flex max-w-lg flex-col gap-4 p-6">
+      <p className="text-sm leading-relaxed text-slate-300">
+        No league accounts exist yet. If this is the first time the site is being set up, sign in
+        with Discord using the button at the top of the page, then claim the admin role below.
+      </p>
+      <p className="text-xs text-slate-500">
+        This only works once - it does nothing if any account already exists.
       </p>
       <button
         type="button"
         onClick={claimAdmin}
         disabled={status === "working" || status === "done"}
-        className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+        className="ui-button-primary self-start"
       >
-        {status === "working" ? "Setting up..." : "Claim admin role"}
+        {status === "working" ? "Setting up…" : "Claim admin role"}
       </button>
       {message && (
-        <p role={status === "error" ? "alert" : "status"} className={status === "error" ? "text-red-600" : "text-green-600"}>{message}</p>
+        <p
+          role={status === "error" ? "alert" : "status"}
+          className={`text-sm ${status === "error" ? "text-rose-400" : "text-emerald-400"}`}
+        >
+          {message}
+        </p>
       )}
       {status === "done" && (
-        <a href="/admin" className="text-blue-600 hover:underline">
-          Go to admin page
-        </a>
+        <Link href="/admin" className="ui-link self-start text-sm">
+          Go to the admin page →
+        </Link>
       )}
-    </main>
+    </div>
   );
 }

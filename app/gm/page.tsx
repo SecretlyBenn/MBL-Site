@@ -3,6 +3,8 @@ import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { players, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
+import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
+import { TeamLogo } from "@/app/TeamLogo";
 import { RosterActionButton } from "./RosterActions";
 import { TeamPicker } from "./TeamPicker";
 
@@ -12,6 +14,31 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+function PlayerList({
+  players: list,
+  empty,
+  children,
+}: {
+  players: { id: number; displayName: string }[];
+  empty: string;
+  children: (player: { id: number; displayName: string }) => React.ReactNode;
+}) {
+  if (list.length === 0) return <EmptyState>{empty}</EmptyState>;
+  return (
+    <ul className="ui-card px-3">
+      {list.map((player) => (
+        <li
+          key={player.id}
+          className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/60 py-2 last:border-0"
+        >
+          <span className="font-medium text-slate-100">{player.displayName}</span>
+          <div className="flex gap-2">{children(player)}</div>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 export default async function GmPage({
   searchParams,
@@ -35,96 +62,69 @@ export default async function GmPage({
 
   if (!teamId) {
     return (
-      <main className="mx-auto max-w-3xl p-8">
-        <p className="text-rose-400">Your account has no team assigned. Contact an admin.</p>
-      </main>
+      <PageShell title="General Manager">
+        <EmptyState>Your account has no team assigned yet. Ask a league admin to set your team.</EmptyState>
+      </PageShell>
     );
   }
 
   const teamPlayers = await db.select().from(players).where(eq(players.teamId, teamId));
-  const active = teamPlayers.filter((player) => player.status === "ACTIVE");
-  const tripleA = teamPlayers.filter((player) => player.status === "TRIPLE_A");
-  const freeAgents = await db.select().from(players).where(eq(players.status, "FREE_AGENT"));
+  const byName = (a: { displayName: string }, b: { displayName: string }) => a.displayName.localeCompare(b.displayName);
+  const active = teamPlayers.filter((player) => player.status === "ACTIVE").sort(byName);
+  const tripleA = teamPlayers.filter((player) => player.status === "TRIPLE_A").sort(byName);
+  const freeAgents = (await db.select().from(players).where(eq(players.status, "FREE_AGENT"))).sort(byName);
 
   return (
-    <main className="mx-auto max-w-3xl p-8">
-      {isAdmin && (
-        <div className="mb-5">
-          <TeamPicker
-            teams={allTeams.map((row) => ({ id: row.id, name: row.name }))}
-            teamId={teamId}
-          />
+    <PageShell
+      header={
+        <div className="flex flex-wrap items-center gap-4 border-b border-slate-800/80 pb-3">
+          {team && <TeamLogo teamName={team.name} className="h-12 w-12" />}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl font-bold tracking-tight">{team?.name ?? "Your team"}</h1>
+            <p className="text-sm text-slate-400">
+              Roster management · {leagueUser.displayName}
+            </p>
+          </div>
+          {isAdmin && (
+            <TeamPicker teams={allTeams.map((row) => ({ id: row.id, name: row.name }))} teamId={teamId} />
+          )}
         </div>
-      )}
-
-      <h1 className="mb-1 text-2xl font-bold">{team?.name ?? "Your team"} roster</h1>
-      <p className="mb-6 text-sm text-gray-500">
-        Signed in as {leagueUser.displayName} ({leagueUser.role})
-      </p>
-
-      <section className="mb-8">
-        <h2 className="mb-2 font-semibold">Active roster</h2>
-        {active.length === 0 ? (
-          <p className="text-sm text-gray-500">No active players.</p>
-        ) : (
-          <ul className="space-y-2">
-            {active.map((player) => (
-              <li key={player.id} className="flex items-center justify-between rounded border p-2">
-                <span>{player.displayName}</span>
-                <div className="flex gap-2">
+      }
+    >
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="flex flex-col gap-6">
+          <section>
+            <SectionHeader title="Active roster" meta={`${active.length} players`} />
+            <PlayerList players={active} empty="No active players.">
+              {(player) => (
+                <>
                   <RosterActionButton playerId={player.id} moveType="SEND_DOWN" label="Send to AAA" />
-                  <RosterActionButton
-                    playerId={player.id}
-                    moveType="RELEASE"
-                    label="Release"
-                    className="rounded bg-red-700 px-2 py-1 text-xs text-white disabled:opacity-50"
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                  <RosterActionButton playerId={player.id} moveType="RELEASE" label="Release" className="ui-button-danger" />
+                </>
+              )}
+            </PlayerList>
+          </section>
 
-      <section className="mb-8">
-        <h2 className="mb-2 font-semibold">Triple-A</h2>
-        {tripleA.length === 0 ? (
-          <p className="text-sm text-gray-500">No players on the farm team.</p>
-        ) : (
-          <ul className="space-y-2">
-            {tripleA.map((player) => (
-              <li key={player.id} className="flex items-center justify-between rounded border p-2">
-                <span>{player.displayName}</span>
-                <div className="flex gap-2">
+          <section>
+            <SectionHeader title="Triple-A" meta={`${tripleA.length} players`} />
+            <PlayerList players={tripleA} empty="No players on the farm team.">
+              {(player) => (
+                <>
                   <RosterActionButton playerId={player.id} moveType="RECALL" label="Recall" />
-                  <RosterActionButton
-                    playerId={player.id}
-                    moveType="RELEASE"
-                    label="Release"
-                    className="rounded bg-red-700 px-2 py-1 text-xs text-white disabled:opacity-50"
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                  <RosterActionButton playerId={player.id} moveType="RELEASE" label="Release" className="ui-button-danger" />
+                </>
+              )}
+            </PlayerList>
+          </section>
+        </div>
 
-      <section>
-        <h2 className="mb-2 font-semibold">Free agents</h2>
-        {freeAgents.length === 0 ? (
-          <p className="text-sm text-gray-500">No free agents in the pool.</p>
-        ) : (
-          <ul className="space-y-2">
-            {freeAgents.map((player) => (
-              <li key={player.id} className="flex items-center justify-between rounded border p-2">
-                <span>{player.displayName}</span>
-                <RosterActionButton playerId={player.id} moveType="SIGN" teamId={teamId} label="Sign" />
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+        <section>
+          <SectionHeader title="Free agents" meta={`${freeAgents.length} available`} />
+          <PlayerList players={freeAgents} empty="No free agents in the pool.">
+            {(player) => <RosterActionButton playerId={player.id} moveType="SIGN" teamId={teamId} label="Sign" />}
+          </PlayerList>
+        </section>
+      </div>
+    </PageShell>
   );
 }
