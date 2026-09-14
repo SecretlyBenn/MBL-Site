@@ -1,3 +1,9 @@
+"use client";
+
+import { logoKey } from "./logo-key";
+import { useLogoOverrides } from "./LogoOverrides";
+
+/** The logos that ship with the site, matched by the nickname in a club's name. */
 const LOGOS: Record<string, string> = {
   "saber tooth": "/team-logos/saber-tooths.png",
   sabertooth: "/team-logos/saber-tooths.png",
@@ -44,7 +50,13 @@ export function teamLogoPath(teamName: string) {
   return Object.entries(LOGOS).find(([nickname]) => normalized.includes(nickname))?.[1] ?? null;
 }
 
+/**
+ * A club's logo. One uploaded through the admin page wins; otherwise the
+ * built-in logo for the club's nickname; otherwise nothing.
+ */
 export function TeamLogo({ teamName, className = "h-8 w-8" }: { teamName: string; className?: string }) {
-  const src = teamLogoPath(teamName);
+  const overrides = useLogoOverrides();
+  const src = overrides[logoKey(teamName)] ?? teamLogoPath(teamName);
+  // eslint-disable-next-line @next/next/no-img-element
   return src ? <img src={src} alt={`${teamName} logo`} className={`${className} object-contain`} /> : null;
 }

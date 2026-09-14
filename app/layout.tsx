@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "./Analytics";
 import { CookieNotice } from "./CookieNotice";
+import { LogoOverridesProvider } from "./LogoOverrides";
+import { getLogoOverrides } from "@/db/logos";
 import { SITE } from "./site";
 import "./globals.css";
 
@@ -38,7 +40,7 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -48,7 +50,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} bg-slate-950 antialiased`}
       >
-        {children}
+        {/* Uploaded logos are read once here, as a handful of names and URLs,
+            and every TeamLogo below looks itself up in them. */}
+        <LogoOverridesProvider value={await getLogoOverrides()}>{children}</LogoOverridesProvider>
         <CookieNotice />
         <Analytics />
       </body>
