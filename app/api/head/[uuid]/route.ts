@@ -1,72 +1,133 @@
+import { eq } from "drizzle-orm";
+import { getDb } from "@/db";
+import { minecraftProfiles, minecraftSkins } from "@/db/schema";
+
 /**
- * Serves a player's Minecraft head, cached at the edge.
+ * Serves the skin a Minecraft account is wearing, straight from Mojang.
  *
- * Fetching these straight from a skin service in the browser has two problems.
- * A roster page asks for twenty heads at once, and the services throttle a
- * burst like that - mc-heads answers a throttled request with the default
- * Steve rather than an error, so the page quietly fills with strangers. And
- * every head costs the visitor a fresh connection to a third party, which is
- * what made them crawl in.
+ * Heads used to come from third-party avatar services (minotar, mc-heads).
+ * Both served the default Steve for accounts Mojang confirms have a custom
+ * skin, so pages showed strangers no matter which one was asked. Mojang is the
+ * source those services copy from: its session server names the account's
+ * texture, and textures.minecraft.net serves the skin itself.
  *
- * Going through here fixes both: the browser talks only to this origin, and
- * Cloudflare keeps each head in its cache, so a head is fetched from upstream
- * once and served from the edge afterwards. Skins change rarely, so a long TTL
- * costs nothing and a changed skin appears within the day.
+ * This returns the whole 64x64 skin rather than a cropped face - a Worker has
+ * no image library to crop with - and PlayerHead cuts the face and hat out of
+ * it in CSS.
+ *
+ * The session server is rate limited, so its answer is kept in minecraft_skins
+ * and asked for again only once it is STALE_AFTER old. That refresh is also how
+ * a new skin or a renamed account reaches the site with nobody editing
+ * anything. The texture URLs are content-addressed and not rate limited, so
+ * fetching the skin itself is always safe.
  */
 
-/** Upstream services, tried in order. Minotar first - it answered correctly for
- *  every account mc-heads served a default skin for. */
-const SERVICES = [
-  (uuid: string, size: number) => `https://minotar.net/avatar/${uuid}/${size}`,
-  (uuid: string, size: number) => `https://mc-heads.net/avatar/${uuid}/${size}`,
-];
+const STALE_AFTER_MS = 6 * 60 * 60 * 1000;
+/** Browsers keep a skin this long before asking again. */
+const BROWSER_CACHE_SECONDS = 6 * 60 * 60;
+const TIMEOUT_MS = 4000;
 
-const DAY = 86_400;
+type Resolved = { name: string | null; skinUrl: string | null };
 
-export async function GET(request: Request, context: { params: Promise<{ uuid: string }> }) {
-  const { uuid } = await context.params;
+/** Asks Mojang which skin the account wears. Null when Mojang did not answer. */
+async function askMojang(uuid: string): Promise<Resolved | null> {
+  try {
+    const response = await fetch(`https://sessionserver.mojang.com/session/minecraft/profile/${uuid}`, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    if (!response.ok) return null;
+    const profile = (await response.json()) as {
+      name?: string;
+      properties?: { name: string; value: string }[];
+    };
+    const textures = profile.properties?.find((property) => property.name === "textures");
+    let skinUrl: string | null = null;
+    if (textures) {
+      const decoded = JSON.parse(atob(textures.value)) as {
+        textures?: { SKIN?: { url?: string } };
+      };
+      skinUrl = decoded.textures?.SKIN?.url ?? null;
+    }
+    // Mojang hands these out as http; the CDN serves the same file over https.
+    return { name: profile.name ?? null, skinUrl: skinUrl?.replace(/^http:/, "https:") ?? null };
+  } catch {
+    return null;
+  }
+}
 
-  // The id goes into an upstream URL, so it is checked rather than trusted.
-  if (!/^[0-9a-f]{32}$/i.test(uuid)) {
+/** The skin Mojang last reported, refreshed when stale. */
+async function resolveSkin(uuid: string): Promise<Resolved | null> {
+  const db = getDb();
+  const cached = await db.query.minecraftSkins.findFirst({ where: eq(minecraftSkins.uuid, uuid) });
+  const fresh = cached && Date.now() - Date.parse(cached.checkedAt) < STALE_AFTER_MS;
+  if (cached && fresh) return { name: cached.name, skinUrl: cached.skinUrl };
+
+  const answer = await askMojang(uuid);
+  // Mojang busy or down: an old answer beats no head at all.
+  if (!answer) return cached ? { name: cached.name, skinUrl: cached.skinUrl } : null;
+
+  const checkedAt = new Date().toISOString();
+  await db
+    .insert(minecraftSkins)
+    .values({ uuid, name: answer.name, skinUrl: answer.skinUrl, checkedAt })
+    .onConflictDoUpdate({
+      target: minecraftSkins.uuid,
+      set: { name: answer.name, skinUrl: answer.skinUrl, checkedAt },
+    });
+
+  // A renamed account keeps its UUID, so the name on file can follow it.
+  if (answer.name && answer.name !== cached?.name) {
+    await db
+      .update(minecraftProfiles)
+      .set({ currentName: answer.name })
+      .where(eq(minecraftProfiles.uuid, uuid));
+  }
+  return answer;
+}
+
+async function fetchImage(url: string) {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!response.ok) return null;
+    const body = await response.arrayBuffer();
+    return body.byteLength > 0 ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(_request: Request, context: { params: Promise<{ uuid: string }> }) {
+  const { uuid: raw } = await context.params;
+  const uuid = raw.toLowerCase().replace(/-/g, "");
+
+  // The id goes into upstream URLs, so it is checked rather than trusted.
+  if (!/^[0-9a-f]{32}$/.test(uuid)) {
     return new Response("Not a player id", { status: 400 });
   }
 
-  const requested = Number(new URL(request.url).searchParams.get("s") ?? 64);
-  const size = Number.isFinite(requested) ? Math.min(256, Math.max(8, Math.round(requested))) : 64;
-
-  // Caching is left to the Cache-Control headers below rather than the Cache
-  // API: `caches.default` is not available in this runtime and reaching for it
-  // threw, which took the whole route down.
-  for (const build of SERVICES) {
-    try {
-      // A service that hangs must not hold the page's head hostage - give up
-      // and try the next one. One upstream was taking over twenty seconds.
-      const upstream = await fetch(build(uuid, size), {
-        headers: { "User-Agent": "mbl-site (minecraftbaseball.com)" },
-        signal: AbortSignal.timeout(4000),
-      });
-      if (!upstream.ok) continue;
-
-      const body = await upstream.arrayBuffer();
-      // An empty body means the service answered without an image; treating it
-      // as a hit would cache a blank head for a day.
-      if (body.byteLength === 0) continue;
-
-      return new Response(body, {
-        headers: {
-          "Content-Type": upstream.headers.get("Content-Type") ?? "image/png",
-          "Cache-Control": `public, max-age=${DAY}, s-maxage=${DAY}`,
-        },
-      });
-    } catch {
-      // Try the next service rather than failing the whole request.
-    }
+  let resolved: Resolved | null = null;
+  try {
+    resolved = await resolveSkin(uuid);
+  } catch {
+    // The database being unavailable should not cost anyone their head.
+    resolved = await askMojang(uuid);
   }
 
-  // Nothing upstream answered. A short cache keeps a run of failures from
-  // hammering the services, without pinning the failure for a day.
-  return new Response(null, {
-    status: 404,
-    headers: { "Cache-Control": "public, max-age=300" },
+  const body =
+    (resolved?.skinUrl ? await fetchImage(resolved.skinUrl) : null) ??
+    // No custom skin, or Mojang unreachable: minotar serves the correct default
+    // skin for the account. Its failure mode - serving a default - is exactly
+    // right here, where a default is the answer.
+    (await fetchImage(`https://minotar.net/skin/${uuid}`));
+
+  if (!body) {
+    return new Response(null, { status: 404, headers: { "Cache-Control": "public, max-age=300" } });
+  }
+
+  return new Response(body, {
+    headers: {
+      "Content-Type": "image/png",
+      "Cache-Control": `public, max-age=${BROWSER_CACHE_SECONDS}`,
+    },
   });
 }

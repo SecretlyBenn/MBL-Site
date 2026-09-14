@@ -391,6 +391,32 @@ export const minecraftProfiles = sqliteTable("minecraft_profiles", {
 });
 
 /**
+ * A logo uploaded through the admin page, overriding the built-in one for a
+ * club. `teamName` is the club's name lowercased - the archive knows clubs only
+ * by name, so an upload applies to every season the club appears in. `data` is
+ * base64; the browser resizes the image before sending it.
+ */
+export const teamLogos = sqliteTable("team_logos", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  teamName: text("team_name").notNull().unique(),
+  contentType: text("content_type").notNull(),
+  data: text("data").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
+ * What Mojang last reported for an account: its name and the skin it wears.
+ * Kept so the head route asks Mojang's rate-limited session server only when
+ * the answer has gone stale. `skinUrl` is null for a default skin.
+ */
+export const minecraftSkins = sqliteTable("minecraft_skins", {
+  uuid: text("uuid").primaryKey(),
+  name: text("name"),
+  skinUrl: text("skin_url"),
+  checkedAt: text("checked_at").notNull(),
+});
+
+/**
  * Who is in a game and where they play. One row per player involved, for both
  * sides of one scorecard.
  *
