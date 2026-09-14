@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { getHistoricalSeasons } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
+
+export const metadata: Metadata = {
+  title: "Seasons",
+  description:
+    "Every Minecraft Baseball League season since Season IV, with standings, playoffs and statistics for each.",
+  alternates: { canonical: "/seasons" },
+};
 
 export const dynamic = "force-dynamic";
 

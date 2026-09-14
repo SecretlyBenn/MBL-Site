@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import { describeLocalDateTime } from "@/app/datetime";
 
 type Team = { id: number; name: string };
 type RoleOption = "ADMIN" | "HEAD_UMPIRE" | "UMPIRE" | "GM";
@@ -99,7 +100,7 @@ export function RenamePlayerForm({ names }: { names: string[] }) {
         {status === "saving" ? "Renaming..." : "Rename"}
       </button>
       {done && <p className="text-sm text-green-600">{done}</p>}
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     </form>
   );
 }
@@ -148,7 +149,7 @@ export function CreateTeamForm() {
       >
         Add team
       </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     </form>
   );
 }
@@ -190,7 +191,7 @@ export function CreatePlayerForm() {
       >
         Add player
       </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     </form>
   );
 }
@@ -263,7 +264,7 @@ export function CreateUserForm({ teams }: { teams: Team[] }) {
       >
         Add account
       </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     </form>
   );
 }
@@ -318,6 +319,9 @@ export function ScheduleGameForm({ teams }: { teams: Team[] }) {
         onChange={(event) => setScheduledAt(event.target.value)}
         required
       />
+      {describeLocalDateTime(scheduledAt) && (
+        <p className="text-xs font-medium text-gray-600">{describeLocalDateTime(scheduledAt)}</p>
+      )}
       <button
         type="submit"
         disabled={status === "saving" || homeTeamId === awayTeamId}
@@ -325,7 +329,7 @@ export function ScheduleGameForm({ teams }: { teams: Team[] }) {
       >
         Schedule game
       </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     </form>
   );
 }
@@ -379,7 +383,7 @@ export function RecomputeSeasonForm({ seasons }: { seasons: Team[] }) {
         {status === "saving" ? "Recounting..." : "Recount"}
       </button>
       {done && <p className="text-xs text-green-700">{done}</p>}
-      {status === "error" && <p className="text-xs text-red-600">{error}</p>}
+      {status === "error" && <p role="alert" className="text-xs text-red-600">{error}</p>}
     </form>
   );
 }
@@ -441,7 +445,7 @@ export function RetireFixtureForm({
         {status === "saving" ? "Saving..." : restoring ? "Put back" : "Mark not needed"}
       </button>
       {done && <p className="text-xs text-green-700">{done}</p>}
-      {status === "error" && <p className="text-xs text-red-600">{error}</p>}
+      {status === "error" && <p role="alert" className="text-xs text-red-600">{error}</p>}
     </form>
   );
 }
@@ -521,7 +525,7 @@ export function MarkForfeitForm({
         {status === "saving" ? "Saving..." : clearing ? "Not a forfeit" : "Mark forfeit"}
       </button>
       {done && <p className="text-xs text-green-700">{done}</p>}
-      {status === "error" && <p className="text-xs text-red-600">{error}</p>}
+      {status === "error" && <p role="alert" className="text-xs text-red-600">{error}</p>}
     </form>
   );
 }

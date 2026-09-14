@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { asc, isNotNull, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
@@ -22,6 +23,11 @@ import {
   ScheduleGameForm,
 } from "./AdminForms";
 import { UserRoleRow } from "./UserRoleRow";
+
+export const metadata: Metadata = {
+  title: "League Admin",
+  robots: { index: false },
+};
 
 export const dynamic = "force-dynamic";
 

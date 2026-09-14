@@ -211,7 +211,7 @@ export function LineupEditor({
         )}
 
         {duplicate && <p className="text-xs text-amber-400">The same player appears twice.</p>}
-        {error && <p className="text-xs text-rose-400">{error}</p>}
+        {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
 
         <button
           type="button"

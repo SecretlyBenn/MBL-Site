@@ -44,7 +44,7 @@ export default function SetupPage() {
         {status === "working" ? "Setting up..." : "Claim admin role"}
       </button>
       {message && (
-        <p className={status === "error" ? "text-red-600" : "text-green-600"}>{message}</p>
+        <p role={status === "error" ? "alert" : "status"} className={status === "error" ? "text-red-600" : "text-green-600"}>{message}</p>
       )}
       {status === "done" && (
         <a href="/admin" className="text-blue-600 hover:underline">

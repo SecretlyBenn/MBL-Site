@@ -117,7 +117,7 @@ export function DefensePanel({
       </p>
 
       {notice && <p className="mb-2 text-[11px] text-emerald-400">{notice}</p>}
-      {error && <p className="mb-2 text-[11px] text-rose-400">{error}</p>}
+      {error && <p role="alert" className="mb-2 text-[11px] text-rose-400">{error}</p>}
 
       <ul className="space-y-1 text-xs">
         {fielders.map((fielder) => (

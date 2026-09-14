@@ -22,16 +22,18 @@ export async function SignInButton() {
     return (
       <a
         href="/api/auth/discord"
-        className="ml-auto rounded-md bg-[#5865F2] px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#4752c4]"
+        className="whitespace-nowrap rounded-md bg-[#5865F2] px-3.5 py-2 text-sm font-bold text-white transition-colors hover:bg-[#4752c4]"
       >
-        Sign in with Discord
+        {/* The full label does not fit beside the menu button on a phone. */}
+        <span className="sm:hidden">Sign in</span>
+        <span className="hidden sm:inline">Sign in with Discord</span>
       </a>
     );
   }
 
   return (
-    <div className="ml-auto flex items-center gap-3">
-      <span className="flex flex-col leading-tight text-right">
+    <div className="flex items-center gap-3">
+      <span className="hidden flex-col text-right leading-tight sm:flex">
         <span className="text-sm font-semibold text-slate-100">{session.displayName}</span>
         <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
           {leagueUser ? leagueUser.role.toLowerCase() : "visitor"}

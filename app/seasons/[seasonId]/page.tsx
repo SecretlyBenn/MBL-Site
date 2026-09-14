@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EmptyState, PageShell } from "@/app/SiteNav";
@@ -6,6 +7,17 @@ import { getHistoricalSeason, getHistoricalSeasonPlayerTotals, getHistoricalSeas
 import { SeasonStatsTable } from "./SeasonStatsTable";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ seasonId: string }> }): Promise<Metadata> {
+  const seasonId = Number((await params).seasonId);
+  const season = Number.isInteger(seasonId) ? await getHistoricalSeason(seasonId) : null;
+  if (!season) return { title: "Season not found", robots: { index: false } };
+  return {
+    title: season.name,
+    description: `Final standings, batting and pitching statistics for ${season.name} of the Minecraft Baseball League.`,
+    alternates: { canonical: `/seasons/${seasonId}` },
+  };
+}
 
 export default async function SeasonPage({ params }: { params: Promise<{ seasonId: string }> }) {
   const seasonId = Number((await params).seasonId);

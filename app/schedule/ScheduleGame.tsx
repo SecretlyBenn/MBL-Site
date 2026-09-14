@@ -2,6 +2,30 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { describeLocalDateTime } from "@/app/datetime";
+
+/**
+ * An agreed time as it should read: "Sun, Sep 13, 7:00 PM".
+ *
+ * The stored value is a wall-clock time with no zone - "2026-09-13T19:00", as
+ * the clubs typed it. Formatting it with the viewer's own locale and zone meant
+ * the server (running in UTC, in a different locale) and the browser produced
+ * different text, and React threw the card away on load to re-render it. Read
+ * as UTC and printed as UTC in a fixed locale, the numbers come out exactly as
+ * entered, identically everywhere.
+ */
+export function formatAgreedTime(scheduledAt: string) {
+  const parsed = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(scheduledAt) ? scheduledAt : `${scheduledAt}Z`);
+  if (Number.isNaN(parsed.valueOf())) return scheduledAt;
+  return parsed.toLocaleString("en-US", {
+    timeZone: "UTC",
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 /**
  * Setting the date and time two clubs agreed on for an upcoming fixture.
@@ -74,10 +98,7 @@ export function ScheduleGame({
       <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-800/80 pt-2">
         {scheduledAt ? (
           <span className="text-[11px] text-emerald-400">
-            {new Date(scheduledAt).toLocaleString(undefined, {
-              weekday: "short", month: "short", day: "numeric",
-              hour: "numeric", minute: "2-digit",
-            })}
+            {formatAgreedTime(scheduledAt)}
             {claimed && <span className="ml-2 text-slate-500">· being scored</span>}
           </span>
         ) : (
@@ -85,7 +106,7 @@ export function ScheduleGame({
         )}
         <button
           type="button"
-          onClick={(event) => { event.preventDefault(); setOpen(true); }}
+          onClick={() => setOpen(true)}
           className="ml-auto text-[11px] font-semibold text-sky-400 hover:text-sky-300"
         >
           {scheduledAt ? "Change" : "Set a time"}
@@ -95,17 +116,17 @@ export function ScheduleGame({
   }
 
   return (
-    <div
-      className="mt-2 space-y-2 border-t border-slate-800/80 pt-2"
-      onClick={(event) => event.preventDefault()}
-    >
+    <div className="mt-2 space-y-2 border-t border-slate-800/80 pt-2">
       <input
         type="datetime-local"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         className="ui-select w-full !py-1 text-xs"
       />
-      {error && <p className="text-[11px] text-rose-400">{error}</p>}
+      {describeLocalDateTime(value) && (
+        <p className="text-[11px] font-medium text-slate-300">{describeLocalDateTime(value)}</p>
+      )}
+      {error && <p role="alert" className="text-[11px] text-rose-400">{error}</p>}
       <div className="flex flex-wrap gap-2">
         <button
           type="button"

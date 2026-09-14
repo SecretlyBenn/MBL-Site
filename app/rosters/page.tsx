@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import {
   getHistoricalSchedule,
   getHistoricalSeasonStandings,
@@ -11,6 +12,13 @@ import { TeamLogo } from "@/app/TeamLogo";
 import { formatInnings } from "@/app/formatStats";
 import { HistoricalTeamLink, PlayerProfileLink } from "@/app/EntityLinks";
 import { RosterSelect } from "./RosterSelect";
+
+export const metadata: Metadata = {
+  title: "Rosters",
+  description:
+    "Minecraft Baseball League team rosters by season: every player, their positions and their season statistics.",
+  alternates: { canonical: "/rosters" },
+};
 
 export const dynamic = "force-dynamic";
 

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ALL_STAR_BREAK_AFTER_SERIES,
@@ -11,7 +12,14 @@ import { StandingsSeasonSelect } from "@/app/standings/StandingsSeasonSelect";
 import { hasInningByInning, isForfeit } from "@/app/formatStats";
 import { getLeagueUser } from "@/app/roles";
 import { getScheduledTimes } from "@/db/queries";
-import { ScheduleGame } from "./ScheduleGame";
+import { ScheduleGame, formatAgreedTime } from "./ScheduleGame";
+
+export const metadata: Metadata = {
+  title: "Schedule & Scores",
+  description:
+    "Every Minecraft Baseball League game by season, with final scores, line scores and the series still to be played.",
+  alternates: { canonical: "/schedule" },
+};
 
 export const dynamic = "force-dynamic";
 
@@ -238,10 +246,13 @@ function GameCard({
   );
 
   return (
-    <Link
-      href={`/games/${game.id}`}
-      className="block rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 transition-colors hover:border-slate-700 hover:bg-slate-900"
-    >
+    // The card is not itself a link: the time editor below it holds a date
+    // input, and an input inside a link is invalid HTML that browsers handle
+    // inconsistently - keeping it inside meant cancelling every click in the
+    // editor to stop the card navigating away. The matchup links to the game;
+    // the editor sits beside the link rather than within it.
+    <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 transition-colors hover:border-slate-700 hover:bg-slate-900">
+      <Link href={`/games/${game.id}`} className="block">
       <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wider text-slate-500">
         <span>{showDate ? shortDateOf(game.playedOn) : ""}</span>
         <span
@@ -316,6 +327,8 @@ function GameCard({
         </div>
       </div>
 
+      </Link>
+
       {/* Only an upcoming fixture can be arranged, and only by someone with the
           authority to. Everyone else still sees the agreed time. */}
       {!isFinal && game.sourceGameId && (
@@ -327,14 +340,11 @@ function GameCard({
           />
         ) : arrangement ? (
           <p className="mt-2 border-t border-slate-800/80 pt-2 text-[11px] text-emerald-400">
-            {new Date(arrangement.scheduledAt).toLocaleString(undefined, {
-              weekday: "short", month: "short", day: "numeric",
-              hour: "numeric", minute: "2-digit",
-            })}
+            {formatAgreedTime(arrangement.scheduledAt)}
           </p>
         ) : null
       )}
-    </Link>
+    </div>
   );
 }
 

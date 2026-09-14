@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TeamLogo } from "@/app/TeamLogo";
+import { formatAgreedTime } from "@/app/schedule/ScheduleGame";
 
 export type Fixture = {
   id: number;
@@ -74,7 +75,7 @@ export function ScheduledGames({ fixtures }: { fixtures: Fixture[] }) {
 
   return (
     <div className="space-y-6">
-      {error && <p className="text-xs text-rose-400">{error}</p>}
+      {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
       {[...bySeries.values()].map((group) => (
         <section key={group.label}>
           <h3 className="mb-2 flex items-baseline gap-2 border-b border-slate-800/80 pb-1.5">
@@ -99,10 +100,7 @@ export function ScheduledGames({ fixtures }: { fixtures: Fixture[] }) {
                   <span className="truncate font-semibold">{fixture.homeName}</span>
                 </span>
                 <span className="ml-auto shrink-0 text-[11px] text-slate-400">
-                  {new Date(fixture.scheduledAt).toLocaleString(undefined, {
-                    weekday: "short", month: "short", day: "numeric",
-                    hour: "numeric", minute: "2-digit",
-                  })}
+                  {formatAgreedTime(fixture.scheduledAt)}
                 </span>
                 <button
                   type="button"

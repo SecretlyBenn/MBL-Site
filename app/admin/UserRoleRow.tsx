@@ -85,7 +85,7 @@ export function UserRoleRow({
         {busy ? "Saving…" : "Save"}
       </button>
 
-      {error && <span className="w-full text-xs text-rose-400">{error}</span>}
+      {error && <span role="alert" className="w-full text-xs text-rose-400">{error}</span>}
     </li>
   );
 }

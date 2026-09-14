@@ -1,6 +1,7 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getHistoricalGame } from "@/db/queries";
+import { getHistoricalGame, getHistoricalGameSummary } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
 import { formatInnings, hasInningByInning, isForfeit } from "@/app/formatStats";
@@ -84,6 +85,24 @@ function PitchingTable({ rows }: { rows: Stat[] }) {
       </tbody>
     </table>
   );
+}
+
+type GameParams = { params: Promise<{ gameId: string }> };
+
+export async function generateMetadata({ params }: GameParams): Promise<Metadata> {
+  const gameId = Number((await params).gameId);
+  const game = Number.isInteger(gameId) ? await getHistoricalGameSummary(gameId) : null;
+  if (!game) return { title: "Game not found", robots: { index: false } };
+  const away = game.awayName ?? "Away";
+  const home = game.homeName ?? "Home";
+  const played = game.awayScore !== null && game.homeScore !== null;
+  return {
+    title: played ? `${away} ${game.awayScore}–${game.homeScore} ${home}` : `${away} at ${home}`,
+    description: `${played ? "Box score and line score" : "Game preview"} for ${away} at ${home}, ${game.seasonName}${
+      game.playedOn ? `, ${game.playedOn}` : ""
+    }.`,
+    alternates: { canonical: `/games/${gameId}` },
+  };
 }
 
 export default async function GamePage({

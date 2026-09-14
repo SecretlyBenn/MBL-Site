@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -11,6 +12,19 @@ import { formatInnings } from "@/app/formatStats";
 export const dynamic = "force-dynamic";
 
 function rate(value: number) { return value.toFixed(3).replace(/^0/, ""); }
+
+export async function generateMetadata({ params }: { params: Promise<{ playerId: string }> }): Promise<Metadata> {
+  const playerId = Number((await params).playerId);
+  const player = Number.isInteger(playerId)
+    ? await getDb().query.players.findFirst({ where: eq(players.id, playerId), columns: { displayName: true } })
+    : null;
+  if (!player) return { title: "Player not found", robots: { index: false } };
+  return {
+    title: player.displayName,
+    description: `${player.displayName}'s statistics in the Minecraft Baseball League.`,
+    alternates: { canonical: `/players/${playerId}` },
+  };
+}
 
 export default async function PlayerPage({ params }: { params: Promise<{ playerId: string }> }) {
   const { playerId: value } = await params;

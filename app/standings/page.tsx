@@ -1,7 +1,15 @@
+import type { Metadata } from "next";
 import { getHistoricalSeasonStandings, getHistoricalSeasons } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
 import { StandingsSeasonSelect } from "./StandingsSeasonSelect";
 import { StandingsTable } from "./StandingsTable";
+
+export const metadata: Metadata = {
+  title: "Standings",
+  description:
+    "Current Minecraft Baseball League standings: wins, losses, winning percentage, run differential and games back for every club, season by season.",
+  alternates: { canonical: "/standings" },
+};
 
 export const dynamic = "force-dynamic";
 

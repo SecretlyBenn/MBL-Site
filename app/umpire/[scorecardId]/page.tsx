@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -18,6 +19,11 @@ import { PageShell } from "@/app/SiteNav";
 import { POSITION_NUMBER, type RunnerOutKind } from "@/app/scoring";
 import { LineupEditor } from "./LineupEditor";
 import { ScoringBoard } from "./ScoringBoard";
+
+export const metadata: Metadata = {
+  title: "Scorecard",
+  robots: { index: false },
+};
 
 export const dynamic = "force-dynamic";
 

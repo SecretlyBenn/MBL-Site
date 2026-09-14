@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { MobileMenu } from "./MobileMenu";
+import { MobileActionBar } from "./MobileActionBar";
 import { SignInButton } from "./SignInButton";
+import { SiteFooter } from "./SiteFooter";
 
 const GROUPS = [
   {
@@ -36,52 +39,66 @@ const GROUPS = [
 
 export function SiteNav() {
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-slate-950/95 text-slate-100 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-slate-800/80 bg-slate-950/95 text-slate-100 backdrop-blur">
       <nav
-        className="mx-auto flex max-w-[1600px] flex-wrap items-center gap-x-2 gap-y-3 px-6 py-3"
+        className="relative mx-auto flex max-w-[1600px] items-center gap-2 px-4 py-2 sm:px-6 lg:py-3"
         aria-label="Main navigation"
       >
-        <Link href="/" className="mr-6 flex items-center gap-2.5">
+        <Link href="/" className="mr-2 flex shrink-0 items-center gap-2.5 lg:mr-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mbl-logo.png" alt="" className="h-9 w-auto" />
+          <img src="/mbl-logo.png" alt="" width={36} height={36} className="h-9 w-auto" />
           <span className="flex flex-col leading-none">
             <span className="text-lg font-black tracking-tight">MBL</span>
-            <span className="text-[9px] font-bold uppercase tracking-[0.08em] text-slate-600">
+            {/* Dropped on phones, where it would push the menu button off the bar. */}
+            <span className="hidden text-[9px] font-bold uppercase tracking-[0.08em] text-slate-600 sm:block">
               Minecraft Baseball League
             </span>
           </span>
         </Link>
-        <Link
-          href="/"
-          className="rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white"
-        >
-          Home
-        </Link>
-        {GROUPS.map((group) => (
-          <div key={group.label} className="group relative">
-            <span className="flex cursor-default items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors group-hover:bg-slate-800/70 group-hover:text-white">
-              {group.label}
-              <span aria-hidden="true" className="text-[9px] text-slate-500">
-                ▼
-              </span>
-            </span>
-            <div className="invisible absolute left-0 z-30 min-w-56 translate-y-1 overflow-hidden rounded-lg border border-slate-800 bg-slate-900 p-1 opacity-0 shadow-2xl transition duration-150 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-              {group.links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="block rounded-md px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white"
-                >
-                  {link.label}
-                </Link>
-              ))}
+
+        {/* The full bar needs room and a pointer that can hover, so it waits for
+            large screens; everything narrower gets MobileMenu. */}
+        <div className="hidden items-center gap-x-2 lg:flex">
+          <Link
+            href="/"
+            className="rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white"
+          >
+            Home
+          </Link>
+          {GROUPS.map((group) => (
+            <div key={group.label} className="group relative">
+              {/* A button rather than a span so the menu can be reached with the
+                  keyboard: focusing it opens the menu through focus-within. */}
+              <button
+                type="button"
+                aria-haspopup="true"
+                className="flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors group-focus-within:bg-slate-800/70 group-focus-within:text-white group-hover:bg-slate-800/70 group-hover:text-white"
+              >
+                {group.label}
+                <span aria-hidden="true" className="text-[9px] text-slate-500">
+                  ▼
+                </span>
+              </button>
+              <div className="invisible absolute left-0 z-30 min-w-56 translate-y-1 overflow-hidden rounded-lg border border-slate-800 bg-slate-900 p-1 opacity-0 shadow-2xl transition duration-150 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
+                {group.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="block rounded-md px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white focus:bg-slate-800 focus:text-white focus:outline-none"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-        {/* Sign-in sits at the far edge, away from the navigation it is not
-            part of. */}
-        <div className="ml-auto">
+          ))}
+        </div>
+
+        {/* Rendered once, where both layouts can use it - it reads the session
+            and the league user, and a second copy would do that twice. */}
+        <div className="ml-auto flex items-center gap-1">
           <SignInButton />
+          <MobileMenu groups={GROUPS} />
         </div>
       </nav>
     </header>
@@ -109,7 +126,7 @@ export function PageShell({
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <SiteNav />
-      <main className={`mx-auto px-6 py-5 ${wide ? "max-w-[1600px]" : "max-w-5xl"}`}>
+      <main className={`mx-auto px-4 py-5 sm:px-6 ${wide ? "max-w-[1600px]" : "max-w-5xl"}`}>
         {header ?? (
           // The heading and its subtitle sit on one line so the content below
           // starts near the top of the viewport rather than a third down it.
@@ -120,6 +137,8 @@ export function PageShell({
         )}
         <div className="mt-4">{children}</div>
       </main>
+      <SiteFooter />
+      <MobileActionBar />
     </div>
   );
 }

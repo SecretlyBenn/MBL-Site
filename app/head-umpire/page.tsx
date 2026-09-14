@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, players, plateAppearances, scorecards, teams, users } from "@/db/schema";
@@ -6,6 +7,11 @@ import { PageShell, EmptyState } from "@/app/SiteNav";
 import { deriveBoxScore } from "@/app/derive-box-score";
 import { formatInnings } from "@/app/formatStats";
 import { ReviewActions } from "./ReviewActions";
+
+export const metadata: Metadata = {
+  title: "Head Umpire Review",
+  robots: { index: false },
+};
 
 export const dynamic = "force-dynamic";
 

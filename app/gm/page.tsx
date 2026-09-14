@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { players, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { RosterActionButton } from "./RosterActions";
 import { TeamPicker } from "./TeamPicker";
+
+export const metadata: Metadata = {
+  title: "General Manager",
+  robots: { index: false },
+};
 
 export const dynamic = "force-dynamic";
 

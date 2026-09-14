@@ -516,7 +516,7 @@ export function ScoringBoard({
       </div>
 
       {notice && <p className="text-xs text-amber-400">{notice}</p>}
-      {error && <p className="text-xs text-rose-400">{error}</p>}
+      {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
 
       {/* One row of panels, all the same shell, then the scorecards beneath at
           full width. Entry, the bases, the pitching lines and the bench are

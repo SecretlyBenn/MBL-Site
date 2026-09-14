@@ -543,6 +543,33 @@ export async function getHistoricalGame(gameId: number) {
   return { game, lineScores, stats };
 }
 
+/**
+ * Just enough of a game to title its page: the clubs, the score, the season.
+ * The page itself loads every stat line, and a browser tab title should not
+ * cost that a second time.
+ */
+export async function getHistoricalGameSummary(gameId: number) {
+  const db = getDb();
+  const away = alias(historicalTeams, "away_team");
+  const home = alias(historicalTeams, "home_team");
+  const [game] = await db
+    .select({
+      playedOn: historicalGames.playedOn,
+      awayScore: historicalGames.awayScore,
+      homeScore: historicalGames.homeScore,
+      awayName: away.name,
+      homeName: home.name,
+      seasonName: historicalSeasons.name,
+    })
+    .from(historicalGames)
+    .innerJoin(historicalSeasons, eq(historicalGames.seasonId, historicalSeasons.id))
+    .leftJoin(away, eq(historicalGames.awayTeamId, away.id))
+    .leftJoin(home, eq(historicalGames.homeTeamId, home.id))
+    .where(eq(historicalGames.id, gameId))
+    .limit(1);
+  return game ?? null;
+}
+
 export async function getHistoricalSeason(seasonId: number) {
   const db = getDb();
   return db.query.historicalSeasons.findFirst({

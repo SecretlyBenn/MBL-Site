@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -7,6 +8,11 @@ import { PageShell, EmptyState } from "@/app/SiteNav";
 import { ScheduledGames, type Fixture } from "./ScheduledGames";
 import { seriesFor } from "@/app/season-series";
 import { CURRENT_SEASON_NAME } from "@/db/publish";
+
+export const metadata: Metadata = {
+  title: "Umpire",
+  robots: { index: false },
+};
 
 export const dynamic = "force-dynamic";
 

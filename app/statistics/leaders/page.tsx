@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import {
   getHistoricalSeasons,
@@ -7,6 +8,13 @@ import {
 } from "@/db/queries";
 import { SeasonSelect } from "../SeasonSelect";
 import { LeaderBoard, type LeaderRow } from "./LeaderBoard";
+
+export const metadata: Metadata = {
+  title: "League Leaders",
+  description:
+    "The Minecraft Baseball League's statistical leaders in batting and pitching, by season.",
+  alternates: { canonical: "/statistics/leaders" },
+};
 
 export const dynamic = "force-dynamic";
 

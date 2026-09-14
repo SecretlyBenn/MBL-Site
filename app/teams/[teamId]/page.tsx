@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -8,6 +9,19 @@ import { EmptyState, PageShell } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({ params }: { params: Promise<{ teamId: string }> }): Promise<Metadata> {
+  const teamId = Number((await params).teamId);
+  const team = Number.isInteger(teamId)
+    ? await getDb().query.teams.findFirst({ where: eq(teams.id, teamId), columns: { name: true } })
+    : null;
+  if (!team) return { title: "Team not found", robots: { index: false } };
+  return {
+    title: team.name,
+    description: `The ${team.name} of the Minecraft Baseball League: roster, schedule, results and standings.`,
+    alternates: { canonical: `/teams/${teamId}` },
+  };
+}
 
 export default async function TeamPage({
   params,

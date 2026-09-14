@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPlayerAvatars, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions } from "@/db/queries";
 import { PageShell } from "@/app/SiteNav";
@@ -7,6 +8,17 @@ import { PlayerProfile } from "@/app/players/PlayerProfile";
 import { TeamLogo } from "@/app/TeamLogo";
 
 export const dynamic = "force-dynamic";
+
+// The name is the whole subject, and it is already in the address - no lookup.
+export async function generateMetadata({ params }: { params: Promise<{ playerName: string }> }): Promise<Metadata> {
+  const { playerName } = await params;
+  const name = decodeURIComponent(playerName);
+  return {
+    title: name,
+    description: `${name}'s career in the Minecraft Baseball League: season-by-season batting and pitching, and a game-by-game log.`,
+    alternates: { canonical: `/players/history/${encodeURIComponent(name)}` },
+  };
+}
 
 export default async function HistoricalPlayerPage({
   params,

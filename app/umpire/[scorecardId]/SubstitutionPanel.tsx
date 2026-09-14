@@ -159,7 +159,7 @@ export function SubstitutionPanel({
         </label>
 
         {notice && <p className="text-[11px] text-emerald-400">{notice}</p>}
-        {error && <p className="text-[11px] text-rose-400">{error}</p>}
+        {error && <p role="alert" className="text-[11px] text-rose-400">{error}</p>}
 
         <button
           type="button"

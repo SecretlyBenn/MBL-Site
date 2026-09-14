@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   getHistoricalLeaders,
@@ -11,6 +12,13 @@ import { StandingsTable } from "@/app/standings/StandingsTable";
 import { PlayerProfileLink } from "@/app/EntityLinks";
 import { PlayerHead } from "@/app/PlayerHead";
 import { ScoresStrip } from "@/app/ScoresStrip";
+import { SiteFooter } from "@/app/SiteFooter";
+import { MobileActionBar } from "@/app/MobileActionBar";
+import { SITE } from "@/app/site";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 export const dynamic = "force-dynamic";
 
@@ -65,20 +73,23 @@ export default async function Home() {
       <SiteNav />
       <ScoresStrip games={strip} />
 
-      {/* The hero carries a photograph of a league ballpark behind it. The
-          image is referenced rather than required: if public/stadium.png is
-          absent the gradient underneath shows through on its own, so the page
-          is never broken by a missing picture. */}
+      {/* The hero carries a photograph of a league ballpark behind it - an
+          in-game screenshot from home plate. It ships with the site as a
+          compressed JPEG (the 4.7 MB original screenshot is 232 KB here). If it
+          ever goes missing the gradient underneath shows through on its own, so
+          the page is never broken by an absent picture. */}
       <section className="relative overflow-hidden border-b border-slate-800/80">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,theme(colors.sky.900/45),transparent_60%)]" />
         <div
-          className="absolute inset-0 bg-cover bg-center opacity-40"
-          style={{ backgroundImage: "url('/stadium.png')" }}
+          className="absolute inset-0 bg-cover bg-center opacity-70"
+          style={{ backgroundImage: "url('/stadium.jpg')" }}
         />
-        {/* Keeps the type legible whatever the photograph is doing behind it. */}
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/40" />
+        {/* Keeps the type legible over the photograph. The headline sits on the
+            left, so that side stays dark; the ballpark is left to show through
+            on the right, where nothing needs reading. */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/70 to-slate-950/10" />
 
-        <div className="relative mx-auto max-w-[1600px] px-6 py-12">
+        <div className="relative mx-auto max-w-[1600px] px-4 py-8 sm:px-6 sm:py-12">
           <div className="flex flex-wrap items-center gap-6">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/mbl-logo.png" alt="" className="h-20 w-auto shrink-0 drop-shadow-lg" />
@@ -106,7 +117,7 @@ export default async function Home() {
               // Where the league actually gathers, so it leads off to one side
               // in Discord's own colour rather than sitting in the row of grey
               // -blue buttons as though it were another page of the site.
-              { href: "https://discord.gg/mbl", label: "Join Discord", external: true },
+              { href: SITE.discordUrl, label: "Join Discord", external: true },
             ].map((link) =>
               link.external ? (
                 <a
@@ -132,7 +143,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <main className="mx-auto max-w-[1600px] px-6 py-5">
+      <main className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
         <div className="grid gap-5 xl:grid-cols-2">
           <section className="flex min-w-0 flex-col">
             <SectionHeader
@@ -225,6 +236,8 @@ export default async function Home() {
           </div>
         </section>
       </main>
+      <SiteFooter />
+      <MobileActionBar />
     </div>
   );
 }

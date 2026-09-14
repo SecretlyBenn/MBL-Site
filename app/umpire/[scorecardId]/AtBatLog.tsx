@@ -120,7 +120,7 @@ export function AtBatLog({
   return (
     <div>
       {notice && <p className="mb-2 text-xs text-amber-400">{notice}</p>}
-      {error && <p className="mb-2 text-xs text-rose-400">{error}</p>}
+      {error && <p role="alert" className="mb-2 text-xs text-rose-400">{error}</p>}
 
       <div className="max-h-[32rem] overflow-y-auto pr-1">
         <table className="data-table w-full text-xs">
