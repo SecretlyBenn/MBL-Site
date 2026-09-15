@@ -386,7 +386,7 @@ export const minecraftProfiles = sqliteTable("minecraft_profiles", {
   uuid: text("uuid").notNull(),
   /** The account's name today, which may differ from playerName. */
   currentName: text("current_name").notNull(),
-  /** How the mapping was established: "mojang", "namemc" or "user". */
+  /** How the mapping was established: "mojang", "namemc", "history" (traced through name history) or "user". */
   source: text("source").notNull(),
 });
 
