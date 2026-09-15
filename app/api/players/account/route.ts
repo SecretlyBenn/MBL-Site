@@ -27,7 +27,14 @@ export async function POST(request: Request) {
       return Response.json({ error: "Enter the player's current Minecraft username." }, { status: 400 });
     }
 
-    const account = (await lookupAccounts([minecraftName])).get(minecraftName.toLowerCase());
+    const { found, unchecked } = await lookupAccounts([minecraftName]);
+    if (unchecked.length > 0) {
+      return Response.json(
+        { error: "Couldn't reach Minecraft's servers just now. Nothing was changed - try again in a minute." },
+        { status: 503 },
+      );
+    }
+    const account = found.get(minecraftName.toLowerCase());
     if (!account) {
       return Response.json(
         { error: `No Minecraft account is using the name "${minecraftName}" right now.` },

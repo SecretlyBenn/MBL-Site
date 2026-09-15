@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { type AccountProfile, lookupProfile } from "@/db/minecraft";
 import { minecraftProfiles, minecraftSkins } from "@/db/schema";
 
 /**
@@ -15,6 +16,9 @@ import { minecraftProfiles, minecraftSkins } from "@/db/schema";
  * no image library to crop with - and PlayerHead cuts the face and hat out of
  * it in CSS.
  *
+ * Mojang refuses requests from Cloudflare's servers, so on the live site the
+ * answer comes from a relay of Mojang's data instead (see lookupProfile).
+ *
  * The session server is rate limited, so its answer is kept in minecraft_skins
  * and asked for again only once it is STALE_AFTER old. That refresh is also how
  * a new skin or a renamed account reaches the site with nobody editing
@@ -27,33 +31,7 @@ const STALE_AFTER_MS = 6 * 60 * 60 * 1000;
 const BROWSER_CACHE_SECONDS = 6 * 60 * 60;
 const TIMEOUT_MS = 4000;
 
-type Resolved = { name: string | null; skinUrl: string | null };
-
-/** Asks Mojang which skin the account wears. Null when Mojang did not answer. */
-async function askMojang(uuid: string): Promise<Resolved | null> {
-  try {
-    const response = await fetch(`https://sessionserver.mojang.com/session/minecraft/profile/${uuid}`, {
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
-    if (!response.ok) return null;
-    const profile = (await response.json()) as {
-      name?: string;
-      properties?: { name: string; value: string }[];
-    };
-    const textures = profile.properties?.find((property) => property.name === "textures");
-    let skinUrl: string | null = null;
-    if (textures) {
-      const decoded = JSON.parse(atob(textures.value)) as {
-        textures?: { SKIN?: { url?: string } };
-      };
-      skinUrl = decoded.textures?.SKIN?.url ?? null;
-    }
-    // Mojang hands these out as http; the CDN serves the same file over https.
-    return { name: profile.name ?? null, skinUrl: skinUrl?.replace(/^http:/, "https:") ?? null };
-  } catch {
-    return null;
-  }
-}
+type Resolved = AccountProfile;
 
 /** The skin Mojang last reported, refreshed when stale. */
 async function resolveSkin(uuid: string): Promise<Resolved | null> {
@@ -62,8 +40,8 @@ async function resolveSkin(uuid: string): Promise<Resolved | null> {
   const fresh = cached && Date.now() - Date.parse(cached.checkedAt) < STALE_AFTER_MS;
   if (cached && fresh) return { name: cached.name, skinUrl: cached.skinUrl };
 
-  const answer = await askMojang(uuid);
-  // Mojang busy or down: an old answer beats no head at all.
+  const answer = await lookupProfile(uuid);
+  // Mojang and the relay busy or down: an old answer beats no head at all.
   if (!answer) return cached ? { name: cached.name, skinUrl: cached.skinUrl } : null;
 
   const checkedAt = new Date().toISOString();
@@ -110,12 +88,12 @@ export async function GET(_request: Request, context: { params: Promise<{ uuid: 
     resolved = await resolveSkin(uuid);
   } catch {
     // The database being unavailable should not cost anyone their head.
-    resolved = await askMojang(uuid);
+    resolved = await lookupProfile(uuid);
   }
 
   const body =
     (resolved?.skinUrl ? await fetchImage(resolved.skinUrl) : null) ??
-    // No custom skin, or Mojang unreachable: minotar serves the correct default
+    // No custom skin, or no answer about the account: minotar serves the correct default
     // skin for the account. Its failure mode - serving a default - is exactly
     // right here, where a default is the answer.
     (await fetchImage(`https://minotar.net/skin/${uuid}`));

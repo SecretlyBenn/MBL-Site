@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     const taken = new Set(existing.map((row) => row.name.toLowerCase()));
     const fresh = names.filter((name) => !taken.has(name.toLowerCase()));
 
-    const accounts = await lookupAccounts(fresh);
+    const { found: accounts } = await lookupAccounts(fresh);
     const added: string[] = [];
     for (const typed of fresh) {
       // Mojang's capitalisation is the real one; use it when the account exists.
