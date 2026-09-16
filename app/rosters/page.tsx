@@ -106,17 +106,40 @@ export default async function RostersPage({
         <EmptyState>No teams recorded for this season.</EmptyState>
       ) : (
         <>
-          <div className="mb-8 flex items-center gap-4">
-            <TeamLogo teamName={team.name} className="h-16 w-16" />
-            <div>
-              <h2 className="text-xl font-bold">
-                <HistoricalTeamLink name={team.name} seasonId={season.id} teamId={team.id} />
-              </h2>
-              <p className="text-sm text-slate-400">
-                {wins}-{losses}
-                {team.league ? ` · ${team.league === "AMERICAN" ? "American" : "National"} League` : ""}
-                {` · ${roster.length} players`}
-              </p>
+          {/* The club leads its own roster: crest, record and how the season
+              went, rather than a line of grey text above a table. */}
+          <div className="relative mb-8 overflow-hidden rounded-xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900/60 to-slate-950 p-5">
+            <TeamLogo
+              teamName={team.name}
+              className="pointer-events-none absolute -right-8 -top-10 h-56 w-56 opacity-[0.07]"
+            />
+            <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4">
+              <TeamLogo teamName={team.name} className="h-16 w-16 shrink-0" />
+              <div className="min-w-0">
+                <h2 className="text-2xl font-black tracking-tight">
+                  <HistoricalTeamLink name={team.name} seasonId={season.id} teamId={team.id} />
+                </h2>
+                <p className="text-sm text-slate-400">
+                  {season.name}
+                  {team.league ? ` · ${team.league === "AMERICAN" ? "American" : "National"} League` : ""}
+                </p>
+              </div>
+              <dl className="ml-auto flex flex-wrap items-end gap-x-7 gap-y-3">
+                {[
+                  { label: "Record", value: `${wins}-${losses}` },
+                  { label: "Win pct", value: wins + losses ? (wins / (wins + losses)).toFixed(3).replace(/^0/, "") : "—" },
+                  { label: "Runs", value: team.runsScored ?? "—" },
+                  { label: "Allowed", value: team.runsAllowed ?? "—" },
+                  { label: "Players", value: roster.length },
+                ].map((figure) => (
+                  <div key={figure.label}>
+                    <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+                      {figure.label}
+                    </dt>
+                    <dd className="text-xl font-black tabular-nums text-slate-100">{figure.value}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           </div>
 
@@ -158,7 +181,10 @@ export default async function RostersPage({
                   </thead>
                   <tbody>
                     {batters.map((row) => (
-                      <tr key={row.playerName}>
+                      // Someone listed on the roster who never appeared has a
+                      // line of zeros, which reads as a bad season rather than
+                      // no season. Dimming the row says which it is.
+                      <tr key={row.playerName} className={row.played ? "" : "text-slate-500"}>
                         <NameCell name={row.playerName} uuid={avatars[row.playerName]} />
                         <td>{count(row.games)}</td>
                         <td>{count(row.atBats)}</td>
@@ -246,7 +272,7 @@ export default async function RostersPage({
             {schedule.length === 0 ? (
               <EmptyState>No games recorded for this team.</EmptyState>
             ) : (
-              <ul className="space-y-1.5">
+              <ul className="grid gap-1.5 lg:grid-cols-2">
                 {schedule.map((game) => {
                   const isHome = game.homeTeamId === team.id;
                   const us = isHome ? game.homeScore : game.awayScore;
@@ -259,19 +285,26 @@ export default async function RostersPage({
                   return (
                     <li
                       key={game.id}
-                      className="flex items-center justify-between gap-3 rounded border border-slate-800/80 bg-slate-900/40 px-3 py-2 text-sm"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-800/80 bg-slate-900/40 px-3 py-2 text-sm transition-colors hover:border-slate-700 hover:bg-slate-800/50"
                     >
-                      <span className="flex min-w-0 items-center gap-2">
-                        {played && (
-                          <span
-                            className={
-                              tied ? "text-slate-500" : won ? "text-emerald-400" : "text-rose-400"
-                            }
-                          >
-                            {tied ? "T" : won ? "W" : "L"}
-                          </span>
-                        )}
-                        <span className="text-slate-500">{isHome ? "vs" : "@"}</span>
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        {/* A result is a win or a loss before it is anything
+                            else, so it gets the badge and the colour. */}
+                        <span
+                          className={`w-5 shrink-0 rounded text-center text-xs font-black ${
+                            !played
+                              ? "text-slate-700"
+                              : tied
+                                ? "bg-slate-700/60 text-slate-300"
+                                : won
+                                  ? "bg-emerald-500/15 text-emerald-400"
+                                  : "bg-rose-500/15 text-rose-400"
+                          }`}
+                        >
+                          {played ? (tied ? "T" : won ? "W" : "L") : "·"}
+                        </span>
+                        <span className="w-5 shrink-0 text-xs text-slate-500">{isHome ? "vs" : "@"}</span>
+                        {opponent && <TeamLogo teamName={opponent} className="h-5 w-5 shrink-0" />}
                         <span className="truncate">{opponent ?? "Unknown"}</span>
                       </span>
                       <span className="flex shrink-0 items-center gap-3">

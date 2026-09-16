@@ -122,7 +122,9 @@ body {
      out across the page - which is what made the roster tables look so wide
      while saying so little. */
   .data-table .is-name {
-    max-width: 16ch;
+    /* Room for the head and the gap beside it as well as the name: measured
+       against the text alone, a 16ch cap cut "DrDoordash" in half. */
+    max-width: 21ch;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -361,6 +363,26 @@ body {
 
   .data-table.line-score .is-total:first-of-type {
     border-left: 1px solid rgb(51 65 85 / 0.8);
+  }
+
+  /* Inside the scoreboard the line score has no card of its own, so it takes
+     the card's own background rather than laying a darker panel over it. */
+  .data-table.line-score.is-embedded thead th,
+  .data-table.line-score.is-embedded tbody td {
+    background: transparent;
+    border-bottom: 0;
+  }
+
+  .data-table.line-score.is-embedded thead th {
+    height: 1.6rem;
+  }
+
+  .data-table.line-score.is-embedded tbody td {
+    height: 1.9rem;
+  }
+
+  .data-table.line-score.is-embedded .is-total {
+    background: rgb(255 255 255 / 0.04);
   }
 
   /* Footer (league-average rows and similar totals). */

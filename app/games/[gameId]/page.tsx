@@ -219,53 +219,44 @@ export default async function GamePage({
             </div>
           ))}
         </div>
-      </div>
 
-      {lineScores.length > 0 && (
-        <section className="mb-10">
-          <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
-            Line score
-          </h2>
-          {/* Sized to its own figures rather than stretched across the page:
-              a line score is a scoreboard, and a scoreboard with an inch
-              between each inning is not one. */}
-          <div className="data-table-shell inline-block max-w-full overflow-x-auto align-top">
-            <table className="data-table line-score table-auto">
-              <thead>
-                <tr>
-                  <th>Team</th>
-                  {Array.from({ length: inningCount }, (_, index) => (
-                    <th key={index}>
-                      {index + 1}
-                    </th>
-                  ))}
-                  <th className="is-total">R</th>
-                  <th className="is-total">H</th>
-                  <th className="is-total">E</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lineScores.map((row) => {
-                  const perInning = (row.innings ?? "").split(",").filter(Boolean);
-                  return (
-                    <tr key={row.id}>
-                      <td className="whitespace-nowrap font-semibold">{row.teamLabel}</td>
-                      {Array.from({ length: inningCount }, (_, index) => (
-                        <td key={index}>
-                          {perInning[index] ?? "-"}
-                        </td>
-                      ))}
-                      <td className="is-total">{row.runs ?? "-"}</td>
-                      <td className="is-total">{row.hits ?? "-"}</td>
-                      <td className="is-total">{row.errors ?? "-"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
+          {/* The innings belong to the scoreboard, not to a second box under
+              it: the card says who played, what it finished, and how it got
+              there, in one piece. */}
+          {lineScores.length > 0 && (
+            <div className="overflow-x-auto border-t border-slate-800/80 px-5 py-3 sm:px-8">
+              <table className="data-table line-score is-embedded mx-auto table-auto">
+                <thead>
+                  <tr>
+                    <th>Team</th>
+                    {Array.from({ length: inningCount }, (_, index) => (
+                      <th key={index}>{index + 1}</th>
+                    ))}
+                    <th className="is-total">R</th>
+                    <th className="is-total">H</th>
+                    <th className="is-total">E</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lineScores.map((row) => {
+                    const perInning = (row.innings ?? "").split(",").filter(Boolean);
+                    return (
+                      <tr key={row.id}>
+                        <td className="whitespace-nowrap font-semibold">{row.teamLabel}</td>
+                        {Array.from({ length: inningCount }, (_, index) => (
+                          <td key={index}>{perInning[index] ?? "-"}</td>
+                        ))}
+                        <td className="is-total">{row.runs ?? "-"}</td>
+                        <td className="is-total">{row.hits ?? "-"}</td>
+                        <td className="is-total">{row.errors ?? "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+      </div>
 
       {forfeit ? (
         <EmptyState>

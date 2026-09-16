@@ -149,76 +149,6 @@ function leagueAverage(rows: StatRow[], kind: "batting" | "pitching") {
   return result;
 }
 
-/** The three figures a season is usually talked about by. */
-const HEADLINE: Record<"batting" | "pitching", { key: string; label: string; rate?: boolean; lowest?: boolean }[]> = {
-  batting: [
-    { key: "homeRuns", label: "Home runs" },
-    { key: "rbis", label: "Runs batted in" },
-    { key: "battingAverage", label: "Batting average", rate: true },
-  ],
-  pitching: [
-    { key: "strikeoutsPitched", label: "Strikeouts" },
-    { key: "wins", label: "Wins" },
-    { key: "era", label: "Earned run average", rate: true, lowest: true },
-  ],
-};
-
-/**
- * Who leads the table as it currently stands, above the table itself.
- *
- * A page of figures says everything and points at nothing. These three say who
- * the season belongs to before the reader sorts a single column - and they are
- * drawn from the rows already on the page, so they cost no extra work.
- *
- * Rate leaders honour the qualifying filter the reader has set: without it a
- * single 1-for-1 game tops the batting average.
- */
-function Leaders({
-  rows,
-  kind,
-  avatars,
-}: {
-  rows: StatRow[];
-  kind: "batting" | "pitching";
-  avatars: Record<string, string>;
-}) {
-  const cards = HEADLINE[kind].map((stat) => {
-    const ranked = rows
-      .filter((row) => row[stat.key] !== null && row[stat.key] !== undefined)
-      .sort((a, b) => (stat.lowest ? 1 : -1) * (num(b[stat.key]) - num(a[stat.key])))
-      .slice(0, 3);
-    return { ...stat, ranked };
-  });
-  if (cards.every((card) => card.ranked.length === 0)) return null;
-
-  return (
-    <div className="mb-4 grid gap-3 sm:grid-cols-3">
-      {cards.map((card) => (
-        <div key={card.key} className="ui-card p-3">
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{card.label}</p>
-          <ol className="flex flex-col gap-1.5">
-            {card.ranked.map((row, index) => (
-              <li key={`${card.key}-${row.playerName}`} className="flex items-center gap-2 text-sm">
-                <span className="w-3 text-xs font-bold tabular-nums text-slate-600">{index + 1}</span>
-                <PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={index === 0 ? 22 : 18} />
-                <PlayerProfileLink
-                  name={row.playerName}
-                  className={`min-w-0 flex-1 truncate ${index === 0 ? "font-semibold text-slate-100" : "text-slate-300"}`}
-                />
-                <span className={`tabular-nums ${index === 0 ? "text-base font-bold text-sky-300" : "text-slate-400"}`}>
-                  {card.rate
-                    ? Number(row[card.key]).toFixed(card.key === "era" ? 2 : 3).replace(/^0/, "")
-                    : num(row[card.key])}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, toolbar, avatars = {} }: { rows: StatRow[]; kind: "batting" | "pitching"; team?: boolean; seasonId?: number; teamIds?: Record<string, number>; toolbar?: React.ReactNode; avatars?: Record<string, string> }) {
   const columns = (kind === "batting" ? BATTING : PITCHING).filter((column) => !(team && column.playerOnly));
   const [query, setQuery] = useState("");
@@ -310,7 +240,6 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
       {!team && <label className="ui-field-label ml-auto">{kind === "batting" ? "Min PA" : "Min IP"}<select value={minimum} onChange={(e) => { setMinimum(e.target.value); setPage(0); }} className="ui-select">{(kind === "batting" ? [0, 10, 25, 50, 100] : [0, 5, 10, 25, 50]).map((value) => <option key={value} value={value}>{value === 0 ? "All" : value + "+"}</option>)}</select></label>}
       {!team && <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder="Search player username…" className="ui-select w-full sm:w-56" />}
     </div>}
-    {!team && <Leaders rows={visible} kind={kind} avatars={avatars} />}
     <div className="data-table-shell is-sticky max-w-full">
       {/* Team tables have a single label column, so they must not pick up the
           two-label alignment - it would left-align their first figure. */}
