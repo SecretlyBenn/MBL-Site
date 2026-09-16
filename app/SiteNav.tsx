@@ -12,6 +12,7 @@ const GROUPS = [
       { href: "/schedule", label: "Schedule & Scores" },
       { href: "/rosters", label: "Rosters" },
       { href: "/seasons", label: "Seasons" },
+      { href: "/news", label: "News" },
     ],
   },
   {
@@ -32,6 +33,7 @@ const GROUPS = [
       { href: "/umpire", label: "Umpire — Submit Scorecard" },
       { href: "/head-umpire", label: "Head Umpire — Review" },
       { href: "/gm", label: "General Manager — Roster" },
+      { href: "/newsroom", label: "Newsroom — Write Articles" },
       { href: "/admin", label: "League Admin" },
     ],
   },

@@ -1,9 +1,10 @@
 import { sql } from "drizzle-orm";
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // Roles are plain strings (not a DB enum - sqlite/D1 has no native enum type),
 // validated at the application layer. See lib/roles.ts.
-export const ROLES = ["ADMIN", "HEAD_UMPIRE", "UMPIRE", "GM"] as const;
+// WRITER may write and publish articles on the news page, and nothing else.
+export const ROLES = ["ADMIN", "HEAD_UMPIRE", "UMPIRE", "GM", "WRITER"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const PLAYER_STATUSES = ["FREE_AGENT", "ACTIVE", "TRIPLE_A", "RELEASED"] as const;
@@ -653,3 +654,90 @@ export const rateLimits = sqliteTable("rate_limits", {
   windowStart: integer("window_start").notNull(),
   hits: integer("hits").notNull(),
 });
+
+/**
+ * An article on the news page.
+ *
+ * The league writes its own coverage - series previews, trade news, awards -
+ * and anyone an admin has made a WRITER can publish. A draft is invisible to
+ * the public until its author publishes it, so a half-written piece is not a
+ * live page.
+ *
+ * `authorName` is copied from the account rather than joined at read time: a
+ * byline should say who wrote it, and stay that way even if the account is
+ * later renamed or removed.
+ *
+ * `body` is the league's own plain text - paragraphs, headings, links and
+ * images - and is rendered by app/news/render.tsx, never as HTML. Nothing a
+ * writer types can become markup on the page.
+ */
+export const newsArticles = sqliteTable("news_articles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** The address of the article: /news/<slug>. */
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  /** One line, shown on the news page under the headline. */
+  summary: text("summary").notNull().default(""),
+  body: text("body").notNull().default(""),
+  coverImageId: integer("cover_image_id"),
+  authorUserId: integer("author_user_id").references(() => users.id),
+  authorName: text("author_name").notNull(),
+  /** DRAFT or PUBLISHED. */
+  status: text("status").notNull().default("DRAFT"),
+  publishedAt: text("published_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
+ * A picture in an article, held in the database like the team logos are.
+ *
+ * There is no file storage on this plan, and an image small enough to sit in a
+ * row is small enough to serve from one. Uploads are resized in the browser
+ * before they are sent.
+ */
+export const newsImages = sqliteTable("news_images", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  articleId: integer("article_id").references(() => newsArticles.id),
+  contentType: text("content_type").notNull(),
+  /** Base64, as the logos are stored. */
+  data: text("data").notNull(),
+  uploadedBy: integer("uploaded_by").references(() => users.id),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
+ * A comment under an article.
+ *
+ * Anyone signed in with Discord may comment - it is the same bar the league
+ * uses for everything else, and it means a name stands behind every comment.
+ * Hiding rather than deleting keeps the thread's shape and leaves a record for
+ * whoever moderates.
+ */
+export const newsComments = sqliteTable("news_comments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  articleId: integer("article_id")
+    .notNull()
+    .references(() => newsArticles.id),
+  discordId: text("discord_id").notNull(),
+  displayName: text("display_name").notNull(),
+  body: text("body").notNull(),
+  hiddenAt: text("hidden_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
+ * One like, by one signed-in person, on one article. The pair is the key, so
+ * liking twice is the same as liking once.
+ */
+export const newsLikes = sqliteTable(
+  "news_likes",
+  {
+    articleId: integer("article_id")
+      .notNull()
+      .references(() => newsArticles.id),
+    discordId: text("discord_id").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [primaryKey({ columns: [table.articleId, table.discordId] })],
+);

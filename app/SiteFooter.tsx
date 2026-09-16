@@ -9,6 +9,7 @@ const COLUMNS = [
       { href: "/standings", label: "Standings" },
       { href: "/rosters", label: "Rosters" },
       { href: "/seasons", label: "Seasons" },
+      { href: "/news", label: "News" },
     ],
   },
   {

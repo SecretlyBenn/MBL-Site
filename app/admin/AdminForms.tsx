@@ -745,6 +745,7 @@ export function CreateUserForm({ teams }: { teams: Option[] }) {
         <option value="UMPIRE">Umpire</option>
         <option value="HEAD_UMPIRE">Head umpire</option>
         <option value="GM">General manager</option>
+        <option value="WRITER">Writer - news articles only</option>
         <option value="ADMIN">Admin</option>
       </select>
       {role === "GM" && <TeamSelect teams={teams} value={teamId} onChange={setTeamId} placeholder="Team they manage" required />}

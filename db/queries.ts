@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, isNotNull, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, like, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
 import { playedOnValue } from "@/app/formatStats";
@@ -864,6 +864,22 @@ export async function getPlayerAvatars(): Promise<Record<string, string>> {
   const rows = await db
     .select({ playerName: minecraftProfiles.playerName, uuid: minecraftProfiles.uuid })
     .from(minecraftProfiles);
+  return Object.fromEntries(rows.map((row) => [row.playerName, row.uuid]));
+}
+
+/**
+ * The account ids for a named handful of players.
+ *
+ * A page that shows twenty players has no business reading the whole profile
+ * table for them, and pages here run against a 10ms budget. Used by the box
+ * score, which knows exactly whose heads it needs.
+ */
+export async function getAvatarsFor(names: string[]): Promise<Record<string, string>> {
+  if (names.length === 0) return {};
+  const rows = await getDb()
+    .select({ playerName: minecraftProfiles.playerName, uuid: minecraftProfiles.uuid })
+    .from(minecraftProfiles)
+    .where(inArray(minecraftProfiles.playerName, [...new Set(names)]));
   return Object.fromEntries(rows.map((row) => [row.playerName, row.uuid]));
 }
 

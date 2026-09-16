@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getHistoricalGame, getHistoricalGameSummary } from "@/db/queries";
+import { getAvatarsFor, getHistoricalGame, getHistoricalGameSummary } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
 import { formatInnings, hasInningByInning, isForfeit } from "@/app/formatStats";
 import { PlayerProfileLink } from "@/app/EntityLinks";
+import { PlayerHead } from "@/app/PlayerHead";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,19 @@ type Stat = Awaited<ReturnType<typeof getHistoricalGame>> extends infer T
     : never
   : never;
 
-function BattingTable({ rows }: { rows: Stat[] }) {
+/** A player in a box score, with their head, the way every other table shows them. */
+function BoxScoreName({ name, uuid }: { name: string; uuid?: string }) {
+  return (
+    <td className="is-name">
+      <span className="flex min-w-0 items-center gap-2">
+        <PlayerHead uuid={uuid} name={name} size={18} />
+        <PlayerProfileLink name={name} className="truncate" />
+      </span>
+    </td>
+  );
+}
+
+function BattingTable({ rows, avatars }: { rows: Stat[]; avatars: Record<string, string> }) {
   return (
     <table className="data-table w-full table-auto">
       <thead>
@@ -34,9 +47,7 @@ function BattingTable({ rows }: { rows: Stat[] }) {
       <tbody>
         {rows.map((row) => (
           <tr key={row.id}>
-            <td>
-              <PlayerProfileLink name={row.playerName} />
-            </td>
+            <BoxScoreName name={row.playerName} uuid={avatars[row.playerName]} />
             <td>{row.atBats ?? 0}</td>
             <td>{row.runs ?? 0}</td>
             <td>{row.hits ?? 0}</td>
@@ -52,7 +63,7 @@ function BattingTable({ rows }: { rows: Stat[] }) {
   );
 }
 
-function PitchingTable({ rows }: { rows: Stat[] }) {
+function PitchingTable({ rows, avatars }: { rows: Stat[]; avatars: Record<string, string> }) {
   return (
     <table className="data-table w-full table-auto">
       <thead>
@@ -69,9 +80,7 @@ function PitchingTable({ rows }: { rows: Stat[] }) {
       <tbody>
         {rows.map((row) => (
           <tr key={row.id}>
-            <td>
-              <PlayerProfileLink name={row.playerName} />
-            </td>
+            <BoxScoreName name={row.playerName} uuid={avatars[row.playerName]} />
             <td>
               {formatInnings(row.inningsPitched)}
             </td>
@@ -117,6 +126,9 @@ export default async function GamePage({
   if (!result) notFound();
 
   const { game, lineScores, stats } = result;
+  // Only the players in this game, rather than every profile the league holds:
+  // this page has 10ms to render in.
+  const avatars = await getAvatarsFor(stats.map((row) => row.playerName));
   const awayWon = (game.awayScore ?? 0) > (game.homeScore ?? 0);
   const homeWon = (game.homeScore ?? 0) > (game.awayScore ?? 0);
   const forfeit = isForfeit({ ...game, hasStats: stats.length > 0 });
@@ -296,10 +308,10 @@ export default async function GamePage({
                     {(isHome ? game.homeScore : game.awayScore) ?? "-"}
                   </span>
                 </header>
-                {batting.length > 0 && <BattingTable rows={batting} />}
+                {batting.length > 0 && <BattingTable rows={batting} avatars={avatars} />}
                 {pitching.length > 0 && (
                   <div className="border-t border-slate-800">
-                    <PitchingTable rows={pitching} />
+                    <PitchingTable rows={pitching} avatars={avatars} />
                   </div>
                 )}
               </section>

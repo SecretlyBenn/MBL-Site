@@ -111,6 +111,20 @@ it costs.
   npx --no-install wrangler d1 execute mbl-site-db --remote --command "INSERT INTO users (discord_id, display_name, role) VALUES ('<discord id>', '<name>', 'ADMIN')"
   ```
 
+## News
+
+- `/news` is public; `/newsroom` is where articles are written. The `WRITER`
+  role can write and publish its own articles and nothing else; `ADMIN` can
+  manage every article and remove any comment.
+- **Article bodies are plain text rendered by `app/news/render.tsx`, never
+  HTML.** Do not switch it to markdown-to-HTML or `dangerouslySetInnerHTML`:
+  anyone with the WRITER role would then be able to put scripts on the site.
+  Links are only made for `http(s)` and on-site addresses for the same reason.
+- Pictures live in `news_images` as base64, like team logos, resized in the
+  browser first. There is no file storage on this plan.
+- Anyone signed in with Discord can like and comment, with no league role
+  needed. Comments are hidden, not deleted, and are rate limited per account.
+
 ## House style
 
 - Comments explain **why**, in plain English, in whole sentences. They are for
