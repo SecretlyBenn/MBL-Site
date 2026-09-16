@@ -77,6 +77,44 @@ const PITCHING: Column[] = [
   { key: "strikeoutsPerGame", label: "SO/6", rate: true },
 ];
 
+/**
+ * The bands the column letters are gathered under.
+ *
+ * Twenty-four columns of figures read as one undifferentiated wall. Naming the
+ * runs - what a hitter did, what they did at the plate, what they did in the
+ * field - gives the eye somewhere to land, and says what a column is for
+ * without spelling out every abbreviation.
+ */
+const GROUPS: Record<string, string> = {
+  games: "Hitting", plateAppearances: "Hitting", atBats: "Hitting", runs: "Hitting",
+  hits: "Hitting", singles: "Hitting", doubles: "Hitting", triples: "Hitting",
+  homeRuns: "Hitting", rbis: "Hitting",
+  walks: "Discipline", strikeouts: "Discipline",
+  stolenBases: "Situational", caughtStealing: "Situational", sacFlies: "Situational",
+  leftOnBase: "Situational", totalBases: "Situational",
+  battingAverage: "Rates", onBasePct: "Rates", sluggingPct: "Rates", ops: "Rates",
+  putouts: "Fielding", errors: "Fielding", fieldingPct: "Fielding",
+
+  pitchingGames: "Appearances", gamesStarted: "Appearances", wins: "Appearances",
+  losses: "Appearances", saves: "Appearances", inningsPitched: "Appearances",
+  hitsAllowed: "Results", runsAllowed: "Results", earnedRuns: "Results",
+  homeRunsAllowed: "Results", strikeoutsPitched: "Results", walksAllowed: "Results",
+  completeGames: "Finished", shutouts: "Finished", blownSaves: "Finished",
+  era: "Rates", whip: "Rates", walksPerGame: "Rates", strikeoutsPerGame: "Rates",
+};
+
+/** The bands as runs of columns, so each can be drawn as one heading. */
+function bandsOf(columns: Column[]) {
+  const bands: { label: string; span: number }[] = [];
+  for (const column of columns) {
+    const label = GROUPS[column.key] ?? "";
+    const last = bands[bands.length - 1];
+    if (last && last.label === label) last.span += 1;
+    else bands.push({ label, span: 1 });
+  }
+  return bands;
+}
+
 /** A column's value for a row, computing it when the column is derived. */
 function valueOf(row: StatRow, column: Column) {
   return column.derive ? column.derive(row) : row[column.key];
@@ -109,6 +147,76 @@ function leagueAverage(rows: StatRow[], kind: "batting" | "pitching") {
     result.whip = ip ? (sum("walksAllowed") + sum("hitsAllowed")) / ip : null;
   }
   return result;
+}
+
+/** The three figures a season is usually talked about by. */
+const HEADLINE: Record<"batting" | "pitching", { key: string; label: string; rate?: boolean; lowest?: boolean }[]> = {
+  batting: [
+    { key: "homeRuns", label: "Home runs" },
+    { key: "rbis", label: "Runs batted in" },
+    { key: "battingAverage", label: "Batting average", rate: true },
+  ],
+  pitching: [
+    { key: "strikeoutsPitched", label: "Strikeouts" },
+    { key: "wins", label: "Wins" },
+    { key: "era", label: "Earned run average", rate: true, lowest: true },
+  ],
+};
+
+/**
+ * Who leads the table as it currently stands, above the table itself.
+ *
+ * A page of figures says everything and points at nothing. These three say who
+ * the season belongs to before the reader sorts a single column - and they are
+ * drawn from the rows already on the page, so they cost no extra work.
+ *
+ * Rate leaders honour the qualifying filter the reader has set: without it a
+ * single 1-for-1 game tops the batting average.
+ */
+function Leaders({
+  rows,
+  kind,
+  avatars,
+}: {
+  rows: StatRow[];
+  kind: "batting" | "pitching";
+  avatars: Record<string, string>;
+}) {
+  const cards = HEADLINE[kind].map((stat) => {
+    const ranked = rows
+      .filter((row) => row[stat.key] !== null && row[stat.key] !== undefined)
+      .sort((a, b) => (stat.lowest ? 1 : -1) * (num(b[stat.key]) - num(a[stat.key])))
+      .slice(0, 3);
+    return { ...stat, ranked };
+  });
+  if (cards.every((card) => card.ranked.length === 0)) return null;
+
+  return (
+    <div className="mb-4 grid gap-3 sm:grid-cols-3">
+      {cards.map((card) => (
+        <div key={card.key} className="ui-card p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{card.label}</p>
+          <ol className="flex flex-col gap-1.5">
+            {card.ranked.map((row, index) => (
+              <li key={`${card.key}-${row.playerName}`} className="flex items-center gap-2 text-sm">
+                <span className="w-3 text-xs font-bold tabular-nums text-slate-600">{index + 1}</span>
+                <PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={index === 0 ? 22 : 18} />
+                <PlayerProfileLink
+                  name={row.playerName}
+                  className={`min-w-0 flex-1 truncate ${index === 0 ? "font-semibold text-slate-100" : "text-slate-300"}`}
+                />
+                <span className={`tabular-nums ${index === 0 ? "text-base font-bold text-sky-300" : "text-slate-400"}`}>
+                  {card.rate
+                    ? Number(row[card.key]).toFixed(card.key === "era" ? 2 : 3).replace(/^0/, "")
+                    : num(row[card.key])}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, toolbar, avatars = {} }: { rows: StatRow[]; kind: "batting" | "pitching"; team?: boolean; seasonId?: number; teamIds?: Record<string, number>; toolbar?: React.ReactNode; avatars?: Record<string, string> }) {
@@ -152,6 +260,7 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
     setPage(0);
   };
   const arrow = (key: string) => sortKey === key ? (direction === "desc" ? "↓" : "↑") : "↕";
+  const bands = bandsOf(columns);
 
   // Clamp rather than reset in an effect: filtering can shrink the list below
   // the current page while the user is on it.
@@ -172,8 +281,9 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
     visible.reduce((longest, row) => Math.max(longest, pick(row).length), 0);
   // Characters, plus room for the head or crest, the gap after it, and the
   // cell's own padding.
-  const toWidth = (chars: number) => `calc(${chars}ch + 3.25rem)`;
-  const labelColumn = toWidth(widest((row) => (team ? row.teamName : row.playerName)));
+  const toWidth = (chars: number, extra = 0) => `calc(${chars}ch + ${3.25 + extra}rem)`;
+  // Player tables carry the rank in this column too, so it gets that much more.
+  const labelColumn = toWidth(widest((row) => (team ? row.teamName : row.playerName)), team ? 0 : 1.75);
   // The team column is measured the same way rather than being left to absorb
   // whatever remained: that squeezed it to 95px, which cuts off a name like
   // "Golden State Dolphins (+1)".
@@ -200,7 +310,8 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
       {!team && <label className="ui-field-label ml-auto">{kind === "batting" ? "Min PA" : "Min IP"}<select value={minimum} onChange={(e) => { setMinimum(e.target.value); setPage(0); }} className="ui-select">{(kind === "batting" ? [0, 10, 25, 50, 100] : [0, 5, 10, 25, 50]).map((value) => <option key={value} value={value}>{value === 0 ? "All" : value + "+"}</option>)}</select></label>}
       {!team && <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder="Search player username…" className="ui-select w-full sm:w-56" />}
     </div>}
-    <div className="data-table-shell max-w-full overflow-x-auto">
+    {!team && <Leaders rows={visible} kind={kind} avatars={avatars} />}
+    <div className="data-table-shell is-sticky max-w-full">
       {/* Team tables have a single label column, so they must not pick up the
           two-label alignment - it would left-align their first figure. */}
       <table
@@ -221,24 +332,35 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
             <col key={column.key} style={{ width: `${column.rate ? RATE_COLUMN : COUNT_COLUMN}rem` }} />
           ))}
         </colgroup>
-        <thead><tr>
-          <th><button onClick={() => sort(team ? "teamName" : "playerName")} className="hover:text-white">{team ? "Team" : "Player"} {arrow(team ? "teamName" : "playerName")}</button></th>
-          {!team && <th><button onClick={() => sort("teamName")} className="hover:text-white">Team {arrow("teamName")}</button></th>}
-          {columns.map((column) => <th key={column.key}><button onClick={() => sort(column.key)} className="hover:text-white">{column.label} {arrow(column.key)}</button></th>)}
-        </tr></thead>
+        <thead>
+          {/* What the runs of columns are: hitting, then discipline, and so on. */}
+          <tr className="column-groups">
+            <th colSpan={team ? 1 : 2} className="is-name-column" />
+            {bands.map((band, index) => (
+              <th key={`${band.label}-${index}`} colSpan={band.span} className={index % 2 ? "is-odd" : ""}>
+                {band.label}
+              </th>
+            ))}
+          </tr>
+          <tr>
+            <th className="is-name-column"><button onClick={() => sort(team ? "teamName" : "playerName")} className="hover:text-white">{team ? "Team" : "Player"} {arrow(team ? "teamName" : "playerName")}</button></th>
+            {!team && <th className={sortKey === "teamName" ? "is-sorted" : ""}><button onClick={() => sort("teamName")} className="hover:text-white">Team {arrow("teamName")}</button></th>}
+            {columns.map((column) => <th key={column.key} className={sortKey === column.key ? "is-sorted" : ""}><button onClick={() => sort(column.key)} className="hover:text-white">{column.label} {arrow(column.key)}</button></th>)}
+          </tr>
+        </thead>
         <tbody>{paged.map((row, index) => <tr key={`${row.playerName}-${row.teamName}-${index}`} className="border-b border-slate-800/60">
-          <td><span className="flex min-w-0 items-center gap-2">{team && <TeamLogo teamName={row.teamName} className="h-7 w-7 shrink-0" />}{team ? (seasonId && teamIds[row.teamName] ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} className="truncate" /> : row.teamName) : <><PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={18} /><PlayerProfileLink name={row.playerName} className="truncate" /></>}</span></td>
+          <td className="is-name-column"><span className="flex min-w-0 items-center gap-2">{team && <TeamLogo teamName={row.teamName} className="h-7 w-7 shrink-0" />}{team ? (seasonId && teamIds[row.teamName] ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} className="truncate" /> : row.teamName) : <><span className="rank">{currentPage * PAGE_SIZE + index + 1}</span><PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={20} /><PlayerProfileLink name={row.playerName} className="truncate" /></>}</span></td>
           {/* The team cell carries the crest of the team the player ended the
               span with - for a career row that is their most recent club. */}
           {!team && <td>{(() => { const rosterName = row.teamName.replace(/ \(\+\d+\)$/, ""); const id = teamIds[rosterName]; return <span className="flex min-w-0 items-center gap-2"><TeamLogo teamName={rosterName} className="h-5 w-5 shrink-0" />{seasonId && id ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={id} className="truncate" /> : <span className="truncate">{row.teamName}</span>}</span>; })()}</td>}
-          {columns.map((column) => <td key={column.key}>{display(valueOf(row, column), column)}</td>)}
+          {columns.map((column) => <td key={column.key} className={sortKey === column.key ? "is-sorted" : ""}>{display(valueOf(row, column), column)}</td>)}
         </tr>)}
         {/* Blank rows keep the table the same height on a short last page, so
             paging never resizes the card or moves the pager. */}
-        {Array.from({ length: filler }, (_, index) => <tr key={`filler-${index}`} aria-hidden><td colSpan={columns.length + 2}>&nbsp;</td></tr>)}
+        {Array.from({ length: filler }, (_, index) => <tr key={`filler-${index}`} aria-hidden><td className="is-name-column">&nbsp;</td><td colSpan={columns.length + 1}>&nbsp;</td></tr>)}
         </tbody>
         {averageRow && <tfoot><tr className="border-t-2 border-slate-600/70 bg-slate-800/40 font-semibold">
-          <td>League Average</td>
+          <td className="is-name-column">League Average</td>
           {columns.map((column) => <td key={column.key}>{display(averageRow[column.key], column, true)}</td>)}
         </tr></tfoot>}
       </table>

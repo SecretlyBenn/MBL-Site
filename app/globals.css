@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
 :root {
+  /* How tall the site bar is, so a sticky heading can stop underneath it. */
+  --site-nav: 3.4rem;
   --background: #0b0f14;
   --foreground: #e8ecef;
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --site-nav: 3.9rem;
+  }
 }
 
 @theme inline {
@@ -238,6 +246,97 @@ body {
   .data-table.has-two-labels tbody td:nth-child(2) {
     color: rgb(199 204 209);
     font-weight: 400;
+  }
+
+  /* Reading a wide stat table -------------------------------------------- */
+
+  /* A stat table is wider than the screen, so scrolling sideways used to leave
+     a row of bare figures with nothing saying whose they were. The name column
+     now holds at the left edge while the figures slide under it.
+
+     The column headings are left in place: a page holds fourteen players and
+     fits the screen, so they are never far away - and a heading held against
+     the viewport cannot work inside something that scrolls sideways anyway.
+     The browser measures sticky against the nearest scrolling box, which here
+     is this one, so the heading would simply sit over the first row. */
+  .data-table-shell.is-sticky {
+    overflow-x: auto;
+    overflow-y: clip;
+  }
+
+  /* The group band sits above the column letters. */
+  .data-table.stat-table thead tr.column-groups th {
+    height: 1.45rem;
+    z-index: 3;
+    border-bottom: 0;
+    background: rgb(17 22 29);
+    color: rgb(127 143 160);
+    font-size: 0.6rem;
+    letter-spacing: 0.14em;
+  }
+
+  /* A band's own colour separates it from the one beside it without a rule
+     between every column. */
+  .data-table.stat-table thead tr.column-groups th.is-odd {
+    background: rgb(23 30 40);
+    color: rgb(148 165 183);
+  }
+
+  .data-table.stat-table thead th.is-name-column,
+  .data-table.stat-table tbody td.is-name-column,
+  .data-table.stat-table tfoot td.is-name-column {
+    position: sticky;
+    left: 0;
+    z-index: 4;
+    /* Opaque, because the figures slide underneath it. */
+    background: rgb(20 26 34);
+  }
+
+  .data-table.stat-table thead th.is-name-column {
+    z-index: 5;
+  }
+
+  .data-table.stat-table tbody tr:nth-child(even) td.is-name-column {
+    background: rgb(25 32 42);
+  }
+
+  .data-table.stat-table tbody tr:hover td.is-name-column {
+    background: rgb(30 43 58);
+  }
+
+  /* The edge of the held column, so it reads as a column that stayed rather
+     than numbers running underneath a name by accident. */
+  .data-table.stat-table .is-name-column::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 0.75rem;
+    transform: translateX(100%);
+    background: linear-gradient(to right, rgb(0 0 0 / 0.28), transparent);
+    pointer-events: none;
+  }
+
+  /* Where a player sits in the table as it is sorted right now. */
+  .data-table.stat-table .rank {
+    display: inline-block;
+    width: 1.75rem;
+    color: rgb(113 128 145);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  /* The column a table is sorted by, so the eye lands on it. */
+  .data-table.stat-table th.is-sorted,
+  .data-table.stat-table td.is-sorted {
+    background: rgb(56 130 246 / 0.07);
+  }
+
+  .data-table.stat-table th.is-sorted {
+    color: rgb(147 197 253);
   }
 
   /* Footer (league-average rows and similar totals). */
