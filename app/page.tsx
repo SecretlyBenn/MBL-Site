@@ -9,6 +9,8 @@ import {
 } from "@/db/queries";
 import { EmptyState, SectionHeader, SectionLink, SiteNav } from "@/app/SiteNav";
 import { StandingsTable } from "@/app/standings/StandingsTable";
+import { Bracket } from "@/app/standings/Bracket";
+import { getRecentArticles } from "@/db/news";
 import { PlayerProfileLink } from "@/app/EntityLinks";
 import { PlayerHead } from "@/app/PlayerHead";
 import { ScoresStrip } from "@/app/ScoresStrip";
@@ -35,7 +37,7 @@ export default async function Home() {
   const seasons = await getHistoricalSeasons();
   const latestSeason = seasons[0] ?? null;
 
-  const [standings, leaders, seasonGames, avatars] = await Promise.all([
+  const [standings, leaders, seasonGames, avatars, articles] = await Promise.all([
     latestSeason ? getHistoricalSeasonStandings(latestSeason.id) : Promise.resolve([]),
     Promise.all(
       LEADER_BOARDS.map(async (board) => ({
@@ -45,6 +47,9 @@ export default async function Home() {
     ),
     latestSeason ? getHistoricalSchedule(latestSeason.id) : Promise.resolve([]),
     getPlayerAvatars(),
+    // A table the news column can do without: if it is missing or the query
+    // fails, the rest of the home page still renders.
+    getRecentArticles(4).catch(() => []),
   ]);
 
   // Archived games carry no status flag; a missing score marks one as unplayed.
@@ -144,14 +149,25 @@ export default async function Home() {
       </section>
 
       <main className="mx-auto max-w-[1600px] px-4 py-5 sm:px-6">
-        <div className="grid gap-5 xl:grid-cols-2">
+        {/* Standings, leaders and the news side by side. The news column is
+            the narrowest: a headline and a date need less room than a table. */}
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,19rem)]">
           <section className="flex min-w-0 flex-col">
+            {/* During the playoffs a table of records says little; the bracket
+                is what people come to see. It is drawn from the season's games,
+                which this page has already loaded for the scores strip. */}
             <SectionHeader
-              title="Standings"
-              action={<SectionLink href="/standings">Full standings →</SectionLink>}
+              title={latestSeason?.isPlayoffs ? "Playoffs" : "Standings"}
+              action={
+                <SectionLink href="/standings">
+                  {latestSeason?.isPlayoffs ? "Full bracket →" : "Full standings →"}
+                </SectionLink>
+              }
             />
             {standings.length === 0 || !latestSeason ? (
               <EmptyState>No teams yet.</EmptyState>
+            ) : latestSeason.isPlayoffs ? (
+              <Bracket games={seasonGames} teams={standings} compact />
             ) : (
               <StandingsTable
                 teams={standings}
@@ -215,6 +231,50 @@ export default async function Home() {
                 </div>
               ))}
             </div>
+          </section>
+
+          <section className="min-w-0">
+            <SectionHeader title="Recent articles" action={<SectionLink href="/news">All news →</SectionLink>} />
+            {articles.length === 0 ? (
+              <EmptyState>No articles yet.</EmptyState>
+            ) : (
+              <ul className="flex flex-col gap-2.5">
+                {articles.map((article, index) => (
+                  <li key={article.id}>
+                    <Link
+                      href={`/news/${article.slug}`}
+                      className="group flex flex-col overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 transition-colors hover:border-sky-500/50 hover:bg-slate-800/40"
+                    >
+                      {/* The newest piece carries its picture; the rest are
+                          headlines, so four fit beside the tables. */}
+                      {index === 0 && article.coverImageId && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`/api/news/image/${article.coverImageId}`}
+                          alt=""
+                          loading="lazy"
+                          className="aspect-video w-full object-cover"
+                        />
+                      )}
+                      <div className="px-3.5 py-2.5">
+                        <p
+                          className={`line-clamp-2 font-bold leading-snug text-slate-100 group-hover:text-white ${
+                            index === 0 ? "text-base" : "text-sm"
+                          }`}
+                        >
+                          {article.title}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {article.authorName}
+                          {article.publishedAt &&
+                            ` · ${new Date(article.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`}
+                        </p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </div>
 

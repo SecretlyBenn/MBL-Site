@@ -3,14 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
-import { Article } from "@/app/news/render";
+import { RichEditor, type RichEditorHandle } from "./RichEditor";
 
 /**
- * Writing an article: the words, the pictures, and whether it is out.
+ * Writing an article: the headline, the words, the pictures, and whether it
+ * is out.
  *
- * The preview beside the text is the same renderer the public page uses, so
- * what a writer sees here is what readers will see - there is no second idea
- * of how an article looks.
+ * The page is laid out like the article it makes - a big headline, the line
+ * under it, then the words - with everything that is not writing (pictures,
+ * saving, publishing) kept to one side, out of the way.
  */
 
 type Draft = {
@@ -44,25 +45,33 @@ async function resizePhoto(file: File): Promise<string> {
 
 export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds: number[] }) {
   const router = useRouter();
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const editor = useRef<RichEditorHandle>(null);
   const [title, setTitle] = useState(article.title);
   const [summary, setSummary] = useState(article.summary);
   const [body, setBody] = useState(article.body);
   const [coverImageId, setCoverImageId] = useState(article.coverImageId);
   const [images, setImages] = useState(imageIds);
+  // What is on the server, as the editor reads it back. Compared against to
+  // say whether there is anything to save.
+  const [savedState, setSavedState] = useState({
+    title: article.title,
+    summary: article.summary,
+    body: article.body,
+    coverImageId: article.coverImageId,
+  });
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [saved, setSaved] = useState("");
+  const [notice, setNotice] = useState("");
 
   const unsaved =
-    title !== article.title ||
-    summary !== article.summary ||
-    body !== article.body ||
-    coverImageId !== article.coverImageId;
+    title !== savedState.title ||
+    summary !== savedState.summary ||
+    body !== savedState.body ||
+    coverImageId !== savedState.coverImageId;
 
   async function request(method: "PATCH" | "DELETE" | "POST", url: string, payload: unknown) {
     setError("");
-    setSaved("");
+    setNotice("");
     const response = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
@@ -77,8 +86,9 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
     setBusy(status === article.status ? "Saving…" : status === "PUBLISHED" ? "Publishing…" : "Unpublishing…");
     try {
       await request("PATCH", "/api/news", { id: article.id, title, summary, body, coverImageId, status });
-      setSaved(
-        status === article.status ? "Saved." : status === "PUBLISHED" ? "Published." : "Back to a draft.",
+      setSavedState({ title, summary, body, coverImageId });
+      setNotice(
+        status === article.status ? "Saved." : status === "PUBLISHED" ? "Published. It is on the news page now." : "Unpublished. Only you can see it.",
       );
       router.refresh();
     } catch (problem) {
@@ -92,7 +102,7 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    setBusy("Uploading…");
+    setBusy("Uploading picture…");
     try {
       const dataUrl = await resizePhoto(file);
       const data = await request("POST", "/api/news/images", { articleId: article.id, dataUrl });
@@ -105,22 +115,6 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
     } finally {
       setBusy("");
     }
-  }
-
-  /** Puts a picture into the text on its own line, where the cursor is. */
-  function insert(id: number) {
-    const field = bodyRef.current;
-    const at = field ? field.selectionStart : body.length;
-    const before = body.slice(0, at).replace(/\s*$/, "");
-    const after = body.slice(at).replace(/^\s*/, "");
-    const line = `!image:${id} `;
-    setBody(`${before}${before ? "\n\n" : ""}${line}\n\n${after}`);
-    requestAnimationFrame(() => {
-      if (!field) return;
-      const cursor = (before ? before.length + 2 : 0) + line.length;
-      field.focus();
-      field.setSelectionRange(cursor, cursor);
-    });
   }
 
   async function remove() {
@@ -137,54 +131,112 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
     }
   }
 
+  const published = article.status === "PUBLISHED";
+
   return (
-    <div className="grid gap-6 xl:grid-cols-2">
-      <div className="flex min-w-0 flex-col gap-3">
-        <label className="flex flex-col gap-1">
-          <span className="ui-field-label">Headline</span>
-          <input
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            maxLength={140}
-            className="ui-input w-full text-lg font-bold"
+    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="flex min-w-0 flex-col gap-4">
+        {/* The headline and summary are typed where they will appear, in the
+            size they will appear at, rather than into labelled boxes. */}
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          maxLength={140}
+          placeholder="Headline"
+          aria-label="Headline"
+          className="w-full rounded-lg border border-transparent bg-transparent px-1 text-3xl font-black tracking-tight text-slate-100 outline-none placeholder:text-slate-700 hover:border-slate-800 focus:border-slate-700"
+        />
+        <input
+          value={summary}
+          onChange={(event) => setSummary(event.target.value)}
+          maxLength={300}
+          placeholder="A line under the headline - what the piece is about"
+          aria-label="Summary"
+          className="-mt-2 w-full rounded-lg border border-transparent bg-transparent px-1 text-lg text-slate-400 outline-none placeholder:text-slate-700 hover:border-slate-800 focus:border-slate-700"
+        />
+
+        {coverImageId && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/news/image/${coverImageId}`}
+            alt=""
+            className="aspect-video w-full rounded-xl border border-slate-800 object-cover"
           />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="ui-field-label">Summary - one line under the headline</span>
-          <input
-            value={summary}
-            onChange={(event) => setSummary(event.target.value)}
-            maxLength={300}
-            className="ui-input w-full"
-          />
-        </label>
-        <label className="flex flex-col gap-1">
-          <span className="ui-field-label">Article</span>
-          <textarea
-            ref={bodyRef}
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            rows={22}
-            maxLength={40000}
-            placeholder={"The Knights needed four games...\n\n## How it turned\n\nA paragraph, then a blank line."}
-            className="ui-input w-full resize-y font-mono text-sm leading-relaxed"
-          />
-        </label>
+        )}
+
+        <RichEditor
+          ref={editor}
+          initialBody={article.body}
+          onChange={setBody}
+          // The editor tidies the stored text as it reads it in; that tidy
+          // version is the starting point, so opening an article does not
+          // count as changing it.
+          onReady={(normalized) => {
+            setBody(normalized);
+            setSavedState((current) => ({ ...current, body: normalized }));
+          }}
+        />
+      </div>
+
+      <aside className="flex flex-col gap-4 xl:sticky xl:top-[calc(var(--site-nav)+1rem)] xl:self-start">
+        <div className="ui-card flex flex-col gap-3 p-4">
+          <div className="flex items-center gap-2">
+            <span
+              className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                published ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"
+              }`}
+            >
+              {published ? "Published" : "Draft"}
+            </span>
+            <Link href={`/news/${article.slug}`} className="ui-link ml-auto text-sm">
+              {published ? "View on the site" : "Preview on the site"}
+            </Link>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => save()} disabled={Boolean(busy) || !unsaved} className="ui-button-primary">
+              Save
+            </button>
+            {published ? (
+              <button type="button" onClick={() => save("DRAFT")} disabled={Boolean(busy)} className="ui-button">
+                Unpublish
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => save("PUBLISHED")}
+                disabled={Boolean(busy) || !title.trim()}
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
+              >
+                Publish
+              </button>
+            )}
+          </div>
+
+          <p aria-live="polite" className="min-h-5 text-sm">
+            {busy && <span className="text-slate-400">{busy}</span>}
+            {!busy && error && <span role="alert" className="text-rose-400">{error}</span>}
+            {/* New changes outrank the last "Saved": it is no longer true. */}
+            {!busy && !error && unsaved && <span className="text-amber-300">You have unsaved changes.</span>}
+            {!busy && !error && !unsaved && notice && <span className="text-emerald-400">{notice}</span>}
+          </p>
+        </div>
 
         <div className="ui-card flex flex-col gap-3 p-4">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-200">Pictures</h3>
             <label className="ui-button ml-auto cursor-pointer">
-              Upload a picture
+              Upload
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={upload} className="sr-only" />
             </label>
           </div>
           {images.length === 0 ? (
-            <p className="text-xs text-slate-500">
-              None yet. The first one you upload becomes the cover.
+            <p className="text-xs leading-relaxed text-slate-500">
+              Upload a picture, then click where it should go in the article and press Add to article.
+              The first one becomes the cover.
             </p>
           ) : (
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <ul className="grid grid-cols-2 gap-3">
               {images.map((id) => (
                 <li key={id} className="flex flex-col gap-1.5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -195,74 +247,28 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
                       coverImageId === id ? "border-sky-500" : "border-slate-800"
                     }`}
                   />
-                  <div className="flex gap-2 text-xs">
-                    <button type="button" onClick={() => insert(id)} className="ui-link">
-                      Insert
+                  <button type="button" onClick={() => editor.current?.insertImage(id)} className="ui-link text-left text-xs">
+                    Add to article
+                  </button>
+                  {coverImageId === id ? (
+                    <button type="button" onClick={() => setCoverImageId(null)} className="text-left text-xs text-sky-300">
+                      Cover ✓
                     </button>
-                    {coverImageId === id ? (
-                      <button type="button" onClick={() => setCoverImageId(null)} className="text-sky-300">
-                        Cover ✓
-                      </button>
-                    ) : (
-                      <button type="button" onClick={() => setCoverImageId(id)} className="text-slate-400 hover:text-white">
-                        Make cover
-                      </button>
-                    )}
-                  </div>
+                  ) : (
+                    <button type="button" onClick={() => setCoverImageId(id)} className="text-left text-xs text-slate-400 hover:text-white">
+                      Use as cover
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => save()} disabled={Boolean(busy) || !unsaved} className="ui-button-primary">
-            Save
-          </button>
-          {article.status === "PUBLISHED" ? (
-            <button type="button" onClick={() => save("DRAFT")} disabled={Boolean(busy)} className="ui-button">
-              Unpublish
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => save("PUBLISHED")}
-              disabled={Boolean(busy) || !title.trim()}
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
-            >
-              Publish
-            </button>
-          )}
-          <Link href={`/news/${article.slug}`} className="ui-link text-sm">
-            {article.status === "PUBLISHED" ? "View live" : "View draft"}
-          </Link>
-          <button type="button" onClick={remove} disabled={Boolean(busy)} className="ml-auto text-sm text-slate-500 hover:text-rose-400">
-            Delete article
-          </button>
-        </div>
-        <p aria-live="polite" className="text-sm">
-          {busy && <span className="text-slate-400">{busy}</span>}
-          {!busy && saved && <span className="text-emerald-400">{saved}</span>}
-          {!busy && !saved && unsaved && <span className="text-amber-300">Unsaved changes.</span>}
-          {error && <span role="alert" className="text-rose-400">{error}</span>}
-        </p>
-      </div>
-
-      {/* How it will read. Same renderer as the public page. */}
-      <div className="min-w-0">
-        <p className="ui-field-label mb-2">Preview</p>
-        <div className="ui-card p-5">
-          {coverImageId && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={`/api/news/image/${coverImageId}`} alt="" className="mb-4 aspect-video w-full rounded-lg border border-slate-800 object-cover" />
-          )}
-          <h1 className="text-2xl font-black tracking-tight">{title || "Untitled"}</h1>
-          {summary && <p className="mt-1 text-slate-400">{summary}</p>}
-          <div className="mt-4">
-            <Article body={body} />
-          </div>
-        </div>
-      </div>
+        <button type="button" onClick={remove} disabled={Boolean(busy)} className="self-start text-sm text-slate-500 hover:text-rose-400">
+          Delete this article
+        </button>
+      </aside>
     </div>
   );
 }

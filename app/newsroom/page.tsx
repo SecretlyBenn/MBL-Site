@@ -68,15 +68,10 @@ export default async function NewsroomPage() {
             <p className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-200">
               Writing an article
             </p>
-            <p className="mb-1.5">A blank line starts a new paragraph. On a line of its own:</p>
-            <ul className="ml-4 list-disc space-y-1">
-              <li><code className="text-slate-300">## Heading</code> for a section</li>
-              <li><code className="text-slate-300">&gt; Quote</code> for a pull quote</li>
-              <li><code className="text-slate-300">- Point</code> for a bullet</li>
-            </ul>
-            <p className="mt-2">
-              Inside a paragraph, <code className="text-slate-300">[words](https://link)</code> makes a
-              link. Pictures are uploaded in the editor and inserted where the cursor is.
+            <p>
+              Write the way you would in a document. Put the cursor in a line and press Heading,
+              Quote or List; select words and press B, I or Link. Pictures are uploaded beside the
+              article and added wherever the cursor is. Nothing is public until you press Publish.
             </p>
           </div>
         </aside>

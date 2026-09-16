@@ -120,6 +120,11 @@ it costs.
   HTML.** Do not switch it to markdown-to-HTML or `dangerouslySetInnerHTML`:
   anyone with the WRITER role would then be able to put scripts on the site.
   Links are only made for `http(s)` and on-site addresses for the same reason.
+- Writers never see that text format. `app/newsroom/[id]/RichEditor.tsx` is a
+  document-style editor that converts what is on screen back into it on every
+  change, so the stored article is always the safe text, whatever is pasted.
+  If you add a formatting button, add the mark to `INLINE` in `render.tsx`
+  and to both directions of the conversion in the editor.
 - Pictures live in `news_images` as base64, like team logos, resized in the
   browser first. There is no file storage on this plan.
 - Anyone signed in with Discord can like and comment, with no league role

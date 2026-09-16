@@ -126,3 +126,25 @@ export async function getArticlesByAuthor(userId: number) {
 export async function getAllArticles() {
   return getDb().select().from(newsArticles).orderBy(desc(newsArticles.updatedAt));
 }
+
+/**
+ * The newest few published articles, for the home page.
+ *
+ * One query and no like or comment counts: the home page is the busiest page
+ * on the site, and a headline is all this column needs.
+ */
+export async function getRecentArticles(limit = 4) {
+  return getDb()
+    .select({
+      id: newsArticles.id,
+      slug: newsArticles.slug,
+      title: newsArticles.title,
+      authorName: newsArticles.authorName,
+      publishedAt: newsArticles.publishedAt,
+      coverImageId: newsArticles.coverImageId,
+    })
+    .from(newsArticles)
+    .where(eq(newsArticles.status, "PUBLISHED"))
+    .orderBy(desc(newsArticles.publishedAt))
+    .limit(limit);
+}

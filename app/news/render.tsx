@@ -8,13 +8,14 @@ import Link from "next/link";
  * in an article is a stray script tag on the screen, never a script. That is
  * why nothing here uses dangerouslySetInnerHTML.
  *
- * What a writer can use, one per line:
+ * Writers never see this format - the newsroom editor writes it for them from
+ * its toolbar - but it is what is stored, one block per line:
  *
  *   ## A heading
  *   > A pull quote
  *   - A bullet
- *   !image:12 Caption goes here      (from the picture's Insert button)
- *   A plain paragraph, with [a link](https://example.com) inside it.
+ *   !image:12 Caption goes here
+ *   A paragraph, with [a link](https://example.com), **bold** and *italic*.
  *
  * A blank line ends a paragraph. Everything else is prose.
  */
@@ -70,8 +71,20 @@ export function parseArticle(body: string): Block[] {
   return blocks;
 }
 
+/** Whether a link may be followed: web addresses and pages on this site only. */
+export function isSafeHref(href: string) {
+  return /^https?:\/\//i.test(href) || (href.startsWith("/") && !href.startsWith("//"));
+}
+
 /**
- * Prose, with [text](url) turned into links.
+ * The marks a sentence can carry, in the order they are looked for: a link,
+ * then bold, then italic. The editor writes these for the writer - nobody
+ * types them - and this is the one place that reads them back.
+ */
+export const INLINE = /\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*|\*([^*\s][^*]*)\*/g;
+
+/**
+ * Prose, with its links, bold and italic.
  *
  * Only http, https and addresses on this site become links; anything else
  * (javascript:, data:) is left as the text the writer typed, so a link can
@@ -79,28 +92,42 @@ export function parseArticle(body: string): Block[] {
  */
 function Prose({ text }: { text: string }) {
   const pieces: React.ReactNode[] = [];
-  const pattern = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  const pattern = new RegExp(INLINE.source, "g");
   let last = 0;
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(text)) !== null) {
     if (match.index > last) pieces.push(text.slice(last, match.index));
-    const [whole, label, href] = match;
-    const safe = /^https?:\/\//i.test(href) || href.startsWith("/");
-    pieces.push(
-      safe ? (
-        <Link
-          key={`${match.index}-${href}`}
-          href={href}
-          className="ui-link"
-          {...(href.startsWith("/") ? {} : { target: "_blank", rel: "noreferrer noopener" })}
-        >
-          {label}
-        </Link>
-      ) : (
-        whole
-      ),
-    );
+    const [whole, label, href, bold, italic] = match;
+    const key = `${match.index}-${whole.length}`;
+    if (label !== undefined) {
+      pieces.push(
+        isSafeHref(href) ? (
+          <Link
+            key={key}
+            href={href}
+            className="ui-link"
+            {...(href.startsWith("/") ? {} : { target: "_blank", rel: "noreferrer noopener" })}
+          >
+            {label}
+          </Link>
+        ) : (
+          whole
+        ),
+      );
+    } else if (bold !== undefined) {
+      pieces.push(
+        <strong key={key} className="font-bold text-slate-100">
+          <Prose text={bold} />
+        </strong>,
+      );
+    } else {
+      pieces.push(
+        <em key={key}>
+          <Prose text={italic} />
+        </em>,
+      );
+    }
     last = match.index + whole.length;
   }
   if (last < text.length) pieces.push(text.slice(last));
