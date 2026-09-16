@@ -6,6 +6,7 @@ import { BackButton } from "@/app/players/BackButton";
 import { PlayerHead } from "@/app/PlayerHead";
 import { PlayerProfile } from "@/app/players/PlayerProfile";
 import { TeamLogo } from "@/app/TeamLogo";
+import { CareerLine, careerTotals } from "@/app/players/CareerLine";
 
 export const dynamic = "force-dynamic";
 
@@ -55,13 +56,25 @@ export default async function HistoricalPlayerPage({
     <PageShell
       wide
       header={
-        <div className="-mx-6 -mt-5 mb-6 border-b border-slate-800/80 bg-slate-900/40 px-6 py-6">
-          <div className="flex flex-wrap items-center gap-5">
+        <div className="relative -mx-6 -mt-5 mb-6 overflow-hidden border-b border-slate-800/80 bg-slate-900/40 px-6 py-6">
+          {/* The club's crest, large and nearly invisible, so the header
+              belongs to a team without competing with the player's own head. */}
+          {latest?.teamName && (
+            <TeamLogo
+              teamName={latest.teamName}
+              className="pointer-events-none absolute -right-6 -top-10 h-56 w-56 opacity-[0.06]"
+            />
+          )}
+          <div className="relative flex flex-wrap items-center gap-5">
             <PlayerHead uuid={avatars[name]} name={name} size={96} className="rounded-lg" />
             <div className="min-w-0">
-              <p className="mb-0.5 text-xs font-bold uppercase tracking-[0.15em] text-sky-400">
-                {[jersey, position].filter(Boolean).join(" · ")}
-              </p>
+              {/* A dash on its own said nothing; the line appears once there
+                  is a number or a position to put in it. */}
+              {(jersey || position !== "—") && (
+                <p className="mb-0.5 text-xs font-bold uppercase tracking-[0.15em] text-sky-400">
+                  {[jersey, position === "—" ? null : position].filter(Boolean).join(" · ")}
+                </p>
+              )}
               <h1 className="text-4xl font-black tracking-tight">{name}</h1>
               {latest?.teamName && (
                 <span className="mt-1.5 flex items-center gap-2 text-sm text-slate-300">
@@ -76,6 +89,12 @@ export default async function HistoricalPlayerPage({
               </span>
               <BackButton />
             </div>
+
+            {/* What this player did across every season, worked out from the
+                seasons already on the page. It answers the question the page
+                is opened with - how good are they - before anyone reads a
+                table. */}
+            <CareerLine totals={careerTotals(history)} />
           </div>
         </div>
       }

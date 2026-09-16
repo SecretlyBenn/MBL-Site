@@ -134,8 +134,8 @@ export default async function GamePage({
     stats.filter((row) => row.isHome === isHome && row.kind === kind);
 
   return (
-    <PageShell wide title={`${game.awayName ?? "Away"} @ ${game.homeName ?? "Home"}`}>
-      <p className="mb-6 text-sm text-slate-400">
+    <PageShell wide header={<span className="sr-only">{`${game.awayName ?? "Away"} @ ${game.homeName ?? "Home"}`}</span>}>
+      <p className="mb-4 text-sm text-slate-400">
         <Link href={`/schedule?season=${game.seasonId}`} className="hover:text-white">
           ← {game.seasonName} schedule
         </Link>
@@ -226,8 +226,11 @@ export default async function GamePage({
           <h2 className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
             Line score
           </h2>
-          <div className="data-table-shell overflow-x-auto">
-            <table className="data-table w-full table-auto">
+          {/* Sized to its own figures rather than stretched across the page:
+              a line score is a scoreboard, and a scoreboard with an inch
+              between each inning is not one. */}
+          <div className="data-table-shell inline-block max-w-full overflow-x-auto align-top">
+            <table className="data-table line-score table-auto">
               <thead>
                 <tr>
                   <th>Team</th>
@@ -236,9 +239,9 @@ export default async function GamePage({
                       {index + 1}
                     </th>
                   ))}
-                  <th>R</th>
-                  <th>H</th>
-                  <th>E</th>
+                  <th className="is-total">R</th>
+                  <th className="is-total">H</th>
+                  <th className="is-total">E</th>
                 </tr>
               </thead>
               <tbody>
@@ -246,21 +249,15 @@ export default async function GamePage({
                   const perInning = (row.innings ?? "").split(",").filter(Boolean);
                   return (
                     <tr key={row.id}>
-                      <td>{row.teamLabel}</td>
+                      <td className="whitespace-nowrap font-semibold">{row.teamLabel}</td>
                       {Array.from({ length: inningCount }, (_, index) => (
                         <td key={index}>
                           {perInning[index] ?? "-"}
                         </td>
                       ))}
-                      <td>
-                        {row.runs ?? "-"}
-                      </td>
-                      <td>
-                        {row.hits ?? "-"}
-                      </td>
-                      <td>
-                        {row.errors ?? "-"}
-                      </td>
+                      <td className="is-total">{row.runs ?? "-"}</td>
+                      <td className="is-total">{row.hits ?? "-"}</td>
+                      <td className="is-total">{row.errors ?? "-"}</td>
                     </tr>
                   );
                 })}

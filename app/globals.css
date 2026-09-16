@@ -339,6 +339,30 @@ body {
     color: rgb(147 197 253);
   }
 
+  /* The line score ------------------------------------------------------- */
+
+  /* Innings are single digits, so their columns are sized for one. R, H and E
+     are the figures people look for, so they sit apart from the innings and
+     carry the weight. */
+  .data-table.line-score th:not(:first-child),
+  .data-table.line-score td:not(:first-child) {
+    min-width: 2.1rem;
+    text-align: center;
+  }
+
+  .data-table.line-score .is-total {
+    background: rgb(30 39 51 / 0.45);
+    font-weight: 700;
+  }
+
+  .data-table.line-score th.is-total {
+    color: rgb(226 232 240);
+  }
+
+  .data-table.line-score .is-total:first-of-type {
+    border-left: 1px solid rgb(51 65 85 / 0.8);
+  }
+
   /* Footer (league-average rows and similar totals). */
 
   .data-table tfoot td {

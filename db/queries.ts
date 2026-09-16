@@ -1047,3 +1047,68 @@ export async function getScheduledTimes(): Promise<
   }
   return byFixture;
 }
+
+/**
+ * One line about every season: how many clubs, how many games, and the club
+ * that won the most of them.
+ *
+ * The seasons page used to be a list of names with nothing to choose between
+ * them. Two grouped queries answer it for every season at once - a query per
+ * season would be sixteen round trips on a page that is mostly links.
+ */
+export async function getSeasonSummaries() {
+  const db = getDb();
+  const [games, clubs] = await Promise.all([
+    db
+      .select({
+        seasonId: historicalGames.seasonId,
+        games: sql<number>`count(*)`,
+        played: sql<number>`sum(case when ${historicalGames.homeScore} is not null then 1 else 0 end)`,
+      })
+      .from(historicalGames)
+      .groupBy(historicalGames.seasonId),
+    db
+      .select({
+        seasonId: historicalTeams.seasonId,
+        name: historicalTeams.name,
+        wins: historicalTeams.wins,
+        losses: historicalTeams.losses,
+      })
+      .from(historicalTeams),
+  ]);
+
+  const byGames = new Map(games.map((row) => [row.seasonId, row]));
+  const summaries = new Map<
+    number,
+    { seasonId: number; teams: number; games: number; played: number; leaderName: string | null; leaderWins: number; leaderLosses: number }
+  >();
+
+  for (const club of clubs) {
+    const tally = byGames.get(club.seasonId);
+    const summary = summaries.get(club.seasonId) ?? {
+      seasonId: club.seasonId,
+      teams: 0,
+      games: Number(tally?.games ?? 0),
+      played: Number(tally?.played ?? 0),
+      leaderName: null,
+      leaderWins: -1,
+      leaderLosses: 0,
+    };
+    summary.teams += 1;
+    // Most wins, and fewest losses where two clubs won the same number. In a
+    // playoff season that is whoever went furthest.
+    const wins = club.wins ?? 0;
+    const losses = club.losses ?? 0;
+    if (wins > summary.leaderWins || (wins === summary.leaderWins && losses < summary.leaderLosses)) {
+      summary.leaderName = club.name;
+      summary.leaderWins = wins;
+      summary.leaderLosses = losses;
+    }
+    summaries.set(club.seasonId, summary);
+  }
+
+  return [...summaries.values()].map((summary) => ({
+    ...summary,
+    leaderWins: Math.max(0, summary.leaderWins),
+  }));
+}
