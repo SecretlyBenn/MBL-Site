@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
+import { rateLimit, sweepRateLimits } from "@/db/rate-limit";
 import { users, type Role } from "@/db/schema";
 import { getSession } from "./session";
 
@@ -31,6 +32,10 @@ export async function getLeagueUser(): Promise<LeagueUser | null> {
     where: eq(users.discordId, session.discordId),
   });
   if (!row) return null;
+
+  // Signed out everywhere since this cookie was written: it is no longer a way
+  // in, whatever it says.
+  if ((session.epoch ?? 0) !== row.sessionEpoch) return null;
 
   return {
     id: row.id,
@@ -85,6 +90,16 @@ export async function requireRoleForApi(
   if (!leagueUser || !allowedRoles.includes(leagueUser.role)) {
     throw new RoleError(403, "You do not have access to this action.");
   }
+
+  // Every change to the league goes through here, so this is where a ceiling
+  // on how fast one account can make them belongs. It is set well above what
+  // scoring a game or filling in a roster needs, and far below what a script
+  // could do with a borrowed session.
+  const verdict = await rateLimit(`api:${leagueUser.id}`, { limit: 240, windowSeconds: 60 });
+  if (!verdict.ok) {
+    throw new RoleError(429, "That is happening too often. Wait a moment and try again.");
+  }
+  void sweepRateLimits();
 
   return leagueUser;
 }

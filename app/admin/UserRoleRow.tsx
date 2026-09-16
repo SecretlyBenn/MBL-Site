@@ -22,6 +22,7 @@ export function UserRoleRow({
   const [teamId, setTeamId] = useState<number | "">(user.teamId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [signedOut, setSignedOut] = useState(false);
 
   const changed = role !== user.role || (teamId || null) !== user.teamId;
   const needsTeam = role === "GM" && !teamId;
@@ -37,6 +38,34 @@ export function UserRoleRow({
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+      router.refresh();
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "Unexpected error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Ends every session this account has open. Worth doing when their Discord
+   * account or a device is out of their hands - changing the role here does
+   * not close a tab someone else is already signed in on.
+   */
+  async function signOutEverywhere() {
+    if (!confirm(`Sign ${user.displayName} out of every browser? They can sign back in.`)) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/users/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const body = (await response.json().catch(() => ({}))) as { error?: string; self?: boolean };
+      if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+      // Signing yourself out includes this browser, so leave the admin area.
+      if (body.self) window.location.href = "/";
+      setSignedOut(true);
       router.refresh();
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : "Unexpected error");
@@ -83,6 +112,16 @@ export function UserRoleRow({
         className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
       >
         {busy ? "Saving…" : "Save"}
+      </button>
+
+      <button
+        type="button"
+        onClick={signOutEverywhere}
+        disabled={busy}
+        title="Ends every session this account has open"
+        className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:border-rose-500/60 hover:text-rose-300 disabled:opacity-40"
+      >
+        {signedOut ? "Signed out" : "Sign out everywhere"}
       </button>
 
       {error && <span role="alert" className="w-full text-xs text-rose-400">{error}</span>}

@@ -18,9 +18,9 @@ export type GameStatus = (typeof GAME_STATUSES)[number];
 export const SCORECARD_STATUSES = ["PENDING", "APPROVED", "RETURNED"] as const;
 export type ScorecardStatus = (typeof SCORECARD_STATUSES)[number];
 
-// A user's identity comes from ChatGPT sign-in (see app/chatgpt-auth.ts); this
-// table maps that authenticated email to a league role. Rows are created by an
-// admin, not by self-signup - being able to sign in with ChatGPT does not by
+// A user's identity comes from Discord sign-in (see app/discord.ts); this table
+// maps that authenticated account to a league role. Rows are created by an
+// admin, not by self-signup - being able to sign in with Discord does not by
 // itself grant any access.
 export const users = sqliteTable("users", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -31,6 +31,11 @@ export const users = sqliteTable("users", {
   role: text("role").notNull(),
   // Only meaningful (and required) for GM role - which team they manage.
   teamId: integer("team_id").references(() => teams.id),
+  // Bumped to sign this account out everywhere. A session cookie carries the
+  // epoch it was issued under, and one from an older epoch stops being
+  // accepted - the only way to end a session before it expires, since sessions
+  // are signed cookies rather than rows.
+  sessionEpoch: integer("session_epoch").notNull().default(0),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
@@ -618,4 +623,33 @@ export const scorecardActions = sqliteTable("scorecard_actions", {
   /** Cleared when undone, so the trail stays but is not undone twice. */
   undoneAt: text("undone_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+
+/**
+ * League-wide settings an admin can change, as key/value text.
+ *
+ * Only a handful of things belong here - the kind of thing that used to be a
+ * constant in the code, which meant the league waited on a developer to change
+ * it. See db/settings.ts for the keys.
+ */
+export const leagueSettings = sqliteTable("league_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
+ * How many times something has been done lately, for rate limiting.
+ *
+ * `key` names both the actor and the action (an IP signing in, an account
+ * calling the admin API). `windowStart` is when the current window opened, in
+ * seconds; a request after the window has passed starts a new one. Old rows
+ * are cleared out occasionally rather than on a schedule - Workers have no
+ * cron here, and a stale row is harmless.
+ */
+export const rateLimits = sqliteTable("rate_limits", {
+  key: text("key").primaryKey(),
+  windowStart: integer("window_start").notNull(),
+  hits: integer("hits").notNull(),
 });

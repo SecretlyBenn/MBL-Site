@@ -7,7 +7,7 @@ import { requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { ScheduledGames, type Fixture } from "./ScheduledGames";
 import { seriesFor } from "@/app/season-series";
-import { CURRENT_SEASON_NAME } from "@/db/publish";
+import { currentSeasonName } from "@/db/settings";
 
 export const metadata: Metadata = {
   title: "Umpire",
@@ -67,7 +67,7 @@ export default async function UmpirePage() {
     .select({ sourceGameId: historicalGames.sourceGameId })
     .from(historicalGames)
     .innerJoin(historicalSeasons, eq(historicalGames.seasonId, historicalSeasons.id))
-    .where(eq(historicalSeasons.name, CURRENT_SEASON_NAME))
+    .where(eq(historicalSeasons.name, await currentSeasonName()))
     .orderBy(asc(historicalGames.sortOrder));
 
   const positionOf = new Map(

@@ -16,6 +16,7 @@ import {
   scorecards,
   teams,
 } from "@/db/schema";
+import { currentSeasonName } from "@/db/settings";
 import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/derive-box-score";
 import { earnedRunAverage, perGame } from "@/app/scoring";
 
@@ -30,12 +31,6 @@ import { earnedRunAverage, perGame } from "@/app/scoring";
  * instead of double-counting.
  */
 
-/**
- * The season live games are published into. Season XII is still being played -
- * roughly half its schedule is in the archive as unplayed rows - so scored
- * games belong to it, not to a new season standing on its own.
- */
-export const CURRENT_SEASON_NAME = "MBL Season XII";
 
 /**
  * D1 caps the bound parameters in a single statement, and a multi-row insert
@@ -57,10 +52,15 @@ async function insertInChunks<Row extends Record<string, unknown>>(
   }
 }
 
+/**
+ * The season a game the archive has never seen is published into - the season
+ * the league is playing, which an admin sets on the Seasons page.
+ */
 async function currentSeasonId() {
   const db = getDb();
+  const name = await currentSeasonName();
   const existing = await db.query.historicalSeasons.findFirst({
-    where: eq(historicalSeasons.name, CURRENT_SEASON_NAME),
+    where: eq(historicalSeasons.name, name),
   });
   if (existing) return existing.id;
 
@@ -70,7 +70,7 @@ async function currentSeasonId() {
     .insert(historicalSeasons)
     // Live seasons have no upstream export, so the source ids are synthetic -
     // they exist only so a re-import can still match rows by them.
-    .values({ name: CURRENT_SEASON_NAME, sortOrder: nextSort, sourceSeasonId: "live" })
+    .values({ name, sortOrder: nextSort, sourceSeasonId: "live" })
     .returning();
   return created.id;
 }

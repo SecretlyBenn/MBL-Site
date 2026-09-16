@@ -16,11 +16,17 @@ export default function UnauthorizedPage() {
           are, but each portal - umpire, head umpire, GM and admin - also needs a league admin to
           give your account that role.
         </p>
-        <p className="text-sm text-slate-400">If you think this is a mistake, ask a league admin in Discord.</p>
+        <p className="text-sm text-slate-400">
+          If you think this is a mistake, ask a league admin in Discord. If you were signed out of
+          every browser, sign in again to pick up where you left off.
+        </p>
         <div className="mt-1 flex flex-wrap gap-4">
           <Link href="/" className="ui-link text-sm">
             ← Back to home
           </Link>
+          <a href="/api/auth/discord?returnTo=%2F" className="ui-link text-sm">
+            Sign in again
+          </a>
           <Link href="/contact" className="ui-link text-sm">
             Contact the league
           </Link>

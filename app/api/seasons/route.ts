@@ -1,8 +1,9 @@
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { seasonTeamId } from "@/db/publish";
 import { historicalSeasons, teams } from "@/db/schema";
+import { CURRENT_SEASON, setSetting } from "@/db/settings";
 import { apiError } from "@/app/api-errors";
 import { requireRoleForApi } from "@/app/roles";
 
@@ -57,5 +58,41 @@ export async function POST(request: Request) {
     return Response.json({ season, teams: entered }, { status: 201 });
   } catch (error) {
     return apiError(error, "A season with that name already exists.");
+  }
+}
+
+/**
+ * Says which season the league is playing.
+ *
+ * A fixture already on a published schedule carries its own season, so this
+ * only decides where a game the archive has never seen is filed - and which
+ * schedule the umpire page numbers its series from. It used to be a line of
+ * code, so the first Season XIII game scored would have landed in Season XII
+ * until someone edited and redeployed the site.
+ */
+export async function PATCH(request: Request) {
+  try {
+    const leagueUser = await requireRoleForApi(["ADMIN"]);
+    const { seasonId } = (await request.json()) as { seasonId: number };
+    if (!Number.isInteger(seasonId)) {
+      return Response.json({ error: "Which season?" }, { status: 400 });
+    }
+
+    const season = await getDb().query.historicalSeasons.findFirst({
+      where: eq(historicalSeasons.id, seasonId),
+    });
+    if (!season) return Response.json({ error: "No such season." }, { status: 404 });
+
+    await setSetting(CURRENT_SEASON, season.name);
+    await logAudit({
+      actingUserId: leagueUser.id,
+      action: "season.set_current",
+      entityType: "season",
+      entityId: season.id,
+      detail: { name: season.name },
+    });
+    return Response.json({ ok: true, name: season.name });
+  } catch (error) {
+    return apiError(error);
   }
 }

@@ -4,9 +4,14 @@ import { cookies } from "next/headers";
 /**
  * Sessions are a signed cookie rather than a database row: the payload is tiny
  * and self-describing, so verifying one costs an HMAC check instead of a query
- * on every request. The trade-off is that a session cannot be revoked before it
- * expires - acceptable for a league site, and the reason the lifetime is short
- * enough to matter.
+ * on every request.
+ *
+ * A cookie cannot be taken back, so it carries the `epoch` its account was on
+ * when it was issued. Signing an account out everywhere - a stolen laptop, a
+ * hijacked Discord account - bumps that number, and every cookie written under
+ * the old one stops being accepted the next time it is used. The check costs
+ * nothing extra: the account row is already read to find out what the person
+ * is allowed to do (see app/roles.ts).
  */
 export type Session = {
   /** Discord's user id - the stable identity. Usernames change. */
@@ -14,6 +19,12 @@ export type Session = {
   displayName: string;
   /** Seconds since the epoch. */
   expiresAt: number;
+  /**
+   * The account's session epoch when this cookie was issued. Absent on cookies
+   * written before accounts had one, which counts as 0 - the epoch every
+   * account starts on.
+   */
+  epoch?: number;
 };
 
 const COOKIE = "mbl_session";
@@ -94,11 +105,12 @@ export async function getSession(): Promise<Session | null> {
 }
 
 /** The Set-Cookie value for a fresh session, for use from a route handler. */
-export async function sessionCookie(discordId: string, displayName: string) {
+export async function sessionCookie(discordId: string, displayName: string, epoch = 0) {
   const session: Session = {
     discordId,
     displayName,
     expiresAt: Math.floor(Date.now() / 1000) + LIFETIME_SECONDS,
+    epoch,
   };
   const token = await encodeSession(session);
   // HttpOnly keeps the token away from page scripts; Lax still arrives on the

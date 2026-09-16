@@ -676,6 +676,49 @@ export function RecomputeSeasonForm({ seasons }: { seasons: Option[] }) {
   );
 }
 
+export function CurrentSeasonForm({ seasons, current }: { seasons: Option[]; current: string }) {
+  const { send, busy, error } = useRequest();
+  const [seasonId, setSeasonId] = useState(
+    String(seasons.find((season) => season.name === current)?.id ?? ""),
+  );
+  const [done, setDone] = useState("");
+
+  return (
+    <FormCard
+      title="Season being played"
+      help={
+        <>
+          Currently <strong className="text-slate-200">{current}</strong>. A game already on a
+          published schedule keeps its own season; this is where a game added here goes, and the
+          schedule the umpire page numbers series from. Change it when a new season or its playoffs
+          begin.
+        </>
+      }
+      onSubmit={async () => {
+        setDone("");
+        const name = seasons.find((season) => String(season.id) === seasonId)?.name ?? "season";
+        if (await send("PATCH", "/api/seasons", { seasonId: Number(seasonId) })) {
+          setDone(`Now playing ${name}.`);
+        }
+      }}
+    >
+      <select className="ui-select w-full" value={seasonId} onChange={(event) => setSeasonId(event.target.value)} required>
+        <option value="">Choose a season</option>
+        {seasons.map((season) => (
+          <option key={season.id} value={season.id}>
+            {season.name}
+          </option>
+        ))}
+      </select>
+      <button type="submit" disabled={busy || !seasonId} className="ui-button-primary self-start">
+        {busy ? "Saving…" : "Set season"}
+      </button>
+      <DoneText>{done}</DoneText>
+      <ErrorText>{error}</ErrorText>
+    </FormCard>
+  );
+}
+
 /* --------------------------------------------------------------- Accounts */
 
 export function CreateUserForm({ teams }: { teams: Option[] }) {
