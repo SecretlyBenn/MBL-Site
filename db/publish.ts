@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import { currentSeasonName } from "@/db/settings";
 import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/derive-box-score";
+import { fieldingHistory } from "@/app/fielding-history";
 import { earnedRunAverage, perGame } from "@/app/scoring";
 
 /**
@@ -126,23 +127,7 @@ export async function publishScorecard(scorecardId: number) {
 
   const box = deriveBoxScore(appearances, {
     runnerOuts: outs,
-    fielding: [
-      ...lineups.map((row) => ({
-        isHome: row.isHome,
-        playerId: row.playerId,
-        position: row.position,
-        fromSequence: 0,
-        // A player who left partway through served outs up to that point and
-        // none after it.
-        untilSequence: row.leftAtSequence,
-      })),
-      ...changes.map((row) => ({
-        isHome: row.isHome,
-        playerId: row.playerId,
-        position: row.position,
-        fromSequence: row.appliedAtSequence,
-      })),
-    ],
+    fielding: fieldingHistory(lineups, changes),
   });
 
   // A fixture carried over from the archive keeps the archive's id, so it

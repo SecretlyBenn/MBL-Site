@@ -461,6 +461,14 @@ export const scorecardLineups = sqliteTable("scorecard_lineups", {
    * putting them back on clears this and hands them a position again.
    */
   leftAtSequence: integer("left_at_sequence"),
+  /**
+   * Who held this row, and where, when the game began. Never changed after
+   * that: `playerId` and `position` follow the game as it goes, and reading
+   * them as the start credited a whole game's fielding to where players
+   * finished it. Every move since is a row in fielding_changes.
+   */
+  startingPlayerId: integer("starting_player_id").references(() => players.id),
+  startingPosition: text("starting_position"),
 });
 
 /**
@@ -566,6 +574,7 @@ export const fieldingChanges = sqliteTable("fielding_changes", {
   playerId: integer("player_id")
     .notNull()
     .references(() => players.id),
+  /** A scorekeeping position, or BENCH for a player leaving the field. */
   position: text("position").notNull(),
 });
 

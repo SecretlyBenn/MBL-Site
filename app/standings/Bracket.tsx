@@ -1,6 +1,20 @@
 import Link from "next/link";
 import { TeamLogo } from "@/app/TeamLogo";
-import { buildBracket, type BracketGame, type BracketTeam, type Series } from "./build-bracket";
+import {
+  buildBracket,
+  splitsByLeague,
+  stageLabel,
+  type BracketGame,
+  type BracketTeam,
+  type Round,
+  type Series,
+} from "./build-bracket";
+
+const LEAGUES = ["AMERICAN", "NATIONAL"] as const;
+const LEAGUE_NAMES: Record<(typeof LEAGUES)[number], string> = {
+  AMERICAN: "American League",
+  NATIONAL: "National League",
+};
 
 /**
  * A playoff season, drawn as the bracket it is.
@@ -104,8 +118,30 @@ export function Bracket({
     return <p className="text-sm text-slate-500">No playoff games have been scheduled yet.</p>;
   }
 
-  const final = rounds[rounds.length - 1].series;
+  const finalRound = rounds[rounds.length - 1];
+  const final = finalRound.series;
   const championId = final.length === 1 ? (final[0]?.winnerId ?? null) : null;
+  const split = splitsByLeague(rounds);
+  const earlyRounds = rounds.slice(0, -1);
+
+  /** One round's series for one league, each with its place in the round. */
+  const slotsOf = (round: Round, league: string) =>
+    round.series.flatMap((series, index) => (round.leagues[index] === league ? [{ series, index }] : []));
+
+  const cards = (slots: { series: Series | null; index: number }[]) =>
+    slots.map(({ series, index }) => (
+      <SeriesCard key={series?.key ?? `open-${index}`} series={series} nameOf={nameOf} />
+    ));
+
+  const heading = (text: string, small = false) => (
+    <p
+      className={`mb-2 font-bold uppercase tracking-wider ${
+        small ? "text-[11px] text-slate-500" : "text-xs text-slate-400"
+      }`}
+    >
+      {text}
+    </p>
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -120,33 +156,71 @@ export function Bracket({
       )}
 
       {compact ? (
+        // Down the page, a stage at a time: ALDS, NLDS, ALCS, NLCS, WS.
         <div className="flex flex-col gap-4">
-          {rounds.map((round) => (
-            <div key={round.number}>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">{round.label}</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {round.series.map((series, index) => (
-                  <SeriesCard key={series?.key ?? `open-${index}`} series={series} nameOf={nameOf} />
-                ))}
-              </div>
+          {split
+            ? earlyRounds.flatMap((round) =>
+                LEAGUES.map((league) => (
+                  <div key={`${round.number}-${league}`}>
+                    {heading(stageLabel(round.stage, league), true)}
+                    <div className="grid gap-3 sm:grid-cols-2">{cards(slotsOf(round, league))}</div>
+                  </div>
+                )),
+              )
+            : earlyRounds.map((round) => (
+                <div key={round.number}>
+                  {heading(round.label, true)}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {cards(round.series.map((series, index) => ({ series, index })))}
+                  </div>
+                </div>
+              ))}
+          <div>
+            {heading(stageLabel(finalRound.stage, null), true)}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {cards(final.map((series, index) => ({ series, index })))}
             </div>
-          ))}
+          </div>
         </div>
       ) : (
-        // Each round is a column, and its series are spread down the column so
-        // a series sits level with the two that fed it.
         <div className="overflow-x-auto pb-2">
-          <div className="flex min-w-max gap-6">
-            {rounds.map((round) => (
-              <div key={round.number} className="flex w-72 flex-col">
-                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">{round.label}</p>
-                <div className="flex flex-1 flex-col justify-around gap-4">
-                  {round.series.map((series, index) => (
-                    <SeriesCard key={series?.key ?? `open-${index}`} series={series} nameOf={nameOf} />
-                  ))}
-                </div>
+          <div className="flex min-w-max items-stretch gap-6">
+            {split ? (
+              // The American League's side above the National League's, each
+              // reading left to right into the World Series between them.
+              <div className="flex flex-col gap-8">
+                {LEAGUES.map((league) => (
+                  <section key={league} aria-label={LEAGUE_NAMES[league]}>
+                    <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      {LEAGUE_NAMES[league]}
+                    </p>
+                    <div className="flex gap-6">
+                      {earlyRounds.map((round) => (
+                        <div key={round.number} className="flex w-72 flex-col">
+                          {heading(stageLabel(round.stage, league))}
+                          <div className="flex flex-1 flex-col justify-around gap-4">{cards(slotsOf(round, league))}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
               </div>
-            ))}
+            ) : (
+              // Each round is a column, and its series are spread down the
+              // column so a series sits level with the two that fed it.
+              earlyRounds.map((round) => (
+                <div key={round.number} className="flex w-72 flex-col">
+                  {heading(round.label)}
+                  <div className="flex flex-1 flex-col justify-around gap-4">
+                    {cards(round.series.map((series, index) => ({ series, index })))}
+                  </div>
+                </div>
+              ))
+            )}
+            <div className="flex w-72 flex-col justify-center">
+              {heading(stageLabel(finalRound.stage, null))}
+              <div className="flex flex-col gap-4">{cards(final.map((series, index) => ({ series, index })))}</div>
+            </div>
           </div>
         </div>
       )}

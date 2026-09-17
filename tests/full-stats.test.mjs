@@ -189,6 +189,86 @@ test("a tie leaves nobody with a decision", () => {
   }
 });
 
+test("a reliever who comes in with the game tied and loses it has no blown save", () => {
+  sequence = 0;
+  const box = deriveBoxScore([
+    pa({ result: "HR", batterScored: true, rbis: 1, pitcherPlayerId: 90 }),
+    pa({ result: "HR", isHomeBatting: true, batterPlayerId: 20, batterScored: true, rbis: 1, pitcherPlayerId: 80 }),
+    pa({ inning: 2, result: "K", outsRecorded: 1, pitcherPlayerId: 90 }),
+    // 1-1 when the reliever takes over, so there is no lead for him to blow.
+    pa({ inning: 2, result: "HR", isHomeBatting: true, batterPlayerId: 21, batterScored: true, rbis: 1, pitcherPlayerId: 81 }),
+  ]);
+  const reliever = box.awayPitching.find((line) => line.playerId === 81);
+  assert.equal(reliever.losses, 1);
+  assert.equal(reliever.blownSaves, 0);
+});
+
+test("a reliever who gives up a lead he came in to protect is charged a blown save", () => {
+  sequence = 0;
+  const box = deriveBoxScore([
+    pa({ result: "HR", batterScored: true, rbis: 1, pitcherPlayerId: 90 }),
+    pa({ result: "HR", batterPlayerId: 2, batterScored: true, rbis: 1, pitcherPlayerId: 90 }),
+    pa({ result: "K", isHomeBatting: true, batterPlayerId: 20, outsRecorded: 1, pitcherPlayerId: 80 }),
+    // 2-0 when he comes in, then the home side draws level and goes ahead.
+    pa({ result: "HR", isHomeBatting: true, batterPlayerId: 21, batterScored: true, rbis: 1, pitcherPlayerId: 81 }),
+    pa({ result: "HR", isHomeBatting: true, batterPlayerId: 22, batterScored: true, rbis: 1, pitcherPlayerId: 81 }),
+    pa({ result: "HR", isHomeBatting: true, batterPlayerId: 23, batterScored: true, rbis: 1, pitcherPlayerId: 81 }),
+  ]);
+  const reliever = box.awayPitching.find((line) => line.playerId === 81);
+  assert.equal(reliever.blownSaves, 1);
+  assert.equal(reliever.losses, 1);
+});
+
+test("a blown save stands even when his side wins it back", () => {
+  sequence = 0;
+  const box = deriveBoxScore([
+    pa({ result: "HR", batterScored: true, rbis: 1, pitcherPlayerId: 90 }),
+    pa({ result: "K", isHomeBatting: true, batterPlayerId: 20, outsRecorded: 1, pitcherPlayerId: 80 }),
+    pa({ result: "HR", isHomeBatting: true, batterPlayerId: 21, batterScored: true, rbis: 1, pitcherPlayerId: 81 }),
+    pa({ result: "K", isHomeBatting: true, batterPlayerId: 22, outsRecorded: 2, pitcherPlayerId: 81 }),
+    pa({ inning: 2, result: "HR", batterPlayerId: 3, batterScored: true, rbis: 1, pitcherPlayerId: 90 }),
+    pa({ inning: 2, result: "K", isHomeBatting: true, batterPlayerId: 23, outsRecorded: 3, pitcherPlayerId: 81 }),
+  ]);
+  const reliever = box.awayPitching.find((line) => line.playerId === 81);
+  assert.equal(box.awayScore, 2);
+  assert.equal(box.homeScore, 1);
+  assert.equal(reliever.blownSaves, 1);
+  assert.equal(reliever.saves, 0);
+});
+
+test("finishing a close win is not a save when the lead was big when he came in", () => {
+  sequence = 0;
+  const hr = (batterPlayerId) => pa({ result: "HR", batterPlayerId, batterScored: true, rbis: 1, pitcherPlayerId: 90 });
+  const box = deriveBoxScore([
+    hr(1), hr(2), hr(3), hr(4), hr(5),
+    pa({ result: "K", isHomeBatting: true, batterPlayerId: 20, outsRecorded: 1, pitcherPlayerId: 80 }),
+    // Handed 5-0, gives two back, and it ends 5-2.
+    pa({ result: "HR", isHomeBatting: true, batterPlayerId: 21, batterScored: true, rbis: 1, pitcherPlayerId: 81 }),
+    pa({ result: "HR", isHomeBatting: true, batterPlayerId: 22, batterScored: true, rbis: 1, pitcherPlayerId: 81 }),
+    pa({ result: "K", isHomeBatting: true, batterPlayerId: 23, outsRecorded: 2, pitcherPlayerId: 81 }),
+  ]);
+  const reliever = box.awayPitching.find((line) => line.playerId === 81);
+  assert.equal(reliever.saves, 0);
+  assert.equal(reliever.blownSaves, 0);
+});
+
+test("protecting a lead of three or fewer for an inning is a save", () => {
+  sequence = 0;
+  const box = deriveBoxScore([
+    pa({ result: "K", outsRecorded: 3, pitcherPlayerId: 90 }),
+    pa({ result: "K", isHomeBatting: true, batterPlayerId: 20, outsRecorded: 3, pitcherPlayerId: 80 }),
+    pa({ inning: 2, result: "HR", batterScored: true, rbis: 1, pitcherPlayerId: 90 }),
+    pa({ inning: 2, result: "K", outsRecorded: 3, pitcherPlayerId: 90 }),
+    pa({ inning: 2, result: "K", isHomeBatting: true, batterPlayerId: 21, outsRecorded: 1, pitcherPlayerId: 81 }),
+    pa({ inning: 2, result: "K", isHomeBatting: true, batterPlayerId: 22, outsRecorded: 1, pitcherPlayerId: 81 }),
+    pa({ inning: 2, result: "K", isHomeBatting: true, batterPlayerId: 23, outsRecorded: 1, pitcherPlayerId: 81 }),
+  ]);
+  const starter = box.awayPitching.find((line) => line.playerId === 80);
+  const reliever = box.awayPitching.find((line) => line.playerId === 81);
+  assert.equal(starter.wins, 1);
+  assert.equal(reliever.saves, 1);
+});
+
 test("home runs allowed reach the pitching line", () => {
   sequence = 0;
   const box = deriveBoxScore([pa({ result: "HR", batterScored: true, rbis: 1 })]);

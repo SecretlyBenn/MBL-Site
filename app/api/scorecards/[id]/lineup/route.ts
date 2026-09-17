@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import { fieldingChanges, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { MINIMUM_LINEUP } from "@/app/scoring";
 
@@ -76,18 +76,54 @@ export async function PUT(
       .delete(scorecardLineups)
       .where(and(eq(scorecardLineups.scorecardId, scorecardId), eq(scorecardLineups.isHome, isHome)));
 
+    // Before the first pitch this is the starting lineup, and where everyone
+    // starts is kept apart from where they go. Once play has begun the rows are
+    // rewritten, so who started where carries over from the rows being
+    // replaced, and anyone who came on or moved is written down as a move -
+    // otherwise the box score would credit them from the first out.
+    const before = new Map(existing.map((row) => [row.playerId, row]));
     await db.insert(scorecardLineups).values(
-      rows.map((row) => ({
-        scorecardId,
-        isHome,
-        playerId: row.playerId,
-        battingOrder: row.battingOrder,
-        position: row.position,
-        dhForPlayerId: row.dhForPlayerId ?? null,
-        pitchingOrder: row.pitchingOrder ?? null,
-        isStarter: !scored,
-      })),
+      rows.map((row) => {
+        const previous = before.get(row.playerId);
+        return {
+          scorecardId,
+          isHome,
+          playerId: row.playerId,
+          battingOrder: row.battingOrder,
+          position: row.position,
+          dhForPlayerId: row.dhForPlayerId ?? null,
+          pitchingOrder: row.pitchingOrder ?? null,
+          isStarter: scored ? (previous?.isStarter ?? false) : true,
+          startingPlayerId: scored ? (previous?.startingPlayerId ?? null) : row.playerId,
+          startingPosition: scored ? (previous?.startingPosition ?? null) : row.position,
+          leftAtSequence: scored ? (previous?.leftAtSequence ?? null) : null,
+        };
+      }),
     );
+
+    if (scored) {
+      const appearances = await db
+        .select({ sequence: plateAppearances.sequence, inning: plateAppearances.inning })
+        .from(plateAppearances)
+        .where(eq(plateAppearances.scorecardId, scorecardId));
+      const last = appearances.reduce<(typeof appearances)[number] | null>(
+        (latest, pa) => (latest === null || pa.sequence > latest.sequence ? pa : latest),
+        null,
+      );
+      const moved = rows.filter((row) => before.get(row.playerId)?.position !== row.position);
+      if (moved.length > 0) {
+        await db.insert(fieldingChanges).values(
+          moved.map((row) => ({
+            scorecardId,
+            isHome,
+            inning: last?.inning ?? 1,
+            appliedAtSequence: last?.sequence ?? 0,
+            playerId: row.playerId,
+            position: row.position,
+          })),
+        );
+      }
+    }
 
     await logAudit({
       actingUserId: user.id,

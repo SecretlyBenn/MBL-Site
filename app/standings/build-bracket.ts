@@ -23,6 +23,8 @@ export type BracketGame = {
   awayScore: number | null;
   homeScore: number | null;
   playedOn: string | null;
+  /** "NOT_NEEDED" for a fixture the series ended before reaching. */
+  status?: string | null;
 };
 
 export type BracketTeam = { id: number; name: string; league: string | null };
@@ -43,12 +45,51 @@ export type Series = {
   firstDate: string | null;
 };
 
+/** Where a round sits, counted back from the final. */
+export type Stage = "WS" | "CS" | "DS" | "WC";
+
 export type Round = {
   number: number;
+  stage: Stage;
+  /** The stage in words, for a bracket that cannot be split by league. */
   label: string;
   /** A null slot is a series whose clubs are not known yet. */
   series: (Series | null)[];
+  /**
+   * Each slot's league, in step with `series`. An open slot takes the league
+   * of the two series that feed it, so the American League's championship
+   * series is labelled as one before anyone knows who is in it.
+   */
+  leagues: (string | null)[];
 };
+
+const STAGE_NAMES: Record<Stage, string> = {
+  WS: "World Series",
+  CS: "Championship Series",
+  DS: "Division Series",
+  WC: "Wild Card",
+};
+
+/** "ALDS", "NLCS", "WS" - how the league talks about a series. */
+export function stageLabel(stage: Stage, league: string | null) {
+  if (stage === "WS") return "WS";
+  const prefix = league === "AMERICAN" ? "AL" : league === "NATIONAL" ? "NL" : null;
+  if (!prefix) return STAGE_NAMES[stage];
+  return stage === "WC" ? `${prefix} Wild Card` : `${prefix}${stage}`;
+}
+
+/**
+ * Whether every round before the final has both leagues in it, so the bracket
+ * can be drawn as an American League side and a National League side. A season
+ * whose clubs are all recorded in one league cannot be, and is not guessed at.
+ */
+export function splitsByLeague(rounds: Round[]) {
+  const early = rounds.slice(0, -1);
+  return (
+    early.length > 0 &&
+    early.every((round) => round.leagues.includes("AMERICAN") && round.leagues.includes("NATIONAL"))
+  );
+}
 
 const played = (game: BracketGame) => game.awayScore !== null && game.homeScore !== null;
 
@@ -78,6 +119,10 @@ export function buildBracket(games: BracketGame[], teams: BracketTeam[]): Round[
       };
       series.set(key, entry);
     }
+
+    // A game the series never reached is not one still to come. Counted as
+    // remaining, a best-of-three won 2-0 would read "lead 2-0" for good.
+    if (game.status === "NOT_NEEDED" && !played(game)) continue;
 
     if (played(game)) {
       const homeWon = (game.homeScore ?? 0) > (game.awayScore ?? 0);
@@ -136,7 +181,7 @@ export function buildBracket(games: BracketGame[], teams: BracketTeam[]): Round[
         );
       inRound.sort((a, b) => feederIndex(a) - feederIndex(b));
     }
-    rounds.push({ number, label: `Round ${number}`, series: inRound });
+    rounds.push({ number, stage: "WS", label: "", series: inRound, leagues: [] });
   }
 
   // Rounds that have not been scheduled yet still have a place in a bracket,
@@ -144,9 +189,27 @@ export function buildBracket(games: BracketGame[], teams: BracketTeam[]): Round[
   // slots - no clubs, no dates - rather than guessed.
   while (rounds.length > 0 && rounds[rounds.length - 1].series.length > 1) {
     const count = Math.ceil(rounds[rounds.length - 1].series.length / 2);
-    rounds.push({ number: rounds.length + 1, label: `Round ${rounds.length + 1}`, series: Array(count).fill(null) });
+    rounds.push({ number: rounds.length + 1, stage: "WS", label: "", series: Array(count).fill(null), leagues: [] });
   }
-  if (rounds.length > 1) rounds[rounds.length - 1].label = "Final";
+
+  // Named from the final backwards, because that end is fixed: whatever the
+  // format was that year, the last round is the World Series and the one
+  // before it the championship series.
+  const order: Stage[] = ["WS", "CS", "DS"];
+  rounds.forEach((round, index) => {
+    const fromEnd = rounds.length - 1 - index;
+    round.stage = order[fromEnd] ?? "WC";
+    round.label = STAGE_NAMES[round.stage];
+    const previous = rounds[index - 1];
+    round.leagues = round.series.map((series, slot) => {
+      if (series) return series.league;
+      // An open slot is fed by the two slots level with it in the round before.
+      const feeders = [previous?.leagues[slot * 2], previous?.leagues[slot * 2 + 1]].filter(
+        (league) => league !== undefined,
+      );
+      return feeders.length > 0 && feeders.every((league) => league === feeders[0]) ? (feeders[0] ?? null) : null;
+    });
+  });
 
   return rounds;
 }

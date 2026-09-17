@@ -283,6 +283,14 @@ export function deriveBoxScore(
   let placedRunner: number | null = null;
   const lastBatter = lastBatterByHalf(ordered);
 
+  // The score as the replay reaches each play, and how the game stood when
+  // each pitcher first took the mound. A save and a blown save both turn on
+  // the second: only a reliever who came in protecting a lead ever had one to
+  // keep or to give away.
+  const score = { away: 0, home: 0 };
+  const entries: Entries = new Map();
+  const starters: { away: number | null; home: number | null } = { away: null, home: null };
+
   const flushStranded = () => {
     if (!stranding || stranding.runners === 0) return;
     const line = batting[stranding.side].get(stranding.batterPlayerId);
@@ -321,6 +329,18 @@ export function deriveBoxScore(
         const line = fielderLine(fieldingSide, holder.playerId);
         line.positionOuts[position] = (line.positionOuts[position] ?? 0) + pa.outsRecorded;
       }
+    }
+
+    // Taken before the play changes anything, so it is the game as the
+    // pitcher found it: the lead he was handed and who was already aboard.
+    const entryKey = `${fieldingSide}:${pa.pitcherPlayerId}`;
+    if (!entries.has(entryKey)) {
+      entries.set(entryKey, {
+        lead: score[fieldingSide] - score[side],
+        runners: runnersOn(bases).length,
+        starter: starters[fieldingSide] === null,
+      });
+      starters[fieldingSide] ??= pa.pitcherPlayerId;
     }
 
     // A skipped batter never came to the plate. The order moved past them, but
@@ -398,6 +418,16 @@ export function deriveBoxScore(
     const list = innings[side];
     while (list.length < pa.inning) list.push(0);
     list[pa.inning - 1] += runs;
+    score[side] += runs;
+
+    // A blown save is a reliever who came in with a save to protect and let
+    // the other side draw level or go ahead, whatever happens afterwards. One
+    // who came in with the game tied or behind had no lead to blow, so losing
+    // it is a loss and nothing more.
+    const entry = entries.get(entryKey);
+    if (runs > 0 && entry && !entry.starter && inSaveSituation(entry) && score[fieldingSide] <= score[side]) {
+      pitcher.blownSaves = 1;
+    }
 
     // Where the play left the bases, so the next one starts from it and this
     // batter can be charged with whoever he stranded.
@@ -464,7 +494,7 @@ export function deriveBoxScore(
   const awayScore = total(innings.away);
   const homeScore = total(innings.home);
 
-  assignDecisions(ordered, pitching, { awayScore, homeScore });
+  assignDecisions(ordered, pitching, { awayScore, homeScore }, entries);
 
   return {
     awayBatting: [...batting.away.values()],
@@ -486,7 +516,8 @@ export function deriveBoxScore(
 }
 
 /**
- * Pitcher of record, saves and blown saves.
+ * Pitcher of record and saves. Blown saves are charged during the replay, at
+ * the play the lead went, because they do not depend on how the game ended.
  *
  * The league plays six innings, so the rule that a starter must go five to
  * qualify for a win cannot apply - a starter would almost never reach it. What
@@ -498,6 +529,7 @@ function assignDecisions(
   ordered: StoredPlateAppearance[],
   pitching: { away: Map<number, PitchingLine>; home: Map<number, PitchingLine> },
   final: { awayScore: number; homeScore: number },
+  entries: Entries,
 ) {
   if (ordered.length === 0) return;
 
@@ -562,22 +594,58 @@ function assignDecisions(
     if (loss) loss.losses = 1;
   }
 
-  // The save goes to a reliever who finished a win he did not earn, with the
-  // margin close enough that finishing it was worth something.
+  // The save goes to a reliever who finished a win he did not earn, having
+  // come in with a lead that was his to keep and kept it. How close the game
+  // ended says nothing about that: a reliever handed a seven-run lead who gave
+  // four of them back finished a three-run game and saved nothing.
   const finisher = finisherOf(winner);
-  const margin = Math.abs(final.homeScore - final.awayScore);
   if (finisher !== null) {
     const line = pitching[winner].get(finisher);
-    if (line && line.wins === 0 && line.gamesStarted === 0 && margin <= 3) line.saves = 1;
+    const entry = entries.get(`${winner}:${finisher}`);
+    if (
+      line &&
+      entry &&
+      line.wins === 0 &&
+      line.gamesStarted === 0 &&
+      line.blownSaves === 0 &&
+      earnedSave(entry, line.outs)
+    ) {
+      line.saves = 1;
+    }
   }
+}
 
-  // A blown save is a reliever who came in with his team ahead and gave the
-  // lead away - which is exactly the pitcher charged with the loss when he was
-  // not the starter.
-  if (leadTaken) {
-    const line = pitching[loser].get(leadTaken.losingPitcher);
-    if (line && line.gamesStarted === 0 && line.losses === 1) line.blownSaves = 1;
-  }
+/** How the game stood when a pitcher first came in, for his side. */
+type Entry = {
+  /** His side's runs minus the other side's; negative when behind. */
+  lead: number;
+  /** Runners already aboard. */
+  runners: number;
+  starter: boolean;
+};
+type Entries = Map<string, Entry>;
+
+/**
+ * A save situation, as baseball defines it at the moment a reliever comes in:
+ * his side is ahead, and either by no more than three runs or with the tying
+ * run already on base, at the plate or on deck. The third route - protecting
+ * any lead for three innings - can only be judged once he is done, so it is
+ * left to `earnedSave`.
+ */
+function inSaveSituation(entry: Entry) {
+  return entry.lead > 0 && (entry.lead <= 3 || entry.lead <= entry.runners + 2);
+}
+
+/**
+ * Whether a reliever who finished a win earned the save for it: the tying run
+ * was already near when he came in, or he protected a lead of three or fewer
+ * for at least an inning, or he protected any lead for three innings.
+ */
+function earnedSave(entry: Entry, outs: number) {
+  if (entry.lead <= 0) return false;
+  if (entry.lead <= entry.runners + 2) return true;
+  if (entry.lead <= 3 && outs >= 3) return true;
+  return outs >= 9;
 }
 
 /**

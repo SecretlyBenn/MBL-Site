@@ -1,8 +1,9 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import { fieldingChanges, players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
-import { recordAction } from "@/db/undo";
+import { attachCreated, recordAction } from "@/db/undo";
+import { BENCH } from "@/app/fielding-history";
 import { POSITIONS, type Position } from "@/app/scoring";
 
 type SubstitutionPayload = {
@@ -77,32 +78,51 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const outgoing = await db.query.players.findFirst({
       where: eq(players.id, payload.outPlayerId),
     });
-    await recordAction(
+    const action = await recordAction(
       scorecardId,
       "SUBSTITUTION",
       `${incoming.displayName} in for ${outgoing?.displayName ?? "a player"}`,
       { lineups: [outRow] },
     );
 
+    const position = payload.position ?? outRow.position;
     await db
       .update(scorecardLineups)
-      .set({
-        playerId: payload.inPlayerId,
-        position: payload.position ?? outRow.position,
-      })
+      .set({ playerId: payload.inPlayerId, position })
       .where(eq(scorecardLineups.id, outRow.id));
+
+    const appearances = await db
+      .select({ sequence: plateAppearances.sequence, inning: plateAppearances.inning, batterPlayerId: plateAppearances.batterPlayerId })
+      .from(plateAppearances)
+      .where(eq(plateAppearances.scorecardId, scorecardId));
+    const last = appearances.reduce<(typeof appearances)[number] | null>(
+      (latest, pa) => (latest === null || pa.sequence > latest.sequence ? pa : latest),
+      null,
+    );
+
+    // The row changes hands, so the moment it did is written down as two
+    // moves: the man going off and the man coming on. Without them the box
+    // score gave the substitute every out the starter had already served.
+    const created = await db
+      .insert(fieldingChanges)
+      .values(
+        [
+          { playerId: payload.outPlayerId, position: BENCH },
+          { playerId: payload.inPlayerId, position },
+        ].map((move) => ({
+          scorecardId,
+          isHome: outRow.isHome,
+          inning: last?.inning ?? 1,
+          appliedAtSequence: last?.sequence ?? 0,
+          ...move,
+        })),
+      )
+      .returning();
+    await attachCreated(action.id, { deleteFieldingChangeIds: created.map((row) => row.id) });
 
     // How many the outgoing player had already taken, so the umpire is told
     // what the substitution left behind rather than having to check.
-    const taken = await db
-      .select({ id: plateAppearances.id })
-      .from(plateAppearances)
-      .where(
-        and(
-          eq(plateAppearances.scorecardId, scorecardId),
-          eq(plateAppearances.batterPlayerId, payload.outPlayerId),
-        ),
-      );
+    const taken = appearances.filter((pa) => pa.batterPlayerId === payload.outPlayerId);
 
     return Response.json({
       ok: true,

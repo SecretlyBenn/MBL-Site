@@ -72,6 +72,12 @@ Rules learned the hard way:
   Publishing uses the fixture's season and falls back to the current-season
   setting only for a game the archive has never seen. Playoffs are their own
   season, so this matters.
+- **A scorecard's lineup is where players are now, not where they started.**
+  Position changes and substitutions overwrite it. Time in the field is built
+  by `app/fielding-history.ts` from `starting_player_id`/`starting_position`
+  plus every row in `fielding_changes` (a player leaving is a `BENCH` move).
+  Any new route that moves a player must record a move there, or the box score
+  will credit the whole game to the final alignment - see `drizzle/0044`.
 - Never invent data. Fabricated playoff dates, guessed forfeits and a partial
   score import have each had to be undone by hand afterwards.
 

@@ -31,13 +31,19 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
     .where(eq(newsImages.articleId, id));
 
   return (
-    <PageShell wide title="Edit article" subtitle={article.status === "PUBLISHED" ? "Published" : "Draft"}>
+    // Whether it is published is shown beside Save, where it changes the moment
+    // it is published; a subtitle up here would go on saying "Draft".
+    <PageShell wide title="Edit article" subtitle="Newsroom">
       <p className="mb-4 text-sm text-slate-400">
         <Link href="/newsroom" className="hover:text-white">
           ← Newsroom
         </Link>
       </p>
       <ArticleEditor
+        // A copy saved since this page was last drawn starts the editor
+        // afresh, rather than leaving an older copy on screen to be saved over
+        // the newer one.
+        key={article.updatedAt}
         article={{
           id: article.id,
           slug: article.slug,

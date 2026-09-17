@@ -1,10 +1,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import { fieldingChanges, players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { deriveBoxScore } from "@/app/derive-box-score";
 import { POSITIONS, type Position } from "@/app/scoring";
-import { recordAction } from "@/db/undo";
+import { attachCreated, recordAction } from "@/db/undo";
+import { BENCH } from "@/app/fielding-history";
 
 type WithdrawPayload = {
   playerId: number;
@@ -58,6 +59,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ error: "That player is not in the lineup." }, { status: 404 });
     }
 
+    // Leaving and coming back are both recorded as moves against where the
+    // game has got to, so the box score knows which outs he was out there for.
+    const appearances = await db
+      .select()
+      .from(plateAppearances)
+      .where(eq(plateAppearances.scorecardId, scorecardId));
+    const sequence = appearances.reduce((highest, pa) => Math.max(highest, pa.sequence), 0);
+    const recordMove = async (actionId: number, position: string) => {
+      const created = await db
+        .insert(fieldingChanges)
+        .values({
+          scorecardId,
+          isHome: row.isHome,
+          inning: deriveBoxScore(appearances).currentInning,
+          appliedAtSequence: sequence,
+          playerId: row.playerId,
+          position,
+        })
+        .returning();
+      await attachCreated(actionId, { deleteFieldingChangeIds: created.map((move) => move.id) });
+    };
+
     if (payload.undo) {
       if (payload.position && !POSITIONS.includes(payload.position as Position)) {
         return Response.json({ error: "Unknown position." }, { status: 400 });
@@ -83,7 +106,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       }
 
       const back = await db.query.players.findFirst({ where: eq(players.id, row.playerId) });
-      await recordAction(
+      const returning = await recordAction(
         scorecardId,
         "RETURNED_TO_FIELD",
         `${back?.displayName ?? "A player"} came back on at ${payload.position ?? row.position}`,
@@ -94,19 +117,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         .update(scorecardLineups)
         .set({ leftAtSequence: null, position: payload.position ?? row.position })
         .where(eq(scorecardLineups.id, row.id));
+      await recordMove(returning.id, payload.position ?? row.position);
       return Response.json({ ok: true, back: true, position: payload.position ?? row.position });
     }
 
     // Recorded against where the game has got to, so the outs he served and
     // the plays he made before walking off all still stand.
-    const appearances = await db
-      .select()
-      .from(plateAppearances)
-      .where(eq(plateAppearances.scorecardId, scorecardId));
-    const sequence = appearances.reduce((highest, pa) => Math.max(highest, pa.sequence), 0);
-
     const leaving = await db.query.players.findFirst({ where: eq(players.id, row.playerId) });
-    await recordAction(
+    const left = await recordAction(
       scorecardId,
       "LEFT_FIELD",
       `${leaving?.displayName ?? "A player"} left the field`,
@@ -117,6 +135,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .update(scorecardLineups)
       .set({ leftAtSequence: sequence })
       .where(eq(scorecardLineups.id, row.id));
+    await recordMove(left.id, BENCH);
 
     const box = deriveBoxScore(appearances);
 

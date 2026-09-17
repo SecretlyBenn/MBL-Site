@@ -427,10 +427,9 @@ export function ScoringBoard({
       .filter((change) => change.isHome === fieldingIsHome)
       .map((change) => ({
         key: `move-${change.id}`,
-        text: `${nameOf[change.playerId] ?? "Player"} moved to ${change.position} in inning ${Math.min(
-          inningOf(change.appliedAtSequence),
-          state.inning,
-        )}`,
+        text: `${nameOf[change.playerId] ?? "Player"} ${
+          change.position === "BENCH" ? "came off the field" : `moved to ${change.position}`
+        } in inning ${Math.min(inningOf(change.appliedAtSequence), state.inning)}`,
       }));
     const gone = lineups
       .filter((row) => row.isHome === fieldingIsHome && !onField(row))
