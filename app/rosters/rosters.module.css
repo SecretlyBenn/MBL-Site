@@ -1,0 +1,36 @@
+.page { min-width: 0; }
+.filters { display:flex; flex-wrap:wrap; gap:1rem 2rem; align-items:center; padding:1rem 0 1.5rem; }
+.hero { position:relative; overflow:hidden; border:1px solid #232c38; border-radius:1rem; background:linear-gradient(115deg,#182332,#111820 65%,#0b0f14); padding:2rem; margin-bottom:1.5rem; }
+.identity { position:relative; display:flex; align-items:center; gap:1.5rem; }
+.crest { display:flex; align-items:center; justify-content:center; width:6.5rem; height:6.5rem; flex-shrink:0; padding:.7rem; border:1px solid #ffffff12; border-radius:1rem; background:#0b0f1480; }
+.eyebrow { color:#5eb3ff; font-size:.875rem; font-weight:600; margin-bottom:.5rem; }
+.name { font-size:clamp(1.6rem,3vw,2.6rem); font-weight:900; line-height:1.1; letter-spacing:-.04em; overflow-wrap:anywhere; }
+.metrics { position:relative; display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:1rem; border-top:1px solid #ffffff12; padding-top:1.25rem; margin-top:1.75rem; }
+.metrics dt { color:#9ba8b7; font-size:.8125rem; margin-bottom:.35rem; }
+.metrics dd { color:#f4f6f8; font-size:1.5rem; font-weight:800; font-variant-numeric:tabular-nums; }
+.tabs { display:flex; gap:1.5rem; border-bottom:1px solid #232c38; margin-bottom:1.5rem; overflow-x:auto; }
+.tabs button { display:flex; align-items:center; gap:.5rem; padding:.85rem 0; border-bottom:2px solid transparent; color:#9ba8b7; font-size:.875rem; font-weight:700; white-space:nowrap; cursor:pointer; }
+.tabs button[aria-selected="true"] { border-color:#5eb3ff; color:#f4f6f8; }
+.tabs button span { background:#1c2430; border-radius:.35rem; padding:.1rem .4rem; font-size:.75rem; color:#c7ccd1; }
+.sections :is(button,a,[role="tabpanel"]):focus-visible { outline:2px solid #5eb3ff; outline-offset:4px; }
+.tableScroll { overflow:auto; max-width:100%; border:1px solid #232c38; border-radius:.75rem; background:#141a22; }
+.tableScroll table { width:100%; font-size:.875rem; }
+.tableScroll :is(th,td):first-child { position:sticky; left:0; z-index:1; background:#141a22; min-width:13rem; max-width:none; border-right:1px solid #232c38; }
+.tableScroll tbody tr:nth-child(even) td:first-child { background:#18202b; }
+.tableScroll tbody tr:hover td { background:#1b2b3d; }
+.player { display:flex; align-items:center; gap:.75rem; min-height:3rem; }
+.player a { white-space:nowrap; }
+.gameLink { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:.75rem; padding:1rem; width:100%; }
+.gameLink:hover { background:#ffffff04; }
+@media(max-width:600px) {
+ .hero { padding:1.25rem; }
+ .identity { gap:1rem; }
+ .crest { width:4.5rem; height:4.5rem; }
+ .metrics { grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; }
+ .metrics dd { font-size:1.25rem; }
+ .filters { align-items:stretch; gap:.75rem; }
+ .filters label { flex:1 1 12rem; }
+ .filters select { min-width:0; width:100%; }
+ .tabs { gap:1rem; }
+ .tableScroll :is(th,td):first-child { min-width:11rem; }
+}

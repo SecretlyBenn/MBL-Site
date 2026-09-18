@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { RosterSections } from "./RosterSections";
+import styles from "./rosters.module.css";
 import type { Metadata } from "next";
 import {
   getHistoricalSchedule,
@@ -10,7 +13,7 @@ import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { PlayerHead } from "@/app/PlayerHead";
 import { TeamLogo } from "@/app/TeamLogo";
 import { formatInnings } from "@/app/formatStats";
-import { HistoricalTeamLink, PlayerProfileLink } from "@/app/EntityLinks";
+import { PlayerProfileLink } from "@/app/EntityLinks";
 import { RosterSelect } from "./RosterSelect";
 
 export const metadata: Metadata = {
@@ -41,9 +44,9 @@ function count(value: number | null) {
 function NameCell({ name, uuid }: { name: string; uuid?: string }) {
   return (
     <td className="is-name">
-      <span className="flex min-w-0 items-center gap-2">
-        <PlayerHead uuid={uuid} name={name} size={18} />
-        <PlayerProfileLink name={name} className="truncate" />
+      <span className={styles.player}>
+        <PlayerHead uuid={uuid} name={name} size={26} />
+        <PlayerProfileLink name={name} />
       </span>
     </td>
   );
@@ -84,7 +87,7 @@ export default async function RostersPage({
 
   return (
     <PageShell wide title="Rosters" subtitle={season.name}>
-      <div className="mb-6 flex flex-wrap items-center gap-4">
+      <div className={styles.filters}>
         <RosterSelect
           label="Season"
           param="season"
@@ -106,56 +109,35 @@ export default async function RostersPage({
         <EmptyState>No teams recorded for this season.</EmptyState>
       ) : (
         <>
-          {/* The club leads its own roster: crest, record and how the season
-              went, rather than a line of grey text above a table. */}
-          <div className="relative mb-8 overflow-hidden rounded-xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900/60 to-slate-950 p-5">
-            <TeamLogo
-              teamName={team.name}
-              className="pointer-events-none absolute -right-8 -top-10 h-56 w-56 opacity-[0.07]"
-            />
-            <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4">
-              <TeamLogo teamName={team.name} className="h-16 w-16 shrink-0" />
+          <div className={styles.hero}>
+            <TeamLogo teamName={team.name} className="pointer-events-none absolute -right-8 -top-10 h-64 w-64 opacity-[0.05]" />
+            <div className={styles.identity}>
+              <div className={styles.crest}><TeamLogo teamName={team.name} className="h-full w-full" /></div>
               <div className="min-w-0">
-                <h2 className="text-2xl font-black tracking-tight">
-                  <HistoricalTeamLink name={team.name} seasonId={season.id} teamId={team.id} />
-                </h2>
-                <p className="text-sm text-slate-400">
-                  {season.name}
-                  {team.league ? ` · ${team.league === "AMERICAN" ? "American" : "National"} League` : ""}
-                </p>
+                <p className={styles.eyebrow}>{season.name}{team.league ? ` · ${team.league === "AMERICAN" ? "American" : "National"} League` : ""}</p>
+                <h2 className={styles.name}>{team.name}</h2>
               </div>
-              <dl className="ml-auto flex flex-wrap items-end gap-x-7 gap-y-3">
-                {[
-                  { label: "Record", value: `${wins}-${losses}` },
-                  { label: "Win pct", value: wins + losses ? (wins / (wins + losses)).toFixed(3).replace(/^0/, "") : "—" },
-                  { label: "Runs", value: team.runsScored ?? "—" },
-                  { label: "Allowed", value: team.runsAllowed ?? "—" },
-                  { label: "Players", value: roster.length },
-                ].map((figure) => (
-                  <div key={figure.label}>
-                    <dt className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
-                      {figure.label}
-                    </dt>
-                    <dd className="text-xl font-black tabular-nums text-slate-100">{figure.value}</dd>
-                  </div>
-                ))}
-              </dl>
             </div>
+            <dl className={styles.metrics}>
+              {[
+                { label: "Record", value: `${wins}–${losses}${team.ties ? `–${team.ties}` : ""}` },
+                { label: "Win percentage", value: wins + losses ? (wins / (wins + losses)).toFixed(3).replace(/^0/, "") : "—" },
+                { label: "Runs scored", value: team.runsScored ?? "—" },
+                { label: "Runs allowed", value: team.runsAllowed ?? "—" },
+                { label: "Players", value: roster.length },
+              ].map((figure) => <div key={figure.label}><dt>{figure.label}</dt><dd>{figure.value}</dd></div>)}
+            </dl>
           </div>
 
+          <RosterSections key={`${season.id}-${team.id}`} counts={[batters.length, pitchers.length, schedule.length]}>
           <section className="mb-10">
             <SectionHeader title="Batting" meta={`${batters.length} players`} />
             {batters.length === 0 ? (
               <EmptyState>No batting stats recorded.</EmptyState>
             ) : (
-              // Sized to its contents rather than stretched to the page.
-              // Stretching is what made these tables look so wide: the figures
-              // were pushed apart to fill the width, and the leftover went to
-              // the name column, which took 206px to say "Jpearjr7". Left to
-              // size itself the same table is 770px instead of 1375px, and
-              // scrolls inside its own box rather than pushing the page when
-              // the screen is too narrow for it.
-              <div className="data-table-shell overflow-x-auto">
+              // Keep full player names visible while the stats scroll inside
+              // their own container on smaller screens.
+              <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Player statistics; scroll for more columns">
                 <table className="data-table w-auto">
                   <thead>
                     <tr>
@@ -216,7 +198,7 @@ export default async function RostersPage({
             {pitchers.length === 0 ? (
               <EmptyState>No pitching stats recorded.</EmptyState>
             ) : (
-              <div className="data-table-shell overflow-x-auto">
+              <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Player statistics; scroll for more columns">
                 <table className="data-table w-auto">
                   <thead>
                     <tr>
@@ -268,7 +250,7 @@ export default async function RostersPage({
           </section>
 
           <section>
-            <SectionHeader title="Schedule &amp; scores" meta={`${schedule.length} games`} />
+            <SectionHeader title="Schedule & scores" meta={`${schedule.length} games`} />
             {schedule.length === 0 ? (
               <EmptyState>No games recorded for this team.</EmptyState>
             ) : (
@@ -285,8 +267,9 @@ export default async function RostersPage({
                   return (
                     <li
                       key={game.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-slate-800/80 bg-slate-900/40 px-3 py-2 text-sm transition-colors hover:border-slate-700 hover:bg-slate-800/50"
+                      className="overflow-hidden rounded-lg border border-slate-800/80 bg-slate-900/40 text-sm transition-colors hover:border-slate-600"
                     >
+                      <Link href={`/games/${game.id}`} className={styles.gameLink} aria-label={`${isHome ? "Home" : "Away"} against ${opponent ?? "Unknown"}${played ? `, ${us}–${them}` : ""}; game details`}>
                       <span className="flex min-w-0 items-center gap-2.5">
                         {/* A result is a win or a loss before it is anything
                             else, so it gets the badge and the colour. */}
@@ -310,16 +293,18 @@ export default async function RostersPage({
                       <span className="flex shrink-0 items-center gap-3">
                         {game.note && <span className="text-xs text-slate-500">{game.note}</span>}
                         <span className="tabular-nums">{played ? `${us}-${them}` : "—"}</span>
-                        <span className="w-28 text-right text-xs text-slate-500">
+                        <span className="text-right text-xs text-slate-400">
                           {game.playedOn?.replace(/^\w+day\s+/, "") ?? ""}
                         </span>
                       </span>
+                      </Link>
                     </li>
                   );
                 })}
               </ul>
             )}
           </section>
+          </RosterSections>
         </>
       )}
     </PageShell>
