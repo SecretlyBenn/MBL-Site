@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { BackButton } from "@/app/BackButton";
 import { notFound } from "next/navigation";
 import { getAvatarsFor, getHistoricalGame, getHistoricalGameSummary } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
@@ -147,11 +147,7 @@ export default async function GamePage({
 
   return (
     <PageShell wide header={<span className="sr-only">{`${game.awayName ?? "Away"} @ ${game.homeName ?? "Home"}`}</span>}>
-      <p className="mb-4 text-sm text-slate-400">
-        <Link href={`/schedule?season=${game.seasonId}`} className="hover:text-white">
-          ← {game.seasonName} schedule
-        </Link>
-      </p>
+      <div className="mb-4"><BackButton /></div>
 
       {/* Scoreboard banner: both crests facing each other across the result,
           with the status and date holding the centre. */}

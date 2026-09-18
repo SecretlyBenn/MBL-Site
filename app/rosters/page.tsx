@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BackButton } from "@/app/BackButton";
 import { RosterSections } from "./RosterSections";
 import styles from "./rosters.module.css";
 import type { Metadata } from "next";
@@ -62,6 +63,7 @@ export default async function RostersPage({
   if (seasons.length === 0) {
     return (
       <PageShell title="Rosters">
+        <div className="mb-4"><BackButton /></div>
         <EmptyState>No seasons have been recorded yet.</EmptyState>
       </PageShell>
     );
@@ -87,6 +89,7 @@ export default async function RostersPage({
 
   return (
     <PageShell wide title="Rosters" subtitle={season.name}>
+      <div className="mb-4"><BackButton /></div>
       <div className={styles.filters}>
         <RosterSelect
           label="Season"

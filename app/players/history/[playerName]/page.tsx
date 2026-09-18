@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPlayerAvatars, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions } from "@/db/queries";
 import { PageShell } from "@/app/SiteNav";
-import { BackButton } from "@/app/players/BackButton";
+import { BackButton } from "@/app/BackButton";
 import { PlayerHead } from "@/app/PlayerHead";
 import { PlayerProfile } from "@/app/players/PlayerProfile";
 import { TeamLogo } from "@/app/TeamLogo";

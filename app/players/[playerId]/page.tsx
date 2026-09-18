@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { players, teams } from "@/db/schema";
 import { getPlayerHistoricalStats, getPlayerLiveStats } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
-import { BackButton } from "@/app/players/BackButton";
+import { BackButton } from "@/app/BackButton";
 import { PlayerHistory } from "@/app/players/PlayerHistory";
 import { formatInnings } from "@/app/formatStats";
 

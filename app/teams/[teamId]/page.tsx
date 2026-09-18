@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BackButton } from "@/app/BackButton";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -58,6 +59,7 @@ export default async function TeamPage({
       }
     >
       <TeamLogo teamName={team.name} className="mb-6 h-32 w-32" />
+      <div className="mb-6"><BackButton /></div>
       <div className="grid gap-8 md:grid-cols-2">
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">
