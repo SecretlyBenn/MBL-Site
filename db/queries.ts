@@ -219,6 +219,9 @@ export async function getPlayerHistoricalStats(playerName: string) {
       sluggingPct: historicalPlayerStats.sluggingPct,
       ops: historicalPlayerStats.ops,
       totalBases: historicalPlayerStats.totalBases,
+      leftOnBase: historicalPlayerStats.leftOnBase,
+      putouts: historicalPlayerStats.putouts,
+      errors: historicalPlayerStats.errors,
       pitchingGames: historicalPlayerStats.pitchingGames,
       gamesStarted: historicalPlayerStats.gamesStarted,
       saves: historicalPlayerStats.saves,
@@ -329,6 +332,7 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
         walks: historicalPlayerStats.walks,
         strikeouts: historicalPlayerStats.strikeouts,
         stolenBases: historicalPlayerStats.stolenBases,
+        leftOnBase: historicalPlayerStats.leftOnBase,
         battingAverage: historicalPlayerStats.battingAverage,
         onBasePct: historicalPlayerStats.onBasePct,
         sluggingPct: historicalPlayerStats.sluggingPct,
@@ -390,6 +394,7 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
     walks: number | null;
     strikeouts: number | null;
     stolenBases: number | null;
+    leftOnBase: number | null;
     battingAverage: number | null;
     onBasePct: number | null;
     sluggingPct: number | null;
@@ -920,6 +925,9 @@ export async function getPlayerGameLog(playerName: string) {
       rbis: historicalGameStats.rbis,
       walks: historicalGameStats.walks,
       strikeouts: historicalGameStats.strikeouts,
+      leftOnBase: historicalGameStats.leftOnBase,
+      putouts: historicalGameStats.putouts,
+      errors: historicalGameStats.errors,
       inningsPitched: historicalGameStats.inningsPitched,
       hitsAllowed: historicalGameStats.hitsAllowed,
       runsAllowed: historicalGameStats.runsAllowed,

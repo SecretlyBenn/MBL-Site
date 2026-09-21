@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BackButton } from "@/app/BackButton";
+import { RosterStatsTable } from "./RosterStatsTable";
 import { RosterSections } from "./RosterSections";
 import styles from "./rosters.module.css";
 import type { Metadata } from "next";
@@ -11,10 +12,10 @@ import {
   getPlayerAvatars,
 } from "@/db/queries";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
-import { PlayerHead } from "@/app/PlayerHead";
+
 import { TeamLogo } from "@/app/TeamLogo";
-import { formatInnings } from "@/app/formatStats";
-import { PlayerProfileLink } from "@/app/EntityLinks";
+
+
 import { RosterSelect } from "./RosterSelect";
 
 export const metadata: Metadata = {
@@ -25,33 +26,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-function rate(value: number | null) {
-  return value === null ? "-" : value.toFixed(3).replace(/^0/, "");
-}
-
-/** A counting stat. A player who did none of something has none, not a blank. */
-function count(value: number | null) {
-  return value ?? 0;
-}
-
-/**
- * A player's name at the head of a stat line.
- *
- * The name is the only text in a line of figures, so it takes whatever the
- * longest name needs and no more. It used to be given a fixed 42% of the
- * table, which on a wide screen was most of the row.
- */
-function NameCell({ name, uuid }: { name: string; uuid?: string }) {
-  return (
-    <td className="is-name">
-      <span className={styles.player}>
-        <PlayerHead uuid={uuid} name={name} size={26} />
-        <PlayerProfileLink name={name} />
-      </span>
-    </td>
-  );
-}
 
 export default async function RostersPage({
   searchParams,
@@ -84,7 +58,7 @@ export default async function RostersPage({
   const losses = team?.losses ?? 0;
   // A listed roster member may not have appeared in a game. Keep those
   // players in the main roster table and show a complete zero stat line.
-  const batters = roster.filter((row) => (row.atBats ?? 0) > 0 || !row.played);
+  const batters = roster;
   const pitchers = roster.filter((row) => (row.inningsPitched ?? 0) > 0);
 
   return (
@@ -133,123 +107,13 @@ export default async function RostersPage({
           </div>
 
           <RosterSections key={`${season.id}-${team.id}`} counts={[batters.length, pitchers.length, schedule.length]}>
-          <section className="mb-10">
-            <SectionHeader title="Batting" meta={`${batters.length} players`} />
-            {batters.length === 0 ? (
-              <EmptyState>No batting stats recorded.</EmptyState>
-            ) : (
-              // Keep full player names visible while the stats scroll inside
-              // their own container on smaller screens.
-              <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Player statistics; scroll for more columns">
-                <table className="data-table w-auto">
-                  <thead>
-                    <tr>
-                      <th className="is-name">Player</th>
-                      <th>G</th>
-                      <th>AB</th>
-                      <th>R</th>
-                      <th>H</th>
-                      <th>2B</th>
-                      <th>3B</th>
-                      <th>HR</th>
-                      <th>RBI</th>
-                      <th>BB</th>
-                      <th>SO</th>
-                      <th>SB</th>
-                      <th>PO</th>
-                      <th>E</th>
-                      <th>AVG</th>
-                      <th>OBP</th>
-                      <th>SLG</th>
-                      <th>OPS</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {batters.map((row) => (
-                      // Someone listed on the roster who never appeared has a
-                      // line of zeros, which reads as a bad season rather than
-                      // no season. Dimming the row says which it is.
-                      <tr key={row.playerName} className={row.played ? "" : "text-slate-500"}>
-                        <NameCell name={row.playerName} uuid={avatars[row.playerName]} />
-                        <td>{count(row.games)}</td>
-                        <td>{count(row.atBats)}</td>
-                        <td>{count(row.runs)}</td>
-                        <td>{count(row.hits)}</td>
-                        <td>{count(row.doubles)}</td>
-                        <td>{count(row.triples)}</td>
-                        <td>{count(row.homeRuns)}</td>
-                        <td>{count(row.rbis)}</td>
-                        <td>{count(row.walks)}</td>
-                        <td>{count(row.strikeouts)}</td>
-                        <td>{count(row.stolenBases)}</td>
-                        <td>{count(row.putouts)}</td>
-                        <td>{count(row.errors)}</td>
-                        <td>{rate(row.battingAverage ?? 0)}</td>
-                        <td>{rate(row.onBasePct ?? 0)}</td>
-                        <td>{rate(row.sluggingPct ?? 0)}</td>
-                        <td>{rate(row.ops ?? 0)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <section className="mb-5">
+            <SectionHeader title="Batting" meta={batters.length + " players"} />
+            {batters.length === 0 ? <EmptyState>No batting stats recorded.</EmptyState> : <RosterStatsTable rows={batters} kind="batting" avatars={avatars} />}
           </section>
-
-          <section className="mb-10">
-            <SectionHeader title="Pitching" meta={`${pitchers.length} players`} />
-            {pitchers.length === 0 ? (
-              <EmptyState>No pitching stats recorded.</EmptyState>
-            ) : (
-              <div className={styles.tableScroll} tabIndex={0} role="region" aria-label="Player statistics; scroll for more columns">
-                <table className="data-table w-auto">
-                  <thead>
-                    <tr>
-                      <th className="is-name">Player</th>
-                      <th>G</th>
-                      <th>GS</th>
-                      <th>W</th>
-                      <th>L</th>
-                      <th>SV</th>
-                      <th>CG</th>
-                      <th>SHO</th>
-                      <th>IP</th>
-                      <th>H</th>
-                      <th>R</th>
-                      <th>ER</th>
-                      <th>HR</th>
-                      <th>BB</th>
-                      <th>SO</th>
-                      <th>ERA</th>
-                      <th>WHIP</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pitchers.map((row) => (
-                      <tr key={row.playerName}>
-                        <NameCell name={row.playerName} uuid={avatars[row.playerName]} />
-                        <td>{count(row.pitchingGames)}</td>
-                        <td>{count(row.gamesStarted)}</td>
-                        <td>{count(row.wins)}</td>
-                        <td>{count(row.losses)}</td>
-                        <td>{count(row.saves)}</td>
-                        <td>{count(row.completeGames)}</td>
-                        <td>{count(row.shutouts)}</td>
-                        <td>{formatInnings(row.inningsPitched)}</td>
-                        <td>{count(row.hitsAllowed)}</td>
-                        <td>{count(row.runsAllowed)}</td>
-                        <td>{count(row.earnedRuns)}</td>
-                        <td>{count(row.homeRunsAllowed)}</td>
-                        <td>{count(row.walksAllowed)}</td>
-                        <td>{count(row.strikeoutsPitched)}</td>
-                        <td>{row.era === null ? "-" : row.era.toFixed(2)}</td>
-                        <td>{row.whip === null ? "-" : row.whip.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <section className="mb-5">
+            <SectionHeader title="Pitching" meta={pitchers.length + " players"} />
+            {pitchers.length === 0 ? <EmptyState>No pitching stats recorded.</EmptyState> : <RosterStatsTable rows={pitchers} kind="pitching" avatars={avatars} />}
           </section>
 
           <section>

@@ -14,6 +14,8 @@ const BATTING: Column[] = [
   { key: "battingAverage", label: "AVG", format: "rate" }, { key: "onBasePct", label: "OBP", format: "rate" },
   { key: "sluggingPct", label: "SLG", format: "rate" }, { key: "ops", label: "OPS", format: "rate" },
   { key: "totalBases", label: "TB" },
+  { key: "leftOnBase", label: "LOB" },
+  { key: "putouts", label: "PO" }, { key: "errors", label: "E" },
 ];
 
 const PITCHING: Column[] = [
@@ -30,7 +32,7 @@ const TOTALS = [
   "games", "atBats", "runs", "hits", "doubles", "triples", "homeRuns", "rbis", "walks",
   "strikeouts", "stolenBases", "totalBases", "pitchingGames", "gamesStarted", "wins", "losses",
   "saves", "inningsPitched", "hitsAllowed", "runsAllowed", "earnedRuns", "homeRunsAllowed",
-  "strikeoutsPitched", "walksAllowed",
+  "strikeoutsPitched", "walksAllowed", "leftOnBase", "putouts", "errors",
 ] as const;
 
 function format(value: unknown, kind?: Column["format"]) {
@@ -44,6 +46,9 @@ function format(value: unknown, kind?: Column["format"]) {
 function totalRows(rows: HistoryRow[]) {
   const total = { ...rows[0], teamName: "Total" };
   for (const key of TOTALS) total[key] = rows.reduce((sum, row) => sum + Number(row[key] ?? 0), 0);
+  for (const key of ["leftOnBase", "putouts", "errors"] as const) {
+    if (rows.every((row) => row[key] == null)) total[key] = null;
+  }
   const ab = total.atBats ?? 0;
   const hits = total.hits ?? 0;
   const walks = total.walks ?? 0;
@@ -77,8 +82,8 @@ function HistoryTable({
   return (
     <section>
       <h2 className="mb-2 text-sm font-bold uppercase tracking-[0.14em] text-slate-300">{label}</h2>
-      <div className="data-table-shell">
-        <table className="data-table w-full table-fixed">
+      <div className="data-table-shell overflow-x-auto">
+        <table className="data-table w-max">
           <colgroup>
             <col style={{ width: "11%" }} />
             <col style={{ width: "18%" }} />

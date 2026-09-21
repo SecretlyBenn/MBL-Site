@@ -29,6 +29,7 @@ const BATTING: Column[] = [
   { key: "homeRuns", label: "HR" }, { key: "rbis", label: "RBI" }, { key: "walks", label: "BB" },
   { key: "strikeouts", label: "SO" }, { key: "stolenBases", label: "SB" },
   { key: "putouts", label: "PO" }, { key: "errors", label: "E" },
+  { key: "leftOnBase", label: "LOB" },
   { key: "battingAverage", label: "AVG", rate: true }, { key: "onBasePct", label: "OBP", rate: true },
   { key: "sluggingPct", label: "SLG", rate: true }, { key: "ops", label: "OPS", rate: true },
 ];
@@ -42,6 +43,8 @@ const PITCHING: Column[] = [
 ];
 
 const BATTING_LOG: Column[] = [
+  { key: "putouts", label: "PO" }, { key: "errors", label: "E" },
+  { key: "leftOnBase", label: "LOB" },
   { key: "atBats", label: "AB" }, { key: "runs", label: "R" }, { key: "hits", label: "H" },
   { key: "doubles", label: "2B" }, { key: "triples", label: "3B" }, { key: "homeRuns", label: "HR" },
   { key: "rbis", label: "RBI" }, { key: "walks", label: "BB" }, { key: "strikeouts", label: "SO" },
@@ -86,6 +89,9 @@ function careerTotals(rows: SeasonRow[], columns: Column[]) {
   const sum = (key: string) => rows.reduce((total, row) => total + Number(row[key] ?? 0), 0);
   const result: Record<string, number | null> = {};
   for (const column of columns) result[column.key] = sum(column.key);
+  for (const key of ["leftOnBase", "putouts", "errors"]) {
+    if (rows.every((row) => row[key] == null)) result[key] = null;
+  }
 
   const atBats = sum("atBats");
   const walks = sum("walks");
