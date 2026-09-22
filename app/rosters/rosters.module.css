@@ -12,9 +12,10 @@
 .tabs button { display:flex; align-items:center; gap:.5rem; padding:.5rem 0; border-bottom:2px solid transparent; color:#9ba8b7; font-size:.875rem; font-weight:700; white-space:nowrap; cursor:pointer; }
 .tabs button[aria-selected="true"] { border-color:#5eb3ff; color:#f4f6f8; }
 .tabs button span { background:#1c2430; border-radius:.35rem; padding:.1rem .4rem; font-size:.75rem; color:#c7ccd1; }
+.sections { width:100%; max-width:66rem; margin-inline:auto; }
 .sections :is(button,a,[role="tabpanel"]):focus-visible { outline:2px solid #5eb3ff; outline-offset:4px; }
-.tableScroll { width:fit-content; overflow:auto; max-width:100%; border:1px solid #232c38; border-radius:.75rem; background:#141a22; }
-.tableScroll table { width:max-content; font-size:.8125rem; }
+.tableScroll { width:100%; overflow:auto; max-width:100%; border:1px solid #232c38; border-radius:.75rem; background:#141a22; }
+.tableScroll table { width:100%; min-width:max-content; font-size:.875rem; }
 .tableScroll :is(th,td):first-child { position:sticky; left:0; z-index:1; background:#141a22; min-width:0; max-width:none; border-right:1px solid #232c38; }
 .tableScroll tbody tr:nth-child(even) td:first-child { background:#18202b; }
 .tableScroll tbody tr:hover td { background:#1b2b3d; }
@@ -35,7 +36,7 @@
  .tableScroll :is(th,td):first-child { min-width:0; }
 }
 
-.tableScroll :is(th,td) { height:1.9rem; padding:0 .35rem; }
+.tableScroll :is(th,td) { height:1.9rem; padding:0 .45rem; }
 .tableScroll :is(th,td):first-child { padding-left:.5rem; padding-right:.75rem; }
 .tableScroll th { font-size:.6875rem; letter-spacing:0; }
 .tableScroll th button { cursor:pointer; min-height:1.9rem; }
