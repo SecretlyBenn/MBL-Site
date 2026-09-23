@@ -30,7 +30,8 @@ export const ALL_STAR_BREAK_AFTER_SERIES = 5;
  * nothing about which round it is.
  */
 export const SEASON_XII_PLAYOFF_SERIES = [
-  { label: "Divisional Round", window: "September 4 – September 14", games: 12 },
+  { label: "Divisional Round", window: "September 4 – September 14", games: 10 },
+  { label: "Championship Round", window: "September 15 – September 28", games: 10 },
 ] as const;
 
 /** A published block of games: the shape both schedules above share. */

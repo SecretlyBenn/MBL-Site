@@ -43,13 +43,18 @@ function dayOf(value: string | null, year: number) {
  * reached would misdescribe when those games happened.
  */
 function windowCovers(window: string, block: { playedOn: string | null }[]) {
-  const year = Number(block[0]?.playedOn?.match(/(\d{4})$/)?.[1]);
+  // Only the games with a date can contradict the window. A round still to be
+  // played has none, and then the window is simply the plan, which is what a
+  // reader wants to see.
+  const dated = block.map((game) => game.playedOn).filter((date) => date !== null);
+  if (dated.length === 0) return true;
+  const year = Number(dated[0]?.match(/(\d{4})$/)?.[1]);
   if (!Number.isFinite(year)) return false;
   const [openText, closeText] = window.split(" – ");
   const open = dayOf(openText, year);
   const close = dayOf(closeText, year);
-  const first = dayOf(block[0]?.playedOn ?? null, year);
-  const last = dayOf(block.at(-1)?.playedOn ?? null, year);
+  const first = dayOf(dated[0] ?? null, year);
+  const last = dayOf(dated.at(-1) ?? null, year);
   if (!open || !close || !first || !last) return false;
   return first >= open && last <= close;
 }

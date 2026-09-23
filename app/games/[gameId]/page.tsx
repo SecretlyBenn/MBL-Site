@@ -132,6 +132,9 @@ export default async function GamePage({
   const awayWon = (game.awayScore ?? 0) > (game.homeScore ?? 0);
   const homeWon = (game.homeScore ?? 0) > (game.awayScore ?? 0);
   const forfeit = isForfeit({ ...game, hasStats: stats.length > 0 });
+  // A fixture the series never reached: on the schedule, but it will never be
+  // played, so calling it "scheduled" would say the opposite of what happened.
+  const notNeeded = game.status === "NOT_NEEDED" && game.homeScore === null;
   const innings = Math.max(
     ...lineScores.map((row) => (row.innings ?? "").split(",").filter(Boolean).length),
     0,
@@ -193,7 +196,13 @@ export default async function GamePage({
                     : "bg-slate-800 text-slate-400"
               }`}
             >
-              {forfeit ? "Forfeit" : game.homeScore !== null ? "Final" : "Scheduled"}
+              {forfeit
+                ? "Forfeit"
+                : game.homeScore !== null
+                  ? "Final"
+                  : notNeeded
+                    ? "Not needed"
+                    : "Scheduled"}
             </span>
             <p className="whitespace-nowrap text-xs text-slate-500">{game.playedOn}</p>
             {game.note && (

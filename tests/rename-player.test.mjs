@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const route = readFileSync(new URL("../app/api/players/rename/route.ts", import.meta.url), "utf8");
 const forms = readFileSync(new URL("../app/admin/AdminForms.tsx", import.meta.url), "utf8");
-const page = readFileSync(new URL("../app/admin/page.tsx", import.meta.url), "utf8");
+const page = readFileSync(new URL("../app/admin/players/page.tsx", import.meta.url), "utf8");
 
 /**
  * A career is held together by the player's name matching across six tables,
@@ -69,6 +69,10 @@ test("the rename is recorded in the audit log", () => {
 
 test("the admin page offers the form, with archived names as well as current", () => {
   assert.ok(forms.includes("export function RenamePlayerForm"));
-  assert.ok(page.includes("<RenamePlayerForm names={knownNames} />"));
+  assert.ok(page.includes("<RenamePlayerForm />"));
+  // The name to change is typed with suggestions, and the suggestions cover
+  // players who only exist in the archive as well as the current roster.
+  assert.ok(forms.includes('list="admin-player-names"'));
+  assert.ok(page.includes('id="admin-player-names"'));
   assert.ok(page.includes("historicalPlayerStats.playerName"));
 });

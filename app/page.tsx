@@ -61,10 +61,12 @@ export default async function Home() {
   // "Next" means each team's own next fixture, not simply the next few games on
   // the schedule - otherwise teams deep in the order never appear. Games run in
   // schedule order, so a team's first unplayed game is the one to show, and the
-  // Set collapses the duplicate when both sides of a matchup are up next.
+  // Set collapses the duplicate when both sides of a matchup are up next. A
+  // game the series never reached stays on the schedule unplayed forever, so a
+  // club swept out of the playoffs would otherwise show it as still to come.
   const nextByTeam = new Map<number, (typeof seasonGames)[number]>();
   for (const game of seasonGames) {
-    if (isPlayed(game)) continue;
+    if (isPlayed(game) || game.status === "NOT_NEEDED") continue;
     for (const teamId of [game.awayTeamId, game.homeTeamId]) {
       if (teamId !== null && !nextByTeam.has(teamId)) nextByTeam.set(teamId, game);
     }

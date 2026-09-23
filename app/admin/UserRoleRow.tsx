@@ -5,10 +5,11 @@ import { useState } from "react";
 import { ROLES } from "@/db/schema";
 
 /**
- * One league account, with its role and - for a GM - the club it manages.
+ * One league account: its name, its role and - for a GM - the club it manages.
  * Changes are staged and saved together, so promoting someone to GM and giving
  * them a team is one action rather than two states, the first of which would be
- * a GM with no roster.
+ * a GM with no roster. The name is the league's name for the person, not their
+ * Discord one, so renaming it here is safe: the account is found by Discord id.
  */
 export function UserRoleRow({
   user,
@@ -18,13 +19,15 @@ export function UserRoleRow({
   teams: { id: number; name: string }[];
 }) {
   const router = useRouter();
+  const [displayName, setDisplayName] = useState(user.displayName);
   const [role, setRole] = useState(user.role);
   const [teamId, setTeamId] = useState<number | "">(user.teamId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [signedOut, setSignedOut] = useState(false);
 
-  const changed = role !== user.role || (teamId || null) !== user.teamId;
+  const name = displayName.trim();
+  const changed = name !== user.displayName || role !== user.role || (teamId || null) !== user.teamId;
   const needsTeam = role === "GM" && !teamId;
 
   async function save() {
@@ -34,7 +37,7 @@ export function UserRoleRow({
       const response = await fetch("/api/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, role, teamId: teamId || null }),
+        body: JSON.stringify({ userId: user.id, role, teamId: teamId || null, displayName: name }),
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
@@ -76,9 +79,14 @@ export function UserRoleRow({
 
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3">
-      <span className="min-w-0 flex-1">
-        <span className="font-semibold">{user.displayName}</span>
-        <span className="ml-2 text-xs text-slate-500">{user.discordId}</span>
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <input
+          value={displayName}
+          onChange={(event) => setDisplayName(event.target.value)}
+          aria-label={`Name for ${user.displayName}`}
+          className="ui-input min-w-0 flex-1 !py-1 text-sm font-semibold"
+        />
+        <span className="shrink-0 text-xs text-slate-500">{user.discordId}</span>
       </span>
 
       <select
@@ -108,7 +116,7 @@ export function UserRoleRow({
       <button
         type="button"
         onClick={save}
-        disabled={busy || !changed || needsTeam}
+        disabled={busy || !changed || needsTeam || name === ""}
         className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
       >
         {busy ? "Saving…" : "Save"}

@@ -17,7 +17,7 @@ export const SITE = {
    * league's front door either way; an address matters for requests that
    * should not go through a public server, like deleting someone's data.
    */
-  contactEmail: "",
+  contactEmail: "mbljavabaseball@gmail.com",
   /**
    * Cloudflare Web Analytics site token. Empty means analytics is off.
    *

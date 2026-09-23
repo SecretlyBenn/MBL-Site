@@ -15,12 +15,14 @@ type UserUpdate = {
   userId: number;
   role: Role;
   teamId?: number | null;
+  displayName?: string;
 };
 
 /**
- * Changes an existing account's role, and which club a GM manages. A GM's team
- * could previously only be set when the account was created, so moving someone
- * to another club meant deleting and recreating them.
+ * Changes an existing account's name and role, and which club a GM manages. A
+ * GM's team could previously only be set when the account was created, so
+ * moving someone to another club meant deleting and recreating them, and a
+ * name could only be changed in the database by hand.
  */
 export async function PATCH(request: Request) {
   try {
@@ -35,6 +37,11 @@ export async function PATCH(request: Request) {
     }
     if (payload.role === "GM" && !payload.teamId) {
       return Response.json({ error: "A GM needs a team." }, { status: 400 });
+    }
+    // Left out entirely means "leave the name alone"; sent empty is a mistake.
+    const displayName = payload.displayName?.trim();
+    if (displayName !== undefined && displayName === "") {
+      return Response.json({ error: "A name is required." }, { status: 400 });
     }
 
     const db = getDb();
@@ -54,14 +61,26 @@ export async function PATCH(request: Request) {
     // not keep authority over a roster.
     const teamId = payload.role === "GM" ? payload.teamId ?? null : null;
 
-    await db.update(users).set({ role: payload.role, teamId }).where(eq(users.id, payload.userId));
+    // The name on the account is what the league calls this person; their
+    // sessions carry the old one until they sign in again, which shows only in
+    // the greeting, so there is nothing to invalidate here.
+    await db
+      .update(users)
+      .set({ role: payload.role, teamId, ...(displayName ? { displayName } : {}) })
+      .where(eq(users.id, payload.userId));
 
     await logAudit({
       actingUserId: leagueUser.id,
       action: "user.update",
       entityType: "user",
       entityId: payload.userId,
-      detail: { role: payload.role, teamId },
+      detail: {
+        role: payload.role,
+        teamId,
+        ...(displayName && displayName !== target.displayName
+          ? { renamedFrom: target.displayName, displayName }
+          : {}),
+      },
     });
 
     return Response.json({ ok: true });
