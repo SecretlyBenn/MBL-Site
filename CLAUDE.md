@@ -22,16 +22,26 @@ npx --no-install wrangler deploy
 ```
 
 The build writes `dist/server/wrangler.json` with a placeholder database id;
-the second command patches the real one in. **Do not add a root
-`wrangler.jsonc`** - it bound D1 twice and broke the deploy. `package.json` has
-no deploy script on purpose; the league's owner declined one.
+the second command patches the real one in, along with the account to deploy
+to. **Do not add a root `wrangler.jsonc`** - it bound D1 twice and broke the
+deploy. `package.json` has no deploy script on purpose; the league's owner
+declined one.
+
+The Cloudflare login on this machine can reach two accounts: the one the site
+runs in (`b690333da05f8e1aea40b7e68f6ff519`, the owner's personal account) and
+the league's own (`38532e1647aeaa4803a5457a769f8087`, which holds
+minecraftbaseball.com and is where the site is meant to end up). Wrangler will
+not guess between them, so anything that talks to the API needs the account
+named - a deploy takes it from the stamped config, and a D1 command needs it in
+the environment. `D1_DATABASE_ID` and `CLOUDFLARE_ACCOUNT_ID` both override the
+defaults in `scripts/apply-d1-binding.mjs`, which is how the site will move.
 
 ## The database
 
 Run SQL against production with:
 
 ```bash
-npx --no-install wrangler d1 execute mbl-site-db --remote --command "SELECT 1"
+CLOUDFLARE_ACCOUNT_ID=b690333da05f8e1aea40b7e68f6ff519 npx --no-install wrangler d1 execute mbl-site-db --remote --command "SELECT 1"
 ```
 
 Use `--file drizzle/00NN_name.sql` for anything longer. `--file` prints only a
