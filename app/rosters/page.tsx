@@ -63,7 +63,9 @@ export default async function RostersPage({
 
   return (
     <PageShell wide title="Rosters" subtitle={season.name}>
-      <div className="mb-4"><BackButton /></div>
+      <div className={styles.page}>
+      <div className={styles.toolbar}>
+      <BackButton />
       <div className={styles.filters}>
         <RosterSelect
           label="Season"
@@ -80,6 +82,7 @@ export default async function RostersPage({
             selected={String(team.id)}
           />
         )}
+      </div>
       </div>
 
       {!team ? (
@@ -174,6 +177,7 @@ export default async function RostersPage({
           </RosterSections>
         </>
       )}
+      </div>
     </PageShell>
   );
 }

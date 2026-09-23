@@ -322,6 +322,11 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
         // show them across a table stretched to the width of the page, which
         // is a lot of space to say very little.
         games: historicalPlayerStats.games,
+        plateAppearances: historicalPlayerStats.plateAppearances,
+        singles: historicalPlayerStats.singles,
+        caughtStealing: historicalPlayerStats.caughtStealing,
+        sacFlies: historicalPlayerStats.sacFlies,
+        totalBases: historicalPlayerStats.totalBases,
         atBats: historicalPlayerStats.atBats,
         runs: historicalPlayerStats.runs,
         hits: historicalPlayerStats.hits,
@@ -384,6 +389,11 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
     positions: string | null;
     played: boolean;
     games: number | null;
+    plateAppearances: number | null;
+    singles: number | null;
+    caughtStealing: number | null;
+    sacFlies: number | null;
+    totalBases: number | null;
     atBats: number | null;
     runs: number | null;
     hits: number | null;
