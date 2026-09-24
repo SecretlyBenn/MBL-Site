@@ -13,6 +13,13 @@ export const SITE = {
     "The official home of the Minecraft Baseball League: live scores, standings, rosters, schedules and player statistics going back to Season IV.",
   discordUrl: "https://discord.gg/mbl",
   /**
+   * The league's own documents, kept in Google Docs where the commissioners
+   * edit them. These are the short links the league publishes in Discord, so
+   * a new season's rulebook can be swapped in without touching the site.
+   */
+  rulebookUrl: "https://tinyurl.com/RulebookMBL",
+  communityRulesUrl: "https://tinyurl.com/MBLCommunityRules",
+  /**
    * Shown on the contact page and in the policies when set. Discord is the
    * league's front door either way; an address matters for requests that
    * should not go through a public server, like deleting someone's data.
@@ -28,5 +35,5 @@ export const SITE = {
    */
   analyticsToken: "",
   /** Where the privacy policy and terms were last revised. */
-  policiesUpdated: "September 13, 2026",
+  policiesUpdated: "September 23, 2026",
 } as const;

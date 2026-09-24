@@ -10,73 +10,55 @@ export const metadata: Metadata = {
   alternates: { canonical: "/terms" },
 };
 
+/**
+ * Deliberately short. Conduct is the community rules' job, and repeating them
+ * here would only create a second version to keep in step with the first.
+ */
 export default function TermsPage() {
   return (
     <PageShell title="Terms of Use">
       <LegalProse updated={SITE.policiesUpdated}>
         <p>
-          By using the {SITE.name} website you agree to these terms. If you don&apos;t agree, please
-          don&apos;t use the site.
-        </p>
-
-        <h2>What the site is</h2>
-        <p>
-          A community-run home for the {SITE.name}: schedules, scores, standings, rosters and
-          statistics for a baseball league played in Minecraft. It&apos;s run by volunteers, for fun.
+          This is the {SITE.name}&apos;s own site: schedules, scores, standings, rosters and
+          statistics for a baseball league played in Minecraft, run by volunteers. Using it means
+          accepting what follows.
         </p>
 
         <h2>Not affiliated with Mojang or Microsoft</h2>
         <p>
           NOT AN OFFICIAL MINECRAFT SERVICE. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.
-          Minecraft is a trademark of Mojang Studios. The league is also not affiliated with any
+          Minecraft is a trademark of Mojang Studios, and the league is not affiliated with any
           professional baseball organisation.
         </p>
 
+        <h2>Conduct</h2>
+        <p>
+          The league&apos;s <Link href="/rules">community rules</Link> apply here as well as on
+          Discord, comments included. Anything that breaks them can be removed, and so can access to
+          the site. Don&apos;t attack the site itself either - overloading it or going after data you
+          haven&apos;t been given spoils it for everyone.
+        </p>
+
         <h2>Staff accounts</h2>
-        <ul>
-          <li>Staff tools are for people the league has given a role. Signing in with Discord doesn&apos;t grant access by itself.</li>
-          <li>Only enter scores, rosters and other information you believe to be accurate. Don&apos;t knowingly submit false results.</li>
-          <li>Don&apos;t share your access, or use anyone else&apos;s.</li>
-          <li>Changes made through staff tools are recorded against your account.</li>
-          <li>League admins can change or remove a role at any time.</li>
-        </ul>
-
-        <h2>Acceptable use</h2>
-        <p>Don&apos;t:</p>
-        <ul>
-          <li>try to get into parts of the site, or data, you haven&apos;t been given access to</li>
-          <li>interfere with the site, overload it, or scrape it in a way that degrades it for others</li>
-          <li>use the site to harass anyone</li>
-        </ul>
-        <p>We may remove access for anyone who does.</p>
-
-        <h2>Statistics and content</h2>
         <p>
-          We work to keep records accurate, but statistics are entered by people and can contain
-          mistakes. If you spot one, tell us and we&apos;ll look into it. Records are provided as-is,
-          without any guarantee of accuracy or completeness.
-        </p>
-        <p>
-          Team logos, the league name and site design belong to the league or their creators. Player
-          usernames and Minecraft skins belong to their owners.
+          Staff tools belong to whoever the league gave the role to: signing in with Discord grants
+          nothing on its own. Don&apos;t share your access or use anyone else&apos;s, enter only what you
+          believe to be true, and remember that changes are recorded against your account. A role
+          can be changed or taken back at any time.
         </p>
 
-        <h2>Availability</h2>
+        <h2>Statistics</h2>
         <p>
-          The site is provided as-is, without warranties. It may be unavailable at times, and we may
-          change or discontinue features. To the extent the law allows, the league isn&apos;t liable for
-          losses arising from use of the site.
+          Records are entered by people and can be wrong. Tell us and we&apos;ll look into it. They
+          are published as-is, as is the site itself, which may be unavailable or change without
+          notice; to the extent the law allows, the league isn&apos;t liable for what follows from
+          using it. Logos, the league name and the site&apos;s design belong to the league or their
+          creators, and usernames and skins to their owners.
         </p>
 
-        <h2>Privacy</h2>
         <p>
-          How we handle data is described in the <Link href="/privacy">Privacy Policy</Link>.
-        </p>
-
-        <h2>Changes and contact</h2>
-        <p>
-          We may update these terms; the date at the top shows the latest revision, and continuing
-          to use the site means accepting it. Questions go through <ContactMethods />.
+          Data is covered by the <Link href="/privacy">Privacy Policy</Link>. If these terms change,
+          the date above changes with them. Questions go through <ContactMethods />.
         </p>
       </LegalProse>
     </PageShell>
