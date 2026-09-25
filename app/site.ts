@@ -35,5 +35,5 @@ export const SITE = {
    */
   analyticsToken: "",
   /** Where the privacy policy and terms were last revised. */
-  policiesUpdated: "September 23, 2026",
+  policiesUpdated: "September 25, 2026",
 } as const;
