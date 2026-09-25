@@ -9,7 +9,7 @@ import {
   getHistoricalSeasonStandings,
   getHistoricalSeasons,
   getHistoricalTeamRoster,
-  getPlayerAvatars,
+  getAvatarsFor,
 } from "@/db/queries";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 
@@ -52,7 +52,9 @@ export default async function RostersPage({
         getHistoricalSchedule(season.id, team.id),
       ])
     : [[], []];
-  const avatars = await getPlayerAvatars();
+  // Only the heads this page draws: reading every profile in the league to
+  // show one roster cost 603 rows a page view.
+  const avatars = await getAvatarsFor(roster.map((row) => row.playerName));
 
   const wins = team?.wins ?? 0;
   const losses = team?.losses ?? 0;

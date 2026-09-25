@@ -5,7 +5,7 @@ import {
   getHistoricalSchedule,
   getHistoricalSeasonStandings,
   getHistoricalSeasons,
-  getPlayerAvatars,
+  getAvatarsFor,
 } from "@/db/queries";
 import { EmptyState, SectionHeader, SectionLink, SiteNav } from "@/app/SiteNav";
 import { StandingsTable } from "@/app/standings/StandingsTable";
@@ -37,7 +37,7 @@ export default async function Home() {
   const seasons = await getHistoricalSeasons();
   const latestSeason = seasons[0] ?? null;
 
-  const [standings, leaders, seasonGames, avatars, articles] = await Promise.all([
+  const [standings, leaders, seasonGames, articles] = await Promise.all([
     latestSeason ? getHistoricalSeasonStandings(latestSeason.id) : Promise.resolve([]),
     Promise.all(
       LEADER_BOARDS.map(async (board) => ({
@@ -46,11 +46,16 @@ export default async function Home() {
       })),
     ),
     latestSeason ? getHistoricalSchedule(latestSeason.id) : Promise.resolve([]),
-    getPlayerAvatars(),
     // A table the news column can do without: if it is missing or the query
     // fails, the rest of the home page still renders.
     getRecentArticles(4).catch(() => []),
   ]);
+
+  // Only the two dozen heads the leader boards draw. Reading every profile in
+  // the league to show them cost 603 rows on every visit to the front page.
+  const avatars = await getAvatarsFor(
+    leaders.flatMap((board) => board.rows.map((row) => row.playerName)),
+  );
 
   // Archived games carry no status flag; a missing score marks one as unplayed.
   const isPlayed = (game: (typeof seasonGames)[number]) =>

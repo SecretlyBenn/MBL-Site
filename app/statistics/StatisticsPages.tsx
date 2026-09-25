@@ -1,4 +1,4 @@
-import { getHistoricalSeasonStandings, getHistoricalSeasons, getHistoricalTeamStats, getIndividualHistoricalStats, getPlayerAvatars } from "@/db/queries";
+import { getHistoricalSeasonStandings, getHistoricalSeasons, getHistoricalTeamStats, getIndividualHistoricalStats, getAvatarsFor } from "@/db/queries";
 import { EmptyState, PageShell } from "../SiteNav";
 import { SeasonSelect } from "./SeasonSelect";
 import { StatRow, StatsTable } from "./StatsTable";
@@ -16,11 +16,12 @@ export async function IndividualStatisticsPage({ kind, searchParams }: { kind: "
   const requested = (await searchParams).season;
   const selected = selectedSeason(seasons, requested, true);
   const numericSeason = selected === "career" ? undefined : Number(selected);
-  const [rows, standings, avatars] = await Promise.all([
+  const [rows, standings] = await Promise.all([
     getIndividualHistoricalStats(numericSeason),
     numericSeason ? getHistoricalSeasonStandings(numericSeason) : Promise.resolve([]),
-    getPlayerAvatars(),
   ]);
+  // Only the heads this table shows, rather than every profile the league has.
+  const avatars = await getAvatarsFor(rows.map((row) => row.playerName));
   const filtered = rows.filter((row) => kind === "batting" ? (row.atBats ?? 0) > 0 : (row.inningsPitched ?? 0) > 0);
   const label = kind === "batting" ? "Batting Statistics" : "Pitching Statistics";
   return <PageShell wide title={label} subtitle="Individual player statistics by season or across an entire career.">

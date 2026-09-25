@@ -870,24 +870,11 @@ export async function getTeamRoster(teamId: number) {
 }
 
 /**
- * Archived name -> Minecraft account UUID, for rendering player heads. Returned
- * as a plain object so it can cross the server/client boundary into the stat
- * tables without a second query per row.
- */
-export async function getPlayerAvatars(): Promise<Record<string, string>> {
-  const db = getDb();
-  const rows = await db
-    .select({ playerName: minecraftProfiles.playerName, uuid: minecraftProfiles.uuid })
-    .from(minecraftProfiles);
-  return Object.fromEntries(rows.map((row) => [row.playerName, row.uuid]));
-}
-
-/**
- * The account ids for a named handful of players.
+ * Archived name -> Minecraft account UUID, for the heads a page actually draws.
  *
  * A page that shows twenty players has no business reading the whole profile
- * table for them, and pages here run against a 10ms budget. Used by the box
- * score, which knows exactly whose heads it needs.
+ * table for them, and pages here run against a 10ms budget. Returned as a
+ * plain object so it can cross into the stat tables without a query per row.
  */
 export async function getAvatarsFor(names: string[]): Promise<Record<string, string>> {
   if (names.length === 0) return {};

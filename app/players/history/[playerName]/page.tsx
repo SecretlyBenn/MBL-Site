@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getPlayerAvatars, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions } from "@/db/queries";
+import { getAvatarsFor, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions } from "@/db/queries";
 import { PageShell } from "@/app/SiteNav";
 import { BackButton } from "@/app/BackButton";
 import { PlayerHead } from "@/app/PlayerHead";
@@ -32,7 +32,9 @@ export default async function HistoricalPlayerPage({
   const [history, games, avatars] = await Promise.all([
     getPlayerHistoricalStats(name),
     getPlayerGameLog(name),
-    getPlayerAvatars(),
+    // One head is drawn on this page - his. Reading all 600-odd profiles for
+    // it was the single most wasteful query on the site.
+    getAvatarsFor([name]),
   ]);
   if (history.length === 0) notFound();
 

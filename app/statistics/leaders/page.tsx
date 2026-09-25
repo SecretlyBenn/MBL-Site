@@ -4,7 +4,7 @@ import {
   getHistoricalSeasons,
   getHistoricalSeasonStandings,
   getIndividualHistoricalStats,
-  getPlayerAvatars,
+  getAvatarsFor,
 } from "@/db/queries";
 import { SeasonSelect } from "../SeasonSelect";
 import { LeaderBoard, type LeaderRow } from "./LeaderBoard";
@@ -144,11 +144,13 @@ export default async function LeadersPage({
     );
   }
 
-  const [rows, standings, avatars] = await Promise.all([
+  const [rows, standings] = await Promise.all([
     getIndividualHistoricalStats(season.id),
     getHistoricalSeasonStandings(season.id),
-    getPlayerAvatars(),
   ]);
+  // Only the heads this season's boards can draw. The profile table holds
+  // every player the league has ever had, and grows with each new one.
+  const avatars = await getAvatarsFor(rows.map((row) => row.playerName));
 
   const batters = rows.filter((row) => (row.atBats ?? 0) > 0);
   const pitchers = rows.filter((row) => (row.inningsPitched ?? 0) > 0);
