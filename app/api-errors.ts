@@ -1,3 +1,4 @@
+import { errorChain } from "@/db/errors";
 import { RoleError } from "./roles";
 
 /**
@@ -14,12 +15,7 @@ export function apiError(error: unknown, duplicateMessage = "That already exists
     return Response.json({ error: error.message }, { status: error.status });
   }
 
-  const messages: string[] = [];
-  let current: unknown = error;
-  for (let depth = 0; current instanceof Error && depth < 4; depth += 1) {
-    messages.push(current.message);
-    current = current.cause;
-  }
+  const messages = errorChain(error);
   const text = messages.join(" | ");
 
   if (text.includes("UNIQUE constraint")) {
@@ -32,7 +28,9 @@ export function apiError(error: unknown, duplicateMessage = "That already exists
     );
   }
 
-  console.error(error);
+  // The whole chain: the outer message is only the query that failed, and the
+  // reason it failed is further down.
+  console.error(text || error);
   // A message written by our own code is safe to show; a database one is not.
   const own = messages[0] && !messages[0].startsWith("Failed query") ? messages[0] : null;
   return Response.json({ error: own ?? "Something went wrong. Nothing was changed." }, { status: 500 });
