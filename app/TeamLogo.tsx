@@ -43,6 +43,36 @@ const LOGOS: Record<string, string> = {
   voodoo: "/team-logos/voodoo.png",
   blizzards: "/team-logos/blizzards.png",
   sunset: "/team-logos/sunset.png",
+
+  // The Collegiate Association's clubs, including the MiBL sides that play
+  // inside it. A club is matched on its nickname, so "Coyotes (MIBL)"
+  // finds the same crest as the Coyotes do.
+  bandits: "/team-logos/bandits.png",
+  batsmen: "/team-logos/batsmen.png",
+  beavers: "/team-logos/beavers.png",
+  cacti: "/team-logos/cacti.png",
+  champions: "/team-logos/champions.png",
+  coyotes: "/team-logos/coyotes.png",
+  crocodiles: "/team-logos/crocodiles.png",
+  ducks: "/team-logos/ducks.png",
+  emeralds: "/team-logos/emeralds.png",
+  fleeces: "/team-logos/fleeces.png",
+  gators: "/team-logos/gators.png",
+  gorillas: "/team-logos/gorillas.png",
+  hitmen: "/team-logos/hitmen.png",
+  huskies: "/team-logos/huskies.png",
+  monkeys: "/team-logos/monkeys.png",
+  oranges: "/team-logos/oranges.png",
+  raiders: "/team-logos/raiders.png",
+  samurai: "/team-logos/samurai.png",
+  sandals: "/team-logos/sandals.png",
+  sentinels: "/team-logos/sentinels.png",
+  spiders: "/team-logos/spiders.png",
+  toucans: "/team-logos/toucans.png",
+  trojans: "/team-logos/trojans.png",
+  tsunami: "/team-logos/tsunami.png",
+  twisters: "/team-logos/twisters.png",
+  vipers: "/team-logos/vipers.png",
 };
 
 export function teamLogoPath(teamName: string) {
