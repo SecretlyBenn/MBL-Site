@@ -12,7 +12,9 @@
  */
 import fs from "node:fs";
 
-const LEAGUE = "66329";
+// The MBL by default; the Collegiate Association is 71790. Two leagues now
+// come from the same source, so which one has to be sayable.
+const LEAGUE = process.env.MSO_LEAGUE ?? "66329";
 const seasonId = process.argv[2];
 const outPath = process.argv[3] ?? `mso-schedule-${seasonId}.json`;
 
