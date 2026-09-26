@@ -1,9 +1,25 @@
 import Link from "next/link";
 
-export function PlayerProfileLink({ name, className = "" }: { name: string; className?: string }) {
+/**
+ * Links to a player or a club, which live inside a league's part of the site.
+ *
+ * The league is passed in rather than guessed from the address: these render
+ * inside server components, which cannot see the current path, and a link that
+ * quietly assumed the wrong league would send a reader to another league's
+ * player of the same name.
+ */
+export function PlayerProfileLink({
+  leagueSlug,
+  name,
+  className = "",
+}: {
+  leagueSlug: string;
+  name: string;
+  className?: string;
+}) {
   return (
     <Link
-      href={`/players/history/${encodeURIComponent(name)}`}
+      href={`/${leagueSlug}/players/history/${encodeURIComponent(name)}`}
       className={`hover:text-white hover:underline ${className}`}
     >
       {name}
@@ -12,11 +28,13 @@ export function PlayerProfileLink({ name, className = "" }: { name: string; clas
 }
 
 export function HistoricalTeamLink({
+  leagueSlug,
   name,
   seasonId,
   teamId,
   className = "",
 }: {
+  leagueSlug: string;
   name: string;
   seasonId: number;
   teamId: number;
@@ -24,7 +42,7 @@ export function HistoricalTeamLink({
 }) {
   return (
     <Link
-      href={`/rosters?season=${seasonId}&team=${teamId}`}
+      href={`/${leagueSlug}/rosters?season=${seasonId}&team=${teamId}`}
       className={`hover:text-white hover:underline ${className}`}
     >
       {name}

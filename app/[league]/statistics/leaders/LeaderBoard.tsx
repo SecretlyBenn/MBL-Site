@@ -30,12 +30,14 @@ export function LeaderBoard({
   unit,
   rows,
   seasonId,
+  leagueSlug,
   top = 5,
 }: {
   label: string;
   unit: string;
   rows: LeaderRow[];
   seasonId: number;
+  leagueSlug: string;
   /** How many are shown before it is opened. */
   top?: number;
 }) {
@@ -77,7 +79,7 @@ export function LeaderBoard({
                   <td>
                     <span className="flex min-w-0 items-center gap-2">
                       <PlayerHead uuid={row.uuid} name={row.playerName} size={18} />
-                      <PlayerProfileLink name={row.playerName} className="truncate" />
+                      <PlayerProfileLink leagueSlug={leagueSlug} name={row.playerName} className="truncate" />
                     </span>
                   </td>
                   <td>
@@ -88,6 +90,7 @@ export function LeaderBoard({
                           row.teamName
                         ) : (
                           <HistoricalTeamLink
+                            leagueSlug={leagueSlug}
                             name={row.teamName}
                             seasonId={seasonId}
                             teamId={row.teamId}

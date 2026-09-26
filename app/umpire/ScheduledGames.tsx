@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { TeamLogo } from "@/app/TeamLogo";
-import { formatAgreedTime } from "@/app/schedule/ScheduleGame";
+import { formatAgreedTime } from "@/app/[league]/schedule/ScheduleGame";
 
 export type Fixture = {
   id: number;

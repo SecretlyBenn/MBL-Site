@@ -1,0 +1,18 @@
+import type { Metadata } from "next";
+import { TeamStatisticsPage } from "../StatisticsPages";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ league: string }>;
+}): Promise<Metadata> {
+  const { league } = await params;
+  return {
+    title: "Team Batting Statistics",
+    description:
+      "Club-by-club batting totals for every Minecraft Baseball League team, by season.",
+    alternates: { canonical: `/${league}/statistics/team-batting` },
+  };
+}
+export const dynamic = "force-dynamic";
+export default function Page({ params, searchParams }: { params: Promise<{ league: string }>; searchParams: Promise<{ season?: string }> }) { return <TeamStatisticsPage kind="batting" params={params} searchParams={searchParams} />; }

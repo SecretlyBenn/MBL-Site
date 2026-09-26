@@ -1,11 +1,8 @@
-import type { Metadata } from "next";
-import { IndividualStatisticsPage } from "../StatisticsPages";
+import { toDefaultLeague } from "@/app/old-address";
 
-export const metadata: Metadata = {
-  title: "Batting Statistics",
-  description:
-    "Minecraft Baseball League batting statistics: batting average, on-base, slugging, OPS, home runs and RBIs, by season or across a career.",
-  alternates: { canonical: "/statistics/batting" },
-};
 export const dynamic = "force-dynamic";
-export default function Page({ searchParams }: { searchParams: Promise<{ season?: string }> }) { return <IndividualStatisticsPage kind="batting" searchParams={searchParams} />; }
+
+/** Where this page was before the site held two leagues. */
+export default async function Page() {
+  await toDefaultLeague("/statistics/batting");
+}

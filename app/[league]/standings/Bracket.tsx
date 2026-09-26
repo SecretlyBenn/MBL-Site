@@ -43,7 +43,7 @@ function status(series: Series, nameOf: (id: number) => string) {
   return `${nickname(nameOf(top > bottom ? series.top : series.bottom))} lead ${high}-${low}`;
 }
 
-function SeriesCard({ series, nameOf }: { series: Series | null; nameOf: (id: number) => string }) {
+function SeriesCard({ series, nameOf, leagueSlug }: { series: Series | null; nameOf: (id: number) => string; leagueSlug: string }) {
   if (!series) {
     return (
       <div className="flex h-[7.25rem] items-center justify-center rounded-xl border border-dashed border-slate-800 text-xs font-semibold uppercase tracking-wider text-slate-600">
@@ -86,7 +86,7 @@ function SeriesCard({ series, nameOf }: { series: Series | null; nameOf: (id: nu
           {series.results.map((result) => (
             <Link
               key={result.id}
-              href={`/games/${result.id}`}
+              href={`/${leagueSlug}/games/${result.id}`}
               className={`rounded px-1 tabular-nums transition-colors hover:bg-slate-800 hover:text-white ${
                 result.winnerId === series.top ? "text-slate-300" : "text-slate-500"
               }`}
@@ -103,10 +103,12 @@ function SeriesCard({ series, nameOf }: { series: Series | null; nameOf: (id: nu
 export function Bracket({
   games,
   teams,
+  leagueSlug,
   compact = false,
 }: {
   games: BracketGame[];
   teams: BracketTeam[];
+  leagueSlug: string;
   /** Rounds stacked down the page instead of across it, for a narrow column. */
   compact?: boolean;
 }) {
@@ -130,7 +132,7 @@ export function Bracket({
 
   const cards = (slots: { series: Series | null; index: number }[]) =>
     slots.map(({ series, index }) => (
-      <SeriesCard key={series?.key ?? `open-${index}`} series={series} nameOf={nameOf} />
+      <SeriesCard key={series?.key ?? `open-${index}`} series={series} nameOf={nameOf} leagueSlug={leagueSlug} />
     ));
 
   const heading = (text: string, small = false) => (

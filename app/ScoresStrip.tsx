@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef } from "react";
 import { TeamLogo } from "@/app/TeamLogo";
+import { useCurrentLeague } from "@/app/Leagues";
 
 export type StripGame = {
   id: number;
@@ -63,6 +64,7 @@ function Side({
  */
 export function ScoresStrip({ games }: { games: StripGame[] }) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const league = useCurrentLeague();
 
   if (games.length === 0) return null;
 
@@ -95,7 +97,7 @@ export function ScoresStrip({ games }: { games: StripGame[] }) {
               return (
                 <Link
                   key={game.id}
-                  href={`/games/${game.id}`}
+                  href={`/${league?.slug ?? "mbl"}/games/${game.id}`}
                   className="flex shrink-0 items-center gap-4 px-5 py-2 transition-colors hover:bg-slate-900/70"
                 >
                   <div className="flex w-[92px] flex-col gap-1">

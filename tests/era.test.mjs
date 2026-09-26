@@ -35,9 +35,9 @@ test("nothing computes an average over nine any more", () => {
   for (const path of [
     "../db/queries.ts",
     "../db/publish.ts",
-    "../app/statistics/StatsTable.tsx",
-    "../app/players/PlayerProfile.tsx",
-    "../app/players/PlayerHistory.tsx",
+    "../app/[league]/statistics/StatsTable.tsx",
+    "../app/[league]/players/PlayerProfile.tsx",
+    "../app/[league]/players/PlayerHistory.tsx",
   ]) {
     const source = readFileSync(new URL(path, import.meta.url), "utf8");
     assert.ok(!/earnedRuns[^;]*\*\s*9/.test(source), `${path} still divides by nine`);

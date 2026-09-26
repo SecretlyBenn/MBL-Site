@@ -1,24 +1,27 @@
+"use client";
+
 import Link from "next/link";
 import { SITE } from "./site";
+import { useCurrentLeague } from "./Leagues";
 
 const COLUMNS = [
   {
     heading: "League",
     links: [
-      { href: "/schedule", label: "Schedule & Scores" },
-      { href: "/standings", label: "Standings" },
-      { href: "/rosters", label: "Rosters" },
-      { href: "/seasons", label: "Seasons" },
-      { href: "/news", label: "News" },
-      { href: "/rules", label: "Rules" },
+      { href: "schedule", label: "Schedule & Scores" },
+      { href: "standings", label: "Standings" },
+      { href: "rosters", label: "Rosters" },
+      { href: "seasons", label: "Seasons" },
+      { href: "news", label: "News" },
+      { href: "rules", label: "Rules" },
     ],
   },
   {
     heading: "Statistics",
     links: [
-      { href: "/statistics/batting", label: "Batting" },
-      { href: "/statistics/pitching", label: "Pitching" },
-      { href: "/statistics/leaders", label: "Leaders" },
+      { href: "statistics/batting", label: "Batting" },
+      { href: "statistics/pitching", label: "Pitching" },
+      { href: "statistics/leaders", label: "Leaders" },
     ],
   },
   {
@@ -32,6 +35,10 @@ const COLUMNS = [
 ];
 
 export function SiteFooter() {
+  // Written without a leading slash, a link belongs to the league being read;
+  // the policies and the contact page are the same whichever one that is.
+  const league = useCurrentLeague();
+  const within = (href: string) => (href.startsWith("/") ? href : `/${league?.slug ?? "mbl"}/${href}`);
   return (
     <footer className="mt-12 border-t border-slate-800/80 bg-slate-950 text-slate-400">
       <div className="mx-auto grid max-w-[1600px] gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.4fr_repeat(3,1fr)]">
@@ -57,7 +64,7 @@ export function SiteFooter() {
             <ul className="mt-3 space-y-2 text-sm">
               {column.links.map((link) => (
                 <li key={link.href}>
-                  <Link href={link.href} className="transition-colors hover:text-white">
+                  <Link href={within(link.href)} className="transition-colors hover:text-white">
                     {link.label}
                   </Link>
                 </li>

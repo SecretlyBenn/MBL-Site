@@ -67,7 +67,9 @@ function HistoryTable({
   columns,
   label,
   hasStats,
+  leagueSlug,
 }: {
+  leagueSlug: string;
   seasons: HistoryRow[][];
   columns: Column[];
   label: string;
@@ -107,7 +109,7 @@ function HistoryTable({
                     {index === 0 && rows.length > 1 ? (
                       <span className="text-slate-300">Total</span>
                     ) : (
-                      <HistoricalTeamLink name={row.teamName} seasonId={row.seasonId} teamId={row.historicalTeamId} />
+                      <HistoricalTeamLink leagueSlug={leagueSlug} name={row.teamName} seasonId={row.seasonId} teamId={row.historicalTeamId} />
                     )}
                   </td>
                   {columns.map((column) => (
@@ -125,15 +127,15 @@ function HistoryTable({
   );
 }
 
-export function PlayerHistory({ history }: { history: HistoryRow[] }) {
+export function PlayerHistory({ history, leagueSlug }: { history: HistoryRow[]; leagueSlug: string }) {
   const grouped = new Map<number, HistoryRow[]>();
   for (const row of history) grouped.set(row.seasonId, [...(grouped.get(row.seasonId) ?? []), row]);
   const seasons = [...grouped.values()];
 
   return (
     <div className="space-y-6">
-      <HistoryTable seasons={seasons} columns={BATTING} label="Batting history" hasStats={(row) => (row.atBats ?? 0) > 0} />
-      <HistoryTable seasons={seasons} columns={PITCHING} label="Pitching history" hasStats={(row) => (row.inningsPitched ?? 0) > 0} />
+      <HistoryTable leagueSlug={leagueSlug} seasons={seasons} columns={BATTING} label="Batting history" hasStats={(row) => (row.atBats ?? 0) > 0} />
+      <HistoryTable leagueSlug={leagueSlug} seasons={seasons} columns={PITCHING} label="Pitching history" hasStats={(row) => (row.inningsPitched ?? 0) > 0} />
     </div>
   );
 }

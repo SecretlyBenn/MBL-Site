@@ -5,6 +5,7 @@ import { slugify } from "@/db/news";
 import { newsArticles, newsComments, newsImages, newsLikes } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
 import { requireRoleForApi } from "@/app/roles";
+import { getLeagues } from "@/db/queries";
 
 /**
  * Writing, publishing and removing articles.
@@ -48,6 +49,10 @@ export async function POST(request: Request) {
         authorUserId: user.id,
         authorName: user.displayName,
         status: "DRAFT",
+        // The newsroom sits outside the leagues, so an article starts in the
+        // first one. Every writer the site has today is the MBL's; when a
+        // writer's role carries a league, this takes it from there.
+        leagueId: (await getLeagues())[0]?.id,
       })
       .returning();
 

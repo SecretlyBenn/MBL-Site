@@ -12,6 +12,7 @@ import {
   historicalRosterEntries,
   historicalSeasons,
   historicalTeams,
+  leagues,
   players,
   fieldingChanges,
   scorecardLines,
@@ -257,9 +258,31 @@ export async function getPlayerHistoricalStats(playerName: string) {
   }));
 }
 
-export async function getHistoricalSeasons() {
+/**
+ * The seasons of one league, newest first.
+ *
+ * Every archive page picks a season and works from it, so scoping this one
+ * query is what keeps two leagues' histories apart on all of them. Called
+ * without a league it returns every season, which only the admin area wants.
+ */
+export async function getHistoricalSeasons(leagueId?: number) {
   const db = getDb();
-  return db.select().from(historicalSeasons).orderBy(desc(historicalSeasons.sortOrder));
+  const query = db.select().from(historicalSeasons);
+  return (leagueId === undefined
+    ? query
+    : query.where(eq(historicalSeasons.leagueId, leagueId))
+  ).orderBy(desc(historicalSeasons.sortOrder));
+}
+
+/** Every league the site holds, in the order they are offered. */
+export async function getLeagues() {
+  return getDb().select().from(leagues).orderBy(asc(leagues.sortOrder));
+}
+
+/** One league from the slug in the address, or null if there is no such league. */
+export async function getLeagueBySlug(slug: string) {
+  const [row] = await getDb().select().from(leagues).where(eq(leagues.slug, slug)).limit(1);
+  return row ?? null;
 }
 
 export async function searchHistoricalPlayers(query: string, page = 1, pageSize = 20) {
@@ -627,7 +650,7 @@ export type HistoricalStatViewRow = typeof historicalPlayerStats.$inferSelect & 
   seasonSort: number | null;
 };
 
-async function getHistoricalStatLines(seasonId?: number): Promise<HistoricalStatViewRow[]> {
+async function getHistoricalStatLines(seasonId?: number, leagueId?: number): Promise<HistoricalStatViewRow[]> {
   const db = getDb();
   const query = db
     .select({
@@ -638,7 +661,13 @@ async function getHistoricalStatLines(seasonId?: number): Promise<HistoricalStat
     .from(historicalPlayerStats)
     .innerJoin(historicalTeams, eq(historicalPlayerStats.historicalTeamId, historicalTeams.id))
     .innerJoin(historicalSeasons, eq(historicalPlayerStats.seasonId, historicalSeasons.id));
-  return seasonId === undefined ? query : query.where(eq(historicalPlayerStats.seasonId, seasonId));
+  // A career spans seasons, and it has to stop at the league those seasons
+  // belong to: a player drafted out of the MCBA has two careers, not one.
+  const where = [
+    seasonId === undefined ? undefined : eq(historicalPlayerStats.seasonId, seasonId),
+    leagueId === undefined ? undefined : eq(historicalSeasons.leagueId, leagueId),
+  ].filter((clause) => clause !== undefined);
+  return where.length === 0 ? query : query.where(and(...where));
 }
 
 /**
@@ -737,8 +766,8 @@ function recalculateRates(row: HistoricalStatViewRow) {
  * merged here so a player never appears twice in the same table. The splits
  * remain available via getHistoricalPlayerStats for profile pages.
  */
-export async function getIndividualHistoricalStats(seasonId?: number) {
-  const lines = await getHistoricalStatLines(seasonId);
+export async function getIndividualHistoricalStats(seasonId?: number, leagueId?: number) {
+  const lines = await getHistoricalStatLines(seasonId, leagueId);
 
   if (seasonId !== undefined) {
     return mergePlayerLines(lines, (grouped) => {
@@ -839,6 +868,7 @@ export async function getHistoricalLeaders(
   column: "homeRuns" | "hits" | "runs" | "rbis" | "wins" | "strikeoutsPitched",
   limit = 10,
   seasonId?: number,
+  leagueId?: number,
 ) {
   const db = getDb();
   const columnRef = historicalPlayerStats[column];
@@ -847,13 +877,19 @@ export async function getHistoricalLeaders(
       playerName: historicalPlayerStats.playerName,
       total: sql<number>`sum(${columnRef})`.as("total"),
     })
-    .from(historicalPlayerStats);
+    .from(historicalPlayerStats)
+    // Without a season this counts a whole career, and a career has to stop at
+    // the league it was played in: players move between the two, and blending
+    // them would credit an MCBA batter's home runs to the MBL's leaderboard.
+    .innerJoin(historicalSeasons, eq(historicalPlayerStats.seasonId, historicalSeasons.id));
 
   // Summing across a player's multi-team lines is exactly right here - these
   // are counting stats, so a mid-season move shouldn't split their total.
-  const scoped = seasonId
-    ? query.where(eq(historicalPlayerStats.seasonId, seasonId))
-    : query;
+  const where = [
+    seasonId ? eq(historicalPlayerStats.seasonId, seasonId) : undefined,
+    leagueId ? eq(historicalSeasons.leagueId, leagueId) : undefined,
+  ].filter((clause) => clause !== undefined);
+  const scoped = where.length > 0 ? query.where(and(...where)) : query;
 
   return scoped
     .groupBy(historicalPlayerStats.playerName)

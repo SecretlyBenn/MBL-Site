@@ -49,8 +49,8 @@ function display(raw: ReturnType<typeof value>, column: Column) {
   return String(raw);
 }
 
-export function RosterStatsTable({ rows, kind, avatars }: {
-  rows: Row[]; kind: "batting" | "pitching"; avatars: Record<string, string>;
+export function RosterStatsTable({ rows, kind, avatars, leagueSlug }: {
+  rows: Row[]; kind: "batting" | "pitching"; avatars: Record<string, string>; leagueSlug: string;
 }) {
   const [sort, setSort] = useState<{ key: keyof Row; descending: boolean }>({ key: "playerName", descending: false });
   const columns: Column[] = [{ key: "playerName", label: "Player" }, ...(kind === "batting" ? batting : pitching)];
@@ -72,7 +72,7 @@ export function RosterStatsTable({ rows, kind, avatars }: {
         </button>
       </th>)}</tr></thead>
       <tbody>{sorted.map((row) => <tr key={row.playerName} className={row.played ? undefined : styles.unplayed}>
-        <td><span className={styles.player}><PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={18} /><PlayerProfileLink name={row.playerName} /></span></td>
+        <td><span className={styles.player}><PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={18} /><PlayerProfileLink leagueSlug={leagueSlug} name={row.playerName} /></span></td>
         {columns.slice(1).map((column) => <td key={column.key} className={column.key === "battingAverage" || column.key === "putouts" ? styles.groupStart : undefined}>{display(value(row, column.key), column)}</td>)}
       </tr>)}</tbody>
     </table>

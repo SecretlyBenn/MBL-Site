@@ -9,9 +9,9 @@ import { readFileSync } from "node:fs";
  * playoffs was told it had another game to play.
  */
 
-const home = readFileSync("app/page.tsx", "utf8");
-const schedule = readFileSync("app/schedule/page.tsx", "utf8");
-const game = readFileSync("app/games/[gameId]/page.tsx", "utf8");
+const home = readFileSync("app/[league]/page.tsx", "utf8");
+const schedule = readFileSync("app/[league]/schedule/page.tsx", "utf8");
+const game = readFileSync("app/[league]/games/[gameId]/page.tsx", "utf8");
 
 test("a not-needed game is nobody's next game on the home page", () => {
   const upNext = home.slice(home.indexOf("const nextByTeam"), home.indexOf("const strip"));

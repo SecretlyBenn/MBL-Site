@@ -34,7 +34,7 @@ export function slugify(title: string) {
 }
 
 /** Published articles, newest first, with their like and comment counts. */
-export async function getPublishedArticles(limit = 30): Promise<ArticleCard[]> {
+export async function getPublishedArticles(leagueId: number, limit = 30): Promise<ArticleCard[]> {
   const db = getDb();
   const articles = await db
     .select({
@@ -47,7 +47,7 @@ export async function getPublishedArticles(limit = 30): Promise<ArticleCard[]> {
       coverImageId: newsArticles.coverImageId,
     })
     .from(newsArticles)
-    .where(eq(newsArticles.status, "PUBLISHED"))
+    .where(and(eq(newsArticles.status, "PUBLISHED"), eq(newsArticles.leagueId, leagueId)))
     .orderBy(desc(newsArticles.publishedAt))
     .limit(limit);
 
@@ -133,7 +133,7 @@ export async function getAllArticles() {
  * One query and no like or comment counts: the home page is the busiest page
  * on the site, and a headline is all this column needs.
  */
-export async function getRecentArticles(limit = 4) {
+export async function getRecentArticles(leagueId: number, limit = 4) {
   return getDb()
     .select({
       id: newsArticles.id,
@@ -144,7 +144,7 @@ export async function getRecentArticles(limit = 4) {
       coverImageId: newsArticles.coverImageId,
     })
     .from(newsArticles)
-    .where(eq(newsArticles.status, "PUBLISHED"))
+    .where(and(eq(newsArticles.status, "PUBLISHED"), eq(newsArticles.leagueId, leagueId)))
     .orderBy(desc(newsArticles.publishedAt))
     .limit(limit);
 }

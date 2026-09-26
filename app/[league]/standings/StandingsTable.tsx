@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { TeamLogo } from "../TeamLogo";
-import { HistoricalTeamLink } from "../EntityLinks";
+import { TeamLogo } from "../../TeamLogo";
+import { HistoricalTeamLink } from "../../EntityLinks";
 
 export type StandingsRow = {
   id: number; name: string; abbreviation: string | null; league: string | null;
@@ -22,7 +22,7 @@ function sorted(teams: StandingsRow[]) {
  * raw runs for/against) and shrinks the logo, so both leagues still fit when
  * the table shares a row with other content.
  */
-function Table({ teams, seasonId, compact = false, label = "Team" }: { teams: StandingsRow[]; seasonId: number; compact?: boolean; label?: string }) {
+function Table({ teams, seasonId, leagueSlug, compact = false, label = "Team" }: { teams: StandingsRow[]; seasonId: number; leagueSlug: string; compact?: boolean; label?: string }) {
   return <div className="data-table-shell flex-1"><table className="data-table ranked h-full w-full table-fixed"><colgroup>
     <col style={{ width: "2.75rem" }} /><col style={{ width: compact ? "50%" : "38%" }} />
     {!compact && <col style={{ width: "12%" }} />}
@@ -38,7 +38,7 @@ function Table({ teams, seasonId, compact = false, label = "Team" }: { teams: St
     const wins = team.wins ?? 0, losses = team.losses ?? 0, games = wins + losses;
     const diff = team.runsScored === null || team.runsAllowed === null ? null : team.runsScored - team.runsAllowed;
     return <tr key={team.id}><td>{index + 1}</td>
-      <td><span className="flex min-w-0 items-center gap-2"><TeamLogo teamName={team.name} className={compact ? "h-6 w-6" : "h-8 w-8"} /><HistoricalTeamLink name={team.name} seasonId={seasonId} teamId={team.id} className="truncate" /></span></td>
+      <td><span className="flex min-w-0 items-center gap-2"><TeamLogo teamName={team.name} className={compact ? "h-6 w-6" : "h-8 w-8"} /><HistoricalTeamLink leagueSlug={leagueSlug} name={team.name} seasonId={seasonId} teamId={team.id} className="truncate" /></span></td>
       {!compact && <td className="text-slate-400">{team.abbreviation ?? "—"}</td>}
       <td className="whitespace-nowrap">
         {team.wins === null && team.losses === null ? "-" : `${wins}-${losses}`}
@@ -50,7 +50,7 @@ function Table({ teams, seasonId, compact = false, label = "Team" }: { teams: St
   })}</tbody></table></div>;
 }
 
-export function StandingsTable({ teams, seasonId, controls = true, compact = false, constrain = true }: { teams: StandingsRow[]; seasonId: number; controls?: boolean; compact?: boolean;
+export function StandingsTable({ teams, seasonId, leagueSlug, controls = true, compact = false, constrain = true }: { teams: StandingsRow[]; seasonId: number; leagueSlug: string; controls?: boolean; compact?: boolean;
   /**
    * Standings alone on a page read better held to a middle column. Sharing a
    * page with the season's stat tables they should not: two tables at two
@@ -69,11 +69,11 @@ export function StandingsTable({ teams, seasonId, controls = true, compact = fal
   const width = compact ? "" : constrain ? "mx-auto w-full max-w-4xl" : "w-full";
   return <div className={compact ? "flex min-h-0 flex-1 flex-col" : undefined}>
     {controls && <div className={`mb-5 flex justify-end ${width}`}><label className="ui-field-label">View<select value={mode} onChange={(event) => setMode(event.target.value as "division" | "league")} className="ui-select"><option value="division">Division standings</option><option value="league">League standings</option></select></label></div>}
-    {mode === "league" || !divided ? <div className={width}><Table teams={teams} seasonId={seasonId} compact={compact} /></div> : <div className={`grid ${compact ? "gap-4" : "gap-6"} ${splitAt} ${width}`}>
+    {mode === "league" || !divided ? <div className={width}><Table leagueSlug={leagueSlug} teams={teams} seasonId={seasonId} compact={compact} /></div> : <div className={`grid ${compact ? "gap-4" : "gap-6"} ${splitAt} ${width}`}>
       {/* The league name rides in the table header rather than a heading above
           it, so a standings card and a leaders card are the same object. */}
-      <Table teams={american} seasonId={seasonId} compact={compact} label="American League" />
-      <Table teams={national} seasonId={seasonId} compact={compact} label="National League" />
+      <Table leagueSlug={leagueSlug} teams={american} seasonId={seasonId} compact={compact} label="American League" />
+      <Table leagueSlug={leagueSlug} teams={national} seasonId={seasonId} compact={compact} label="National League" />
     </div>}
   </div>;
 }

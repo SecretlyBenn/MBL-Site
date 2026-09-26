@@ -698,6 +698,8 @@ export const rateLimits = sqliteTable("rate_limits", {
  */
 export const newsArticles = sqliteTable("news_articles", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  /** Which league the article is about; the newsroom stamps it when writing. */
+  leagueId: integer("league_id").references(() => leagues.id),
   /** The address of the article: /news/<slug>. */
   slug: text("slug").notNull().unique(),
   title: text("title").notNull(),

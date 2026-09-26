@@ -28,7 +28,7 @@ function avg(value: number | null) {
   return value === null ? "-" : value.toFixed(3).replace(/^0/, "");
 }
 
-export function SeasonStatsTable({ rows, kind, seasonId, teamIds }: { rows: SeasonStatRow[]; kind: "batting" | "pitching"; seasonId: number; teamIds: Record<string, number> }) {
+export function SeasonStatsTable({ rows, kind, seasonId, teamIds, leagueSlug }: { rows: SeasonStatRow[]; kind: "batting" | "pitching"; seasonId: number; teamIds: Record<string, number>; leagueSlug: string }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -114,8 +114,8 @@ export function SeasonStatsTable({ rows, kind, seasonId, teamIds }: { rows: Seas
           <tbody>
             {visible.map((row, index) => (
               <tr key={`${row.playerName}-${row.teamName}-${index}`} className="border-b border-slate-800/60">
-                <td><PlayerProfileLink name={row.playerName} /></td>
-                <td>{teamIds[row.teamName] ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} /> : row.teamName}</td>
+                <td><PlayerProfileLink leagueSlug={leagueSlug} name={row.playerName} /></td>
+                <td>{teamIds[row.teamName] ? <HistoricalTeamLink leagueSlug={leagueSlug} name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} /> : row.teamName}</td>
                 {kind === "batting" ? <>
                   <td>{row.games ?? "-"}</td><td>{row.atBats ?? "-"}</td>
                   <td>{row.hits ?? "-"}</td><td>{row.homeRuns ?? "-"}</td>

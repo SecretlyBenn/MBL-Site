@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildBracket, splitsByLeague, stageLabel } from "../app/standings/build-bracket.ts";
+import { buildBracket, splitsByLeague, stageLabel } from "../app/[league]/standings/build-bracket.ts";
 
 /**
  * The bracket is read back out of who played whom, so these build small

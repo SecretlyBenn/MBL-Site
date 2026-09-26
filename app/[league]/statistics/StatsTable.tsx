@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { TeamLogo } from "../TeamLogo";
-import { formatInnings } from "../formatStats";
+import { TeamLogo } from "../../TeamLogo";
+import { formatInnings } from "../../formatStats";
 import { earnedRunAverage } from "@/app/scoring";
-import { HistoricalTeamLink, PlayerProfileLink } from "../EntityLinks";
-import { PlayerHead } from "../PlayerHead";
+import { HistoricalTeamLink, PlayerProfileLink } from "../../EntityLinks";
+import { PlayerHead } from "../../PlayerHead";
 
 export type StatRow = Record<string, string | number | null | undefined> & { playerName: string; teamName: string };
 type Column = {
@@ -149,7 +149,7 @@ function leagueAverage(rows: StatRow[], kind: "batting" | "pitching") {
   return result;
 }
 
-export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, toolbar, avatars = {} }: { rows: StatRow[]; kind: "batting" | "pitching"; team?: boolean; seasonId?: number; teamIds?: Record<string, number>; toolbar?: React.ReactNode; avatars?: Record<string, string> }) {
+export function StatsTable({ rows, kind, leagueSlug, team = false, seasonId, teamIds = {}, toolbar, avatars = {} }: { rows: StatRow[]; kind: "batting" | "pitching"; leagueSlug: string; team?: boolean; seasonId?: number; teamIds?: Record<string, number>; toolbar?: React.ReactNode; avatars?: Record<string, string> }) {
   const columns = (kind === "batting" ? BATTING : PITCHING).filter((column) => !(team && column.playerOnly));
   const [query, setQuery] = useState("");
   // Alphabetical by name is the default: an unsorted dump has no order the
@@ -278,10 +278,10 @@ export function StatsTable({ rows, kind, team = false, seasonId, teamIds = {}, t
           </tr>
         </thead>
         <tbody>{paged.map((row, index) => <tr key={`${row.playerName}-${row.teamName}-${index}`} className="border-b border-slate-800/60">
-          <td className="is-name-column"><span className="flex min-w-0 items-center gap-2">{team && <TeamLogo teamName={row.teamName} className="h-7 w-7 shrink-0" />}{team ? (seasonId && teamIds[row.teamName] ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} className="truncate" /> : row.teamName) : <><span className="rank">{currentPage * PAGE_SIZE + index + 1}</span><PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={20} /><PlayerProfileLink name={row.playerName} className="truncate" /></>}</span></td>
+          <td className="is-name-column"><span className="flex min-w-0 items-center gap-2">{team && <TeamLogo teamName={row.teamName} className="h-7 w-7 shrink-0" />}{team ? (seasonId && teamIds[row.teamName] ? <HistoricalTeamLink leagueSlug={leagueSlug} name={row.teamName} seasonId={seasonId} teamId={teamIds[row.teamName]} className="truncate" /> : row.teamName) : <><span className="rank">{currentPage * PAGE_SIZE + index + 1}</span><PlayerHead uuid={avatars[row.playerName]} name={row.playerName} size={20} /><PlayerProfileLink leagueSlug={leagueSlug} name={row.playerName} className="truncate" /></>}</span></td>
           {/* The team cell carries the crest of the team the player ended the
               span with - for a career row that is their most recent club. */}
-          {!team && <td>{(() => { const rosterName = row.teamName.replace(/ \(\+\d+\)$/, ""); const id = teamIds[rosterName]; return <span className="flex min-w-0 items-center gap-2"><TeamLogo teamName={rosterName} className="h-5 w-5 shrink-0" />{seasonId && id ? <HistoricalTeamLink name={row.teamName} seasonId={seasonId} teamId={id} className="truncate" /> : <span className="truncate">{row.teamName}</span>}</span>; })()}</td>}
+          {!team && <td>{(() => { const rosterName = row.teamName.replace(/ \(\+\d+\)$/, ""); const id = teamIds[rosterName]; return <span className="flex min-w-0 items-center gap-2"><TeamLogo teamName={rosterName} className="h-5 w-5 shrink-0" />{seasonId && id ? <HistoricalTeamLink leagueSlug={leagueSlug} name={row.teamName} seasonId={seasonId} teamId={id} className="truncate" /> : <span className="truncate">{row.teamName}</span>}</span>; })()}</td>}
           {columns.map((column) => <td key={column.key} className={sortKey === column.key ? "is-sorted" : ""}>{display(valueOf(row, column), column)}</td>)}
         </tr>)}
         {/* Blank rows keep the table the same height on a short last page, so

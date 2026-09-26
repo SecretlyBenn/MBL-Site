@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "./Analytics";
 import { CookieNotice } from "./CookieNotice";
+import { LeaguesProvider } from "./Leagues";
 import { LogoOverridesProvider } from "./LogoOverrides";
 import { getLogoOverrides } from "@/db/logos";
+import { getLeagues } from "@/db/queries";
 import { SITE } from "./site";
 import "./globals.css";
 
@@ -52,7 +54,11 @@ export default async function RootLayout({
       >
         {/* Uploaded logos are read once here, as a handful of names and URLs,
             and every TeamLogo below looks itself up in them. */}
-        <LogoOverridesProvider value={await getLogoOverrides()}>{children}</LogoOverridesProvider>
+        {/* Two rows, read once, so the bar at the top of every page knows which
+            leagues exist and which one the reader is in. */}
+        <LeaguesProvider value={await getLeagues()}>
+          <LogoOverridesProvider value={await getLogoOverrides()}>{children}</LogoOverridesProvider>
+        </LeaguesProvider>
         <CookieNotice />
         <Analytics />
       </body>

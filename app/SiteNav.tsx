@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { MobileMenu } from "./MobileMenu";
 import { MobileActionBar } from "./MobileActionBar";
+import { LeagueBrand, NavLinks } from "./NavLinks";
 import { SignInButton } from "./SignInButton";
 import { SiteFooter } from "./SiteFooter";
 
@@ -8,22 +8,22 @@ const GROUPS = [
   {
     label: "League",
     links: [
-      { href: "/standings", label: "Standings" },
-      { href: "/schedule", label: "Schedule & Scores" },
-      { href: "/rosters", label: "Rosters" },
-      { href: "/seasons", label: "Seasons" },
-      { href: "/news", label: "News" },
-      { href: "/rules", label: "Rules" },
+      { href: "standings", label: "Standings" },
+      { href: "schedule", label: "Schedule & Scores" },
+      { href: "rosters", label: "Rosters" },
+      { href: "seasons", label: "Seasons" },
+      { href: "news", label: "News" },
+      { href: "rules", label: "Rules" },
     ],
   },
   {
     label: "Statistics",
     links: [
-      { href: "/statistics/batting", label: "Batting Statistics" },
-      { href: "/statistics/pitching", label: "Pitching Statistics" },
-      { href: "/statistics/team-batting", label: "Team Batting Statistics" },
-      { href: "/statistics/team-pitching", label: "Team Pitching Statistics" },
-      { href: "/statistics/leaders", label: "Leaders" },
+      { href: "statistics/batting", label: "Batting Statistics" },
+      { href: "statistics/pitching", label: "Pitching Statistics" },
+      { href: "statistics/team-batting", label: "Team Batting Statistics" },
+      { href: "statistics/team-pitching", label: "Team Pitching Statistics" },
+      { href: "statistics/leaders", label: "Leaders" },
     ],
   },
   {
@@ -47,61 +47,16 @@ export function SiteNav() {
         className="relative mx-auto flex max-w-[1600px] items-center gap-2 px-4 py-2 sm:px-6 lg:py-3"
         aria-label="Main navigation"
       >
-        <Link href="/" className="mr-2 flex shrink-0 items-center gap-2.5 lg:mr-6">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/mbl-logo.png" alt="" width={36} height={36} className="h-9 w-auto" />
-          <span className="flex flex-col leading-none">
-            <span className="text-lg font-black tracking-tight">MBL</span>
-            {/* Dropped on phones, where it would push the menu button off the bar. */}
-            <span className="hidden text-[9px] font-bold uppercase tracking-[0.08em] text-slate-600 sm:block">
-              Minecraft Baseball League
-            </span>
-          </span>
-        </Link>
+        <LeagueBrand />
 
         {/* The full bar needs room and a pointer that can hover, so it waits for
-            large screens; everything narrower gets MobileMenu. */}
-        <div className="hidden items-center gap-x-2 lg:flex">
-          <Link
-            href="/"
-            className="rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors hover:bg-slate-800/70 hover:text-white"
-          >
-            Home
-          </Link>
-          {GROUPS.map((group) => (
-            <div key={group.label} className="group relative">
-              {/* A button rather than a span so the menu can be reached with the
-                  keyboard: focusing it opens the menu through focus-within. */}
-              <button
-                type="button"
-                aria-haspopup="true"
-                className="flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-slate-300 transition-colors group-focus-within:bg-slate-800/70 group-focus-within:text-white group-hover:bg-slate-800/70 group-hover:text-white"
-              >
-                {group.label}
-                <span aria-hidden="true" className="text-[9px] text-slate-500">
-                  ▼
-                </span>
-              </button>
-              <div className="invisible absolute left-0 z-30 min-w-56 translate-y-1 overflow-hidden rounded-lg border border-slate-800 bg-slate-900 p-1 opacity-0 shadow-2xl transition duration-150 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-                {group.links.map((link) => (
-                  <Link
-                    key={link.href}
-                    href={link.href}
-                    className="block rounded-md px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white focus:bg-slate-800 focus:text-white focus:outline-none"
-                  >
-                    {link.label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-
+            large screens; everything narrower gets MobileMenu. Both are drawn
+            by NavLinks, which prefixes them with the league being read. */}
+        <NavLinks groups={GROUPS} />
         {/* Rendered once, where both layouts can use it - it reads the session
             and the league user, and a second copy would do that twice. */}
-        <div className="ml-auto flex items-center gap-1">
+        <div className="flex items-center">
           <SignInButton />
-          <MobileMenu groups={GROUPS} />
         </div>
       </nav>
     </header>

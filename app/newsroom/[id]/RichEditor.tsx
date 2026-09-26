@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { INLINE, isSafeHref, parseArticle } from "@/app/news/render";
+import { INLINE, isSafeHref, parseArticle } from "@/app/[league]/news/render";
 
 /**
  * The article editor: write the way you would in a document.

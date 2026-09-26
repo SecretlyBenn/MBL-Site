@@ -29,7 +29,7 @@ export default function TermsPage() {
 
         <h2>Conduct</h2>
         <p>
-          The league&apos;s <Link href="/rules">community rules</Link> apply here as well as on
+          The league&apos;s <Link href="/mbl/rules">community rules</Link> apply here as well as on
           Discord, comments included, and anything that breaks them can be removed.
         </p>
 
