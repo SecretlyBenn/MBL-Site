@@ -73,6 +73,11 @@ const LOGOS: Record<string, string> = {
   tsunami: "/team-logos/tsunami.png",
   twisters: "/team-logos/twisters.png",
   vipers: "/team-logos/vipers.png",
+  wizards: "/team-logos/wizards.png",
+  buffaloes: "/team-logos/buffaloes.png",
+  // The Cheavers were the Champions and the Beavers merged for a season
+  // when neither had the players to field a side, so they never had a
+  // crest of their own and either parent's would say the wrong thing.
 };
 
 export function teamLogoPath(teamName: string) {
