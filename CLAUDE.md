@@ -60,8 +60,11 @@ Rules learned the hard way:
   0011; do not trust it, and do not run `drizzle-kit push` against production.
 - **D1 caps a compound SELECT at 5 `UNION ALL` terms.** Past that it fails with
   "too many terms in compound SELECT" - use scalar subqueries instead.
-- **D1 caps bound parameters per statement.** `db/publish.ts` inserts box
-  scores in slices for this reason.
+- **D1 caps bound parameters per statement at 100.** `db/publish.ts` inserts
+  box scores in slices for this reason, and `getAvatarsFor` in `db/queries.ts`
+  looks player heads up in batches - a season's statistics page names 207
+  players, and asking for them in one `IN (...)` returned a 500 on every page
+  that showed a full season while the current season, being small, worked.
 - Correlated subqueries over the archive read tens of thousands of rows. The
   free tier allows 5M reads a day, and an unindexed import has exhausted it
   before, which takes the whole site down until it resets.

@@ -869,6 +869,9 @@ export async function getTeamRoster(teamId: number) {
     .where(and(eq(players.teamId, teamId), eq(players.status, "ACTIVE")));
 }
 
+/** Names per profile lookup, under D1's cap of 100 bound parameters. */
+const PROFILE_BATCH = 90;
+
 /**
  * Archived name -> Minecraft account UUID, for the heads a page actually draws.
  *
@@ -877,12 +880,27 @@ export async function getTeamRoster(teamId: number) {
  * plain object so it can cross into the stat tables without a query per row.
  */
 export async function getAvatarsFor(names: string[]): Promise<Record<string, string>> {
-  if (names.length === 0) return {};
-  const rows = await getDb()
-    .select({ playerName: minecraftProfiles.playerName, uuid: minecraftProfiles.uuid })
-    .from(minecraftProfiles)
-    .where(inArray(minecraftProfiles.playerName, [...new Set(names)]));
-  return Object.fromEntries(rows.map((row) => [row.playerName, row.uuid]));
+  const wanted = [...new Set(names)];
+  if (wanted.length === 0) return {};
+
+  // D1 refuses a statement with more than 100 bound parameters, and a season's
+  // statistics table names two hundred players - asking for them in one go
+  // threw on every page that showed a whole season.
+  const db = getDb();
+  const batches: string[][] = [];
+  for (let start = 0; start < wanted.length; start += PROFILE_BATCH) {
+    batches.push(wanted.slice(start, start + PROFILE_BATCH));
+  }
+
+  const found = await Promise.all(
+    batches.map((batch) =>
+      db
+        .select({ playerName: minecraftProfiles.playerName, uuid: minecraftProfiles.uuid })
+        .from(minecraftProfiles)
+        .where(inArray(minecraftProfiles.playerName, batch)),
+    ),
+  );
+  return Object.fromEntries(found.flat().map((row) => [row.playerName, row.uuid]));
 }
 
 /**
