@@ -146,8 +146,24 @@ export const scorecardLines = sqliteTable("scorecard_lines", {
 // trying to backfill fake games/scorecards.
 // ---------------------------------------------------------------------------
 
+/**
+ * The leagues the site holds. Everything in the archive hangs off a season, so
+ * naming the league there is enough to tell two leagues' histories apart. The
+ * MiBL's clubs sit under the MCBA, which is where their games are played.
+ */
+export const leagues = sqliteTable("leagues", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  /** What the league is called in an address: /mbl/standings. */
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  abbreviation: text("abbreviation").notNull().unique(),
+  /** Which one the site opens on, lowest first. */
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
 export const historicalSeasons = sqliteTable("historical_seasons", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  leagueId: integer("league_id").references(() => leagues.id),
   name: text("name").notNull().unique(),
   // Source system's season id, so a re-import can match rows instead of duplicating.
   sourceSeasonId: text("source_season_id").notNull(),
