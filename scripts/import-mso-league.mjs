@@ -121,26 +121,31 @@ function parseStatTable(table, mapping, nameHeader) {
 }
 
 /**
- * W/L records from the season's standings tables.
+ * W/L records from the season's standings tables, and which division each club
+ * played in.
  *
- * The MBL's two tables are its American and National leagues, named by
- * headings that live outside the table and so never reach a scrape. This
- * league's divisions are equally unnamed here, and guessing at them would put
- * words in the league's mouth - so clubs are imported ungrouped and the
- * standings page shows one table.
+ * The source renders one table per division, in the order its own filter lists
+ * them, and the names appear nowhere else on the page - not in a heading, not
+ * in the table. How many there are changes from season to season: this league
+ * has run one division, two and three.
  */
-function parseStandings(standingsTables) {
+function parseStandings(standingsTables, divisions = []) {
   const records = new Map();
+  let index = 0;
   for (const table of standingsTables ?? []) {
     if (!table || table.length < 2) continue;
     const header = table[0];
     const teamIndex = header.indexOf("Team");
     if (teamIndex === -1) continue;
+    // Only a standings table counts towards the division order.
+    const division = divisions[index] ?? null;
+    index += 1;
     const at = (label) => header.indexOf(label);
     for (const row of table.slice(1)) {
       const name = (row[teamIndex] ?? "").trim();
       if (!name) continue;
       records.set(name, {
+        division,
         wins: at("W") === -1 ? null : num(row[at("W")]),
         losses: at("L") === -1 ? null : num(row[at("L")]),
         ties: at("T") === -1 ? null : num(row[at("T")]),
@@ -164,7 +169,9 @@ function parseTeamName(sourceName) {
 
 // The source lists seasons newest first; the archive orders them oldest first.
 const seasonOrder = rosterMode.seasons.map((season) => season.name).reverse();
-const standingsBySeason = new Map(rosterMode.seasons.map((s) => [s.name, parseStandings(s.standingsTables)]));
+const standingsBySeason = new Map(
+  rosterMode.seasons.map((s) => [s.name, parseStandings(s.standingsTables, s.divisions)]),
+);
 
 // Which club a player finished the season with, for the "(+1)" note on a
 // career line. Taken from the order the source lists their teams in.
@@ -229,7 +236,7 @@ for (const [index, seasonName] of seasonOrder.entries()) {
     lines.push(
       `INSERT INTO historical_teams (season_id, name, abbreviation, source_name, source_team_id, league, wins, losses, ties, runs_scored, runs_allowed) ` +
         `VALUES (${seasonRef}, ${sqlStr(team.name)}, ${sqlStr(team.abbreviation)}, ${sqlStr(team.sourceName)}, ` +
-        `${sqlStr(String(record.teamId))}, NULL, ${sqlNum(standing.wins ?? null)}, ${sqlNum(standing.losses ?? null)}, ` +
+        `${sqlStr(String(record.teamId))}, ${sqlStr(standing.division ?? null)}, ${sqlNum(standing.wins ?? null)}, ${sqlNum(standing.losses ?? null)}, ` +
         `${sqlNum(standing.ties ?? null)}, ${sqlNum(standing.runsScored ?? null)}, ${sqlNum(standing.runsAllowed ?? null)});`,
     );
     const teamRef = `(SELECT id FROM historical_teams WHERE season_id = ${seasonRef} AND source_team_id = ${sqlStr(String(record.teamId))})`;

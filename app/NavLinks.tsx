@@ -120,7 +120,7 @@ export function LeagueBrand() {
   return (
     <Link href={`/${league?.slug ?? ""}`} className="mr-2 flex shrink-0 items-center gap-2.5 lg:mr-6">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/mbl-logo.png" alt="" width={36} height={36} className="h-9 w-auto" />
+      <img src={`/${league?.slug ?? "mbl"}-logo.png`} alt="" width={36} height={36} className="h-9 w-auto" />
       <span className="flex flex-col leading-none">
         <span className="text-lg font-black tracking-tight">{league?.abbreviation ?? "MBL"}</span>
         {/* Dropped on phones, where it would push the menu button off the bar. */}

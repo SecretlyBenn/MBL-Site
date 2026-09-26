@@ -45,8 +45,8 @@ export function SiteFooter() {
         <div>
           <Link href="/" className="inline-flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/mbl-logo.png" alt="" width={32} height={32} className="h-8 w-auto" />
-            <span className="text-base font-black tracking-tight text-slate-100">{SITE.shortName}</span>
+            <img src={`/${league?.slug ?? "mbl"}-logo.png`} alt="" width={32} height={32} className="h-8 w-auto" />
+            <span className="text-base font-black tracking-tight text-slate-100">{league?.abbreviation ?? SITE.shortName}</span>
           </Link>
           <p className="mt-3 max-w-xs text-sm">{SITE.description}</p>
           <a

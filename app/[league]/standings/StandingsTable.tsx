@@ -50,6 +50,12 @@ function Table({ teams, seasonId, leagueSlug, compact = false, label = "Team" }:
   })}</tbody></table></div>;
 }
 
+/** The MBL's two are stored as codes; every other division is named as it is. */
+const DIVISION_NAMES: Record<string, string> = {
+  AMERICAN: "American League",
+  NATIONAL: "National League",
+};
+
 export function StandingsTable({ teams, seasonId, leagueSlug, controls = true, compact = false, constrain = true }: { teams: StandingsRow[]; seasonId: number; leagueSlug: string; controls?: boolean; compact?: boolean;
   /**
    * Standings alone on a page read better held to a middle column. Sharing a
@@ -58,22 +64,33 @@ export function StandingsTable({ teams, seasonId, leagueSlug, controls = true, c
    */
   constrain?: boolean }) {
   const [mode, setMode] = useState<"division" | "league">("division");
-  const american = teams.filter((team) => team.league === "AMERICAN");
-  const national = teams.filter((team) => team.league === "NATIONAL");
-  const divided = american.length + national.length > 0;
-  // Compact mode sits beside the leaders grid, so the two league cards stretch
-  // to fill the row: both columns then start and end on the same line. On the
-  // standings page the leagues stack down the centre of the page instead, at
+  // However the season was divided, and in the order the clubs come in. The
+  // MBL runs two leagues every year; the Collegiate Association has run one
+  // division, two and three in different seasons, so nothing here may assume
+  // how many there are.
+  const divisions = [...new Set(teams.map((team) => team.league).filter((name) => name !== null))];
+  const divided = divisions.length > 1;
+  // Compact mode sits beside the leaders grid, so the cards stretch to fill
+  // the row: every column then starts and ends on the same line. On the
+  // standings page the divisions stack down the centre of the page instead, at
   // one shared width so league view and division view are the same object.
-  const splitAt = compact ? "h-full grid-rows-2" : "";
+  const splitAt = compact ? `h-full grid-rows-${divisions.length}` : "";
   const width = compact ? "" : constrain ? "mx-auto w-full max-w-4xl" : "w-full";
   return <div className={compact ? "flex min-h-0 flex-1 flex-col" : undefined}>
     {controls && <div className={`mb-5 flex justify-end ${width}`}><label className="ui-field-label">View<select value={mode} onChange={(event) => setMode(event.target.value as "division" | "league")} className="ui-select"><option value="division">Division standings</option><option value="league">League standings</option></select></label></div>}
     {mode === "league" || !divided ? <div className={width}><Table leagueSlug={leagueSlug} teams={teams} seasonId={seasonId} compact={compact} /></div> : <div className={`grid ${compact ? "gap-4" : "gap-6"} ${splitAt} ${width}`}>
-      {/* The league name rides in the table header rather than a heading above
-          it, so a standings card and a leaders card are the same object. */}
-      <Table leagueSlug={leagueSlug} teams={american} seasonId={seasonId} compact={compact} label="American League" />
-      <Table leagueSlug={leagueSlug} teams={national} seasonId={seasonId} compact={compact} label="National League" />
+      {/* The division name rides in the table header rather than a heading
+          above it, so a standings card and a leaders card are the same object. */}
+      {divisions.map((division) => (
+        <Table
+          key={division}
+          leagueSlug={leagueSlug}
+          teams={teams.filter((team) => team.league === division)}
+          seasonId={seasonId}
+          compact={compact}
+          label={DIVISION_NAMES[division] ?? division}
+        />
+      ))}
     </div>}
   </div>;
 }

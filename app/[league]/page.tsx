@@ -111,7 +111,7 @@ export default async function Home({ params }: { params: Promise<{ league: strin
         <div className="relative mx-auto max-w-[1600px] px-4 py-8 sm:px-6 sm:py-12">
           <div className="flex flex-wrap items-center gap-6">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/mbl-logo.png" alt="" className="h-20 w-auto shrink-0 drop-shadow-lg" />
+            <img src={`/${league.slug}-logo.png`} alt="" className="h-20 w-auto shrink-0 drop-shadow-lg" />
             <div className="min-w-0">
               <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-sky-400">
                 {latestSeason?.name ?? "Minecraft Baseball League"}

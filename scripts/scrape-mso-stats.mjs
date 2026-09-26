@@ -83,8 +83,21 @@ for (const seasonId of seasonIds) {
     if (name) teams.set(match[1], name);
   }
 
-  const rosterSeason = { name: seasonName, standingsTables: tablesIn(standingsHtml), teams: [] };
-  console.log(`${seasonName}: ${teams.size} teams`);
+  // How the season was divided. The number changes from season to season -
+  // some ran one division, some two, some three - and the names live only in
+  // the page's own filter, never in a heading the tables carry.
+  const divisions = [...standingsHtml.matchAll(/<select[^>]*ddlConfDiv[^>]*>([\s\S]*?)<\/select>/gi)]
+    .flatMap((select) => [...select[1].matchAll(/<option[^>]*>([\s\S]*?)<\/option>/gi)])
+    .map((option) => text(option[1]))
+    .filter((name) => name && !/^-+\s*All divisions/i.test(name));
+
+  const rosterSeason = {
+    name: seasonName,
+    divisions,
+    standingsTables: tablesIn(standingsHtml),
+    teams: [],
+  };
+  console.log(`${seasonName}: ${teams.size} teams, ${divisions.length || "no"} divisions${divisions.length ? ` (${divisions.join(", ")})` : ""}`);
 
   for (const [teamId, teamName] of teams) {
     await wait(500);
