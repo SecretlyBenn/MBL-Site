@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { asc, eq, isNull } from "drizzle-orm";
+import { asc, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { historicalPlayerStats, minecraftProfiles, players, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
@@ -43,15 +43,22 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
     heading = "Missing a Minecraft account";
     const [poolRows, archived] = await Promise.all([
       db.select({ name: players.displayName }).from(players),
+      // Played is how many games the archive has them for, so the list can put
+      // the people a reader will actually meet first. Two hundred names went
+      // unlinked when the Collegiate Association arrived, most of them accounts
+      // renamed or deleted years ago, and working through them alphabetically
+      // means starting with somebody who played once.
       db
-        .selectDistinct({ name: historicalPlayerStats.playerName })
+        .select({ name: historicalPlayerStats.playerName, played: sql<number>`coalesce(sum(${historicalPlayerStats.games}), 0)` })
         .from(historicalPlayerStats)
         .leftJoin(minecraftProfiles, eq(minecraftProfiles.playerName, historicalPlayerStats.playerName))
-        .where(isNull(minecraftProfiles.uuid)),
+        .where(isNull(minecraftProfiles.uuid))
+        .groupBy(historicalPlayerStats.playerName),
     ]);
+    const gamesFor = new Map(archived.map((row) => [row.name, Number(row.played)]));
     unlinkedNames = [...new Set([...poolRows.map((row) => row.name), ...archived.map((row) => row.name)])]
       .filter((name) => !linkedNames.has(name))
-      .sort((a, b) => a.localeCompare(b));
+      .sort((a, b) => (gamesFor.get(b) ?? 0) - (gamesFor.get(a) ?? 0) || a.localeCompare(b));
   } else if (show === "free") {
     heading = "Free agents & released";
     pool = await db.select().from(players).where(isNull(players.teamId));
