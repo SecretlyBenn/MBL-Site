@@ -76,6 +76,12 @@ be fine live.
 
 Rules learned the hard way:
 
+- **Three files in `drizzle/` must never be applied**, and each now says so
+  at the top: `seed-historical.sql`, `seed-boxscores.sql` and
+  `0003_seed_historical.sql`. They open with unconditional
+  `DELETE FROM historical_*` and would erase both leagues. They are the record
+  of the original one-time import, and `0003` is numbered like an ordinary
+  migration, which is the trap.
 - **Migrations are hand-written SQL in `drizzle/`, numbered in order, and
   applied by hand.** `drizzle/meta/_journal.json` stopped being updated at
   0011; do not trust it, and do not run `drizzle-kit push` against production.
