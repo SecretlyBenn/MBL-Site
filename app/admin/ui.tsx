@@ -118,4 +118,9 @@ export function DeleteButton({
   );
 }
 
-export type Option = { id: number; name: string };
+/**
+ * A pickable row. `group` puts it under a heading in the list - clubs are
+ * grouped by competition, so a fixture between two leagues is not something
+ * the form offers in the first place.
+ */
+export type Option = { id: number; name: string; group?: string | null };

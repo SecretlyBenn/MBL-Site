@@ -33,13 +33,42 @@ function TeamSelect({
       required={required}
     >
       <option value="">{placeholder}</option>
-      {teams.map((team) => (
-        <option key={team.id} value={team.id}>
-          {team.name}
-        </option>
-      ))}
+      {groupsOf(teams).map(([group, rows]) =>
+        group === null ? (
+          rows.map((team) => (
+            <option key={team.id} value={team.id}>
+              {team.name}
+            </option>
+          ))
+        ) : (
+          <optgroup key={group} label={group}>
+            {rows.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </optgroup>
+        ),
+      )}
     </select>
   );
+}
+
+/**
+ * The options under their headings, in the order they arrive. Ungrouped lists
+ * come back as one nameless group, so a caller that does not care about
+ * grouping gets a plain list of options as before.
+ */
+function groupsOf(options: Option[]): [string | null, Option[]][] {
+  if (!options.some((option) => option.group)) return [[null, options]];
+  const order: string[] = [];
+  const bucket = new Map<string, Option[]>();
+  for (const option of options) {
+    const key = option.group ?? "Other";
+    if (!bucket.has(key)) { bucket.set(key, []); order.push(key); }
+    bucket.get(key)!.push(option);
+  }
+  return order.map((key) => [key, bucket.get(key)!]);
 }
 
 /* ------------------------------------------------------------------ Teams */

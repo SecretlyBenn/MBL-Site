@@ -4,6 +4,7 @@ import { logAudit } from "@/db/audit";
 import { seasonTeamId } from "@/db/publish";
 import { removeLiveGame } from "@/db/remove-game";
 import { games, historicalGames, historicalSeasons } from "@/db/schema";
+import { fixtureClubs } from "@/db/queries";
 import { apiError } from "@/app/api-errors";
 import { requireRoleForApi } from "@/app/roles";
 
@@ -43,6 +44,26 @@ export async function POST(request: Request) {
     const db = getDb();
     const season = await db.query.historicalSeasons.findFirst({ where: eq(historicalSeasons.id, seasonId) });
     if (!season) return Response.json({ error: "That season does not exist." }, { status: 404 });
+
+    // Both clubs have to be in one competition, and it has to be the one the
+    // season belongs to - otherwise the fixture lands in a season neither club
+    // plays in, and shows up in the wrong league's schedule.
+    const { away: awayClub, home: homeClub, leagueId } = await fixtureClubs(awayTeamId, homeTeamId);
+    if (!awayClub || !homeClub) {
+      return Response.json({ error: "One of those clubs does not exist." }, { status: 404 });
+    }
+    if (leagueId === null) {
+      return Response.json(
+        { error: `${awayClub.name} and ${homeClub.name} are not in the same competition.` },
+        { status: 400 },
+      );
+    }
+    if (season.leagueId !== null && season.leagueId !== leagueId) {
+      return Response.json(
+        { error: `${season.name} is not ${awayClub.name}'s competition.` },
+        { status: 400 },
+      );
+    }
 
     const away = await seasonTeamId(seasonId, awayTeamId);
     const home = await seasonTeamId(seasonId, homeTeamId);

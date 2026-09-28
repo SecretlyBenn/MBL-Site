@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { games, historicalGames, historicalSeasons, historicalTeams, scorecards, teams } from "@/db/schema";
+import { games, historicalGames, historicalSeasons, historicalTeams, leagues, scorecards, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { EmptyState, SectionHeader } from "@/app/SiteNav";
 import { AddFixtureForm, MarkForfeitForm, RetireFixtureForm, ScheduleGameForm } from "../AdminForms";
@@ -21,7 +21,9 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: P
   const db = getDb();
 
   const [allTeams, seasons, liveGames, cards] = await Promise.all([
-    db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.name)),
+    // Grouped by competition in the pickers, so a fixture between an MBL club
+    // and an MCBA one is not on offer - the API refuses it either way.
+    db.select({ id: teams.id, name: teams.name, group: leagues.name }).from(teams).leftJoin(leagues, eq(teams.leagueId, leagues.id)).orderBy(asc(leagues.sortOrder), asc(teams.name)),
     db.select({ id: historicalSeasons.id, name: historicalSeasons.name }).from(historicalSeasons).orderBy(desc(historicalSeasons.sortOrder)),
     db.select().from(games).orderBy(desc(games.scheduledAt)),
     db.select({ gameId: scorecards.gameId, status: scorecards.status }).from(scorecards),

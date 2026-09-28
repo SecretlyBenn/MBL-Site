@@ -4,6 +4,7 @@ import { logAudit } from "@/db/audit";
 import { removeLiveGame } from "@/db/remove-game";
 import { apiError } from "@/app/api-errors";
 import { games } from "@/db/schema";
+import { fixtureClubs } from "@/db/queries";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 
 type GamePayload = {
@@ -31,6 +32,21 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
+
+    // A fixture takes its league from its clubs, so both have to be in the
+    // same one. A game between an MBL club and an MCBA one would appear in
+    // both schedules and count towards both sets of standings.
+    const { away, home, leagueId } = await fixtureClubs(payload.awayTeamId, payload.homeTeamId);
+    if (!away || !home) {
+      return Response.json({ error: "One of those clubs does not exist." }, { status: 404 });
+    }
+    if (leagueId === null) {
+      return Response.json(
+        { error: `${away.name} and ${home.name} are not in the same competition.` },
+        { status: 400 },
+      );
+    }
+
     const [game] = await db
       .insert(games)
       .values({

@@ -941,6 +941,32 @@ export async function getAvatarsFor(names: string[]): Promise<Record<string, str
 }
 
 /**
+ * The two clubs of a fixture, and the competition they share.
+ *
+ * A fixture takes its league from the clubs playing it, so both have to be in
+ * the same one. One club from each would put the game in both competitions'
+ * schedules and count it towards both sets of standings - and it is not a game
+ * anybody plays, so it is refused at the point of scheduling rather than
+ * cleaned up afterwards.
+ *
+ * `leagueId` is null when the clubs disagree, when one is missing, or when
+ * either has no league at all.
+ */
+export async function fixtureClubs(awayTeamId: number, homeTeamId: number) {
+  const db = getDb();
+  const rows = await db
+    .select({ id: teams.id, name: teams.name, leagueId: teams.leagueId })
+    .from(teams)
+    .where(inArray(teams.id, [awayTeamId, homeTeamId]));
+
+  const away = rows.find((row) => row.id === awayTeamId) ?? null;
+  const home = rows.find((row) => row.id === homeTeamId) ?? null;
+  const shared =
+    away !== null && home !== null && away.leagueId !== null && away.leagueId === home.leagueId;
+  return { away, home, leagueId: shared ? away!.leagueId : null };
+}
+
+/**
  * Every name on the site belonging to the same Minecraft account, this one
  * included.
  *
