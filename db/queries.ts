@@ -916,6 +916,23 @@ const PROFILE_BATCH = 90;
  * plain object so it can cross into the stat tables without a query per row.
  */
 export async function getAvatarsFor(names: string[]): Promise<Record<string, string>> {
+  const profiles = await getProfilesFor(names);
+  return Object.fromEntries(Object.entries(profiles).map(([name, row]) => [name, row.uuid]));
+}
+
+/** An account as the site knows it: the id a head comes from, and today's name. */
+export type LinkedAccount = { uuid: string; currentName: string };
+
+/**
+ * Archived name -> the Minecraft account behind it.
+ *
+ * `currentName` is what the account answers to now, which is not always the
+ * name the archive filed the player under: the head route refreshes it
+ * whenever it finds the account renamed, so it stays true without anyone
+ * editing anything. Pages about a player today can show it; the stat tables
+ * keep the name used at the time, because that is the record.
+ */
+export async function getProfilesFor(names: string[]): Promise<Record<string, LinkedAccount>> {
   const wanted = [...new Set(names)];
   if (wanted.length === 0) return {};
 
@@ -931,12 +948,18 @@ export async function getAvatarsFor(names: string[]): Promise<Record<string, str
   const found = await Promise.all(
     batches.map((batch) =>
       db
-        .select({ playerName: minecraftProfiles.playerName, uuid: minecraftProfiles.uuid })
+        .select({
+          playerName: minecraftProfiles.playerName,
+          uuid: minecraftProfiles.uuid,
+          currentName: minecraftProfiles.currentName,
+        })
         .from(minecraftProfiles)
         .where(inArray(minecraftProfiles.playerName, batch)),
     ),
   );
-  return Object.fromEntries(found.flat().map((row) => [row.playerName, row.uuid]));
+  return Object.fromEntries(
+    found.flat().map((row) => [row.playerName, { uuid: row.uuid, currentName: row.currentName }]),
+  );
 }
 
 /**

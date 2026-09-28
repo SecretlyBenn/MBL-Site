@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getAvatarsFor, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions } from "@/db/queries";
+import { getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions, getProfilesFor } from "@/db/queries";
 import { PageShell } from "@/app/SiteNav";
 import { BackButton } from "@/app/BackButton";
 import { PlayerHead } from "@/app/PlayerHead";
@@ -30,14 +30,23 @@ export default async function HistoricalPlayerPage({
   const { playerName } = await params;
   const name = decodeURIComponent(playerName);
 
-  const [history, games, avatars] = await Promise.all([
+  const [history, games, profiles] = await Promise.all([
     getPlayerHistoricalStats(name),
     getPlayerGameLog(name),
     // One head is drawn on this page - his. Reading all 600-odd profiles for
     // it was the single most wasteful query on the site.
-    getAvatarsFor([name]),
+    getProfilesFor([name]),
   ]);
   if (history.length === 0) notFound();
+
+  // The page is about a person, so it leads with the name they go by now,
+  // which the head route keeps up to date on its own. The archive filed them
+  // under whatever they were called at the time, and that name still leads
+  // every table below - it is what the box scores say - so it is shown here
+  // too rather than quietly replaced.
+  const account = profiles[name];
+  const known = account?.currentName || name;
+  const renamedSince = known !== name;
 
   const seasonCount = new Set(history.map((row) => row.seasonId)).size;
   // The team they most recently appeared for leads the header.
@@ -69,7 +78,7 @@ export default async function HistoricalPlayerPage({
             />
           )}
           <div className="relative flex flex-wrap items-center gap-5">
-            <PlayerHead uuid={avatars[name]} name={name} size={96} className="rounded-lg" />
+            <PlayerHead uuid={account?.uuid} name={known} size={96} className="rounded-lg" />
             <div className="min-w-0">
               {/* A dash on its own said nothing; the line appears once there
                   is a number or a position to put in it. */}
@@ -78,7 +87,12 @@ export default async function HistoricalPlayerPage({
                   {[jersey, position === "—" ? null : position].filter(Boolean).join(" · ")}
                 </p>
               )}
-              <h1 className="text-4xl font-black tracking-tight">{name}</h1>
+              <h1 className="text-4xl font-black tracking-tight">{known}</h1>
+              {renamedSince && (
+                <p className="mt-0.5 text-sm text-slate-400">
+                  played as <span className="font-semibold text-slate-300">{name}</span>
+                </p>
+              )}
               {latest?.teamName && (
                 <span className="mt-1.5 flex items-center gap-2 text-sm text-slate-300">
                   <TeamLogo teamName={latest.teamName} className="h-5 w-5" />

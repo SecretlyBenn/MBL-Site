@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { players, teams } from "@/db/schema";
-import { getPlayerHistoricalStats, getPlayerLiveStats } from "@/db/queries";
+import { getPlayerHistoricalStats, getPlayerLiveStats, getProfilesFor } from "@/db/queries";
 import { EmptyState, PageShell } from "@/app/SiteNav";
 import { BackButton } from "@/app/BackButton";
 import { PlayerHistory } from "@/app/[league]/players/PlayerHistory";
@@ -37,7 +37,19 @@ export default async function PlayerPage({ params }: { params: Promise<{ league:
   const player = await db.query.players.findFirst({ where: eq(players.id, playerId) });
   if (!player) notFound();
   const team = player.teamId ? await db.query.teams.findFirst({ where: eq(teams.id, player.teamId) }) : null;
-  const [live, history] = await Promise.all([getPlayerLiveStats(playerId), getPlayerHistoricalStats(player.minecraftUsername)]);
+  const [live, history, profiles] = await Promise.all([
+    getPlayerLiveStats(playerId),
+    getPlayerHistoricalStats(player.minecraftUsername),
+    getProfilesFor([player.minecraftUsername]),
+  ]);
+
+  // This page is about a player now, so it leads with the name their account
+  // answers to today. The pool still knows them by the name an admin entered,
+  // which is what the archive is searched by, so that one is kept in view
+  // rather than silently swapped.
+  const account = profiles[player.minecraftUsername];
+  const known = account?.currentName || player.displayName;
+  const renamedSince = known !== player.displayName;
 
   const current = [
     ["AB", live.atBats], ["R", live.runs], ["H", live.hits], ["HR", live.homeRuns],
@@ -46,7 +58,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ league:
     ["BB Allowed", live.walksAllowed], ["ERA", live.inningsPitched ? live.era.toFixed(3) : "-"],
   ];
 
-  return <PageShell wide title={player.displayName} subtitle={[team?.name ?? "Free agent", player.status].join(" · ")}>
+  return <PageShell wide title={known} subtitle={[team?.name ?? "Free agent", player.status, renamedSince ? `listed as ${player.displayName}` : null].filter(Boolean).join(" · ")}>
     <div className="mb-6"><BackButton /></div>
     <section className="mb-10">
       <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-400">Current season</h2>
