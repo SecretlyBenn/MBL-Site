@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { players, rosterMoves, ROSTER_MOVE_TYPES, type RosterMoveType } from "@/db/schema";
+import { leagues, players, rosterMoves, teams, ROSTER_MOVE_TYPES, type RosterMoveType } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 
 type MovePayload = {
@@ -37,11 +37,53 @@ export async function POST(request: Request) {
       if (authError) return Response.json({ error: authError }, { status: 403 });
     }
 
+    // The club the move lands on, and the competition it plays in. Checked for
+    // everyone, admins included: hiding a button is not a rule, and these two
+    // would quietly produce a player in the wrong league or a college club
+    // with a farm team.
+    const landingTeamId = payload.moveType === "SIGN" ? payload.teamId ?? null : player.teamId;
+    const landingTeam = landingTeamId
+      ? await db.query.teams.findFirst({ where: eq(teams.id, landingTeamId) })
+      : null;
+
+    if (payload.moveType === "SIGN") {
+      if (!landingTeam) {
+        return Response.json({ error: "That club does not exist." }, { status: 404 });
+      }
+      // A player belongs to a competition even with no club, so one league
+      // cannot sign the other's free agents.
+      if (player.leagueId !== null && player.leagueId !== landingTeam.leagueId) {
+        return Response.json(
+          { error: `${player.displayName} is not a free agent in this competition.` },
+          { status: 400 },
+        );
+      }
+    }
+
+    if (payload.moveType === "SEND_DOWN" || payload.moveType === "RECALL") {
+      const league = landingTeam?.leagueId
+        ? await db.query.leagues.findFirst({ where: eq(leagues.id, landingTeam.leagueId) })
+        : null;
+      if (!league?.hasMinorLeague) {
+        return Response.json(
+          { error: "This competition has no minor league to send players to." },
+          { status: 400 },
+        );
+      }
+    }
+
     const { newTeamId, newStatus } = applyMove(payload, player, leagueUser.teamId);
 
     await db
       .update(players)
-      .set({ teamId: newTeamId, status: newStatus })
+      // A signing also settles which competition they are in - it is how a
+      // player with no league yet gets one. A release leaves it alone, so a
+      // free agent stays this league's free agent.
+      .set({
+        teamId: newTeamId,
+        status: newStatus,
+        ...(landingTeam?.leagueId ? { leagueId: landingTeam.leagueId } : {}),
+      })
       .where(eq(players.id, payload.playerId));
 
     const [move] = await db

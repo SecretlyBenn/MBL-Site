@@ -67,6 +67,11 @@ export const players = sqliteTable("players", {
   minecraftUsername: text("minecraft_username").notNull().unique(),
   displayName: text("display_name").notNull(),
   teamId: integer("team_id").references(() => teams.id),
+  // Which competition they play in. Kept on the player rather than read from
+  // their club, because a released player has no club and would otherwise
+  // belong to no competition - which let one league see the other's free
+  // agents.
+  leagueId: integer("league_id").references(() => leagues.id),
   status: text("status").notNull().default("FREE_AGENT"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
@@ -189,6 +194,12 @@ export const leagues = sqliteTable("leagues", {
   abbreviation: text("abbreviation").notNull().unique(),
   /** Which one the site opens on, lowest first. */
   sortOrder: integer("sort_order").notNull().default(0),
+  /**
+   * Whether this competition has a minor league beneath it. Only the MBL
+   * does - the MiBL - so only its clubs can send a player to Triple-A. The
+   * college clubs have nothing below them, and the move means nothing there.
+   */
+  hasMinorLeague: integer("has_minor_league", { mode: "boolean" }).notNull().default(false),
 });
 
 export const historicalSeasons = sqliteTable("historical_seasons", {

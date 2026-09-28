@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { asc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "@/db";
-import { players, rosterSpots, teams } from "@/db/schema";
+import { leagues, players, rosterSpots, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
-import { RosterActionButton } from "./RosterActions";
+import { AddPlayerButton, RosterActionButton } from "./RosterActions";
 import { TeamPicker } from "./TeamPicker";
 
 export const metadata: Metadata = {
@@ -86,7 +86,23 @@ export default async function GmPage({
   const byName = (a: { displayName: string }, b: { displayName: string }) => a.displayName.localeCompare(b.displayName);
   const active = teamPlayers.filter((player) => player.status === "ACTIVE").sort(byName);
   const tripleA = teamPlayers.filter((player) => player.status === "TRIPLE_A").sort(byName);
-  const freeAgents = (await db.select().from(players).where(eq(players.status, "FREE_AGENT"))).sort(byName);
+  // A free agent belongs to a competition even with no club, so one league's
+  // GM is never offered the other league's players. Before players carried a
+  // league of their own this list was everybody, because a released player had
+  // no club and so nothing saying whose free agent they were.
+  const freeAgents = (
+    await db
+      .select()
+      .from(players)
+      .where(and(eq(players.status, "FREE_AGENT"), eq(players.leagueId, team?.leagueId ?? -1)))
+  ).sort(byName);
+
+  // Triple-A is the MBL's: the MiBL sits under it. A college club has nothing
+  // beneath it, so the move is not offered there at all.
+  const league = team?.leagueId
+    ? await db.query.leagues.findFirst({ where: eq(leagues.id, team.leagueId) })
+    : null;
+  const canSendDown = league?.hasMinorLeague ?? false;
 
   return (
     <PageShell
@@ -112,13 +128,16 @@ export default async function GmPage({
             <PlayerList players={active} empty="No active players.">
               {(player) => (
                 <>
-                  <RosterActionButton playerId={player.id} moveType="SEND_DOWN" label="Send to AAA" />
+                  {canSendDown && (
+                    <RosterActionButton playerId={player.id} moveType="SEND_DOWN" label="Send to AAA" />
+                  )}
                   <RosterActionButton playerId={player.id} moveType="RELEASE" label="Release" className="ui-button-danger" />
                 </>
               )}
             </PlayerList>
           </section>
 
+          {(canSendDown || tripleA.length > 0) && (
           <section>
             <SectionHeader title="Triple-A" meta={`${tripleA.length} players`} />
             <PlayerList players={tripleA} empty="No players on the farm team.">
@@ -130,9 +149,19 @@ export default async function GmPage({
               )}
             </PlayerList>
           </section>
+          )}
         </div>
 
         <section>
+          <SectionHeader title="Add a player" meta="new to the league" />
+          <div className="mb-6">
+            <p className="mb-2 text-xs text-slate-400">
+              For someone who has never played here, so is in no pool to sign from.
+              They join {team?.name} straight away.
+            </p>
+            <AddPlayerButton teamName={team?.name ?? "your club"} />
+          </div>
+
           <SectionHeader title="Free agents" meta={`${freeAgents.length} available`} />
           <PlayerList players={freeAgents} empty="No free agents in the pool.">
             {(player) => <RosterActionButton playerId={player.id} moveType="SIGN" teamId={teamId} label="Sign" />}

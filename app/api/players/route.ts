@@ -48,9 +48,18 @@ async function placement(teamId: number | null | undefined, status: string | und
   return { teamId: team, status: chosen };
 }
 
+/**
+ * Adds a player the site has never seen.
+ *
+ * Someone joining the league for the first time is in no pool to be signed
+ * from - a GM could sign free agents and nobody else, so a genuinely new
+ * player needed an admin. A GM can now add one, to their own club and no
+ * other, which is the whole point: it is a signing, not a change to the pool
+ * at large.
+ */
 export async function POST(request: Request) {
   try {
-    const leagueUser = await requireRoleForApi(["ADMIN"]);
+    const leagueUser = await requireRoleForApi(["ADMIN", "GM"]);
     const payload = (await request.json()) as PlayerPayload;
 
     const minecraftUsername = payload.minecraftUsername?.trim();
@@ -58,12 +67,38 @@ export async function POST(request: Request) {
     if (!minecraftUsername) {
       return Response.json({ error: "Enter the player's Minecraft username." }, { status: 400 });
     }
-    const placed = await placement(payload.teamId, payload.status);
+
+    // A GM adds to their own club only. An admin may put the player anywhere,
+    // including nowhere.
+    const isGm = leagueUser.role === "GM";
+    if (isGm) {
+      if (!leagueUser.teamId) {
+        return Response.json({ error: "Your account has no club assigned." }, { status: 403 });
+      }
+      if (payload.teamId !== undefined && Number(payload.teamId) !== leagueUser.teamId) {
+        return Response.json({ error: "You can only add players to your own club." }, { status: 403 });
+      }
+    }
+
+    const placed = await placement(isGm ? leagueUser.teamId : payload.teamId, payload.status);
     if ("error" in placed) return Response.json({ error: placed.error }, { status: 400 });
+
+    // The competition comes from the club they are added to. A player added to
+    // no club - only an admin can - has no league until they are signed, and
+    // the signing settles it.
+    const club = placed.teamId
+      ? await getDb().query.teams.findFirst({ where: eq(teams.id, placed.teamId) })
+      : null;
 
     const [player] = await getDb()
       .insert(players)
-      .values({ minecraftUsername, displayName, teamId: placed.teamId, status: placed.status })
+      .values({
+        minecraftUsername,
+        displayName,
+        teamId: placed.teamId,
+        status: placed.status,
+        leagueId: club?.leagueId ?? null,
+      })
       .returning();
 
     await logAudit({
