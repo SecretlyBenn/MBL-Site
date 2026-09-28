@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { asc } from "drizzle-orm";
 import { getDb } from "@/db";
 import { teams, users } from "@/db/schema";
+import { getLeagues } from "@/db/queries";
 import { requireRole } from "@/app/roles";
 import { EmptyState, SectionHeader } from "@/app/SiteNav";
 import { CreateUserForm } from "../AdminForms";
@@ -13,9 +14,10 @@ export const dynamic = "force-dynamic";
 export default async function AdminAccountsPage() {
   await requireRole(["ADMIN"], "/admin/accounts");
   const db = getDb();
-  const [allUsers, allTeams] = await Promise.all([
+  const [allUsers, allTeams, allLeagues] = await Promise.all([
     db.select().from(users).orderBy(asc(users.displayName)),
     db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.name)),
+    getLeagues(),
   ]);
 
   return (
@@ -27,7 +29,7 @@ export default async function AdminAccountsPage() {
         ) : (
           <ul className="flex flex-col gap-2">
             {allUsers.map((user) => (
-              <UserRoleRow key={user.id} user={user} teams={allTeams} />
+              <UserRoleRow key={user.id} user={user} teams={allTeams} leagues={allLeagues} />
             ))}
           </ul>
         )}

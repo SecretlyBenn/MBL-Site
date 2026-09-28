@@ -23,6 +23,15 @@ export default async function UmpirePage() {
   const allTeams = await db.select().from(teams).orderBy(teams.name);
   const teamById = new Map(allTeams.map((team) => [team.id, team]));
 
+  // An umpire tied to one competition is only shown that competition's games.
+  // Most are tied to neither, which means both - the same people call the MBL
+  // and the MCBA. A fixture whose two clubs somehow disagree shows up for both
+  // rather than for neither, so a game can always be reached by somebody.
+  const mine = (awayTeamId: number, homeTeamId: number) =>
+    leagueUser.leagueId == null ||
+    teamById.get(awayTeamId)?.leagueId === leagueUser.leagueId ||
+    teamById.get(homeTeamId)?.leagueId === leagueUser.leagueId;
+
   // Anything already being scored, so an umpire can pick up where they left off
   // - a dropped connection should not cost a game.
   const open = await db
@@ -44,7 +53,8 @@ export default async function UmpirePage() {
     // disappear off the page entirely.
     .where(inArray(scorecards.status, ["IN_PROGRESS", "PENDING", "RETURNED"]))
     .orderBy(desc(scorecards.id))
-    .limit(20);
+    .limit(20)
+    .then((rows) => rows.filter((row) => mine(row.awayTeamId, row.homeTeamId)));
 
   // Only games still to be played, oldest first: the next game to be called is
   // at the top, and one already scored cannot be started a second time.
@@ -74,7 +84,7 @@ export default async function UmpirePage() {
     seasonGames.flatMap((row, index) => (row.sourceGameId ? [[row.sourceGameId, index + 1]] : [])),
   );
 
-  const fixtures: Fixture[] = scheduled.map((game) => {
+  const fixtures: Fixture[] = scheduled.filter((game) => mine(game.awayTeamId, game.homeTeamId)).map((game) => {
     const position = game.sourceGameId ? positionOf.get(game.sourceGameId) : undefined;
     const series = position ? seriesFor(position) : null;
     return {

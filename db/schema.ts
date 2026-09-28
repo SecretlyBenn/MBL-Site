@@ -32,6 +32,11 @@ export const users = sqliteTable("users", {
   role: text("role").notNull(),
   // Only meaningful (and required) for GM role - which team they manage.
   teamId: integer("team_id").references(() => teams.id),
+  // Which competition this account's role covers, for roles with no club of
+  // their own - an umpire, a head umpire, a writer. Null means both, which is
+  // the usual case: the same people officiate the MBL and the MCBA. A GM takes
+  // their league from the club they manage and ignores this.
+  leagueId: integer("league_id").references(() => leagues.id),
   // Bumped to sign this account out everywhere. A session cookie carries the
   // epoch it was issued under, and one from an older epoch stops being
   // accepted - the only way to end a session before it expires, since sessions

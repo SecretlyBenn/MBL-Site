@@ -14,20 +14,39 @@ import { ROLES } from "@/db/schema";
 export function UserRoleRow({
   user,
   teams,
+  leagues,
 }: {
-  user: { id: number; displayName: string; discordId: string; role: string; teamId: number | null };
+  user: {
+    id: number;
+    displayName: string;
+    discordId: string;
+    role: string;
+    teamId: number | null;
+    leagueId: number | null;
+  };
   teams: { id: number; name: string }[];
+  leagues: { id: number; name: string }[];
 }) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(user.displayName);
   const [role, setRole] = useState(user.role);
   const [teamId, setTeamId] = useState<number | "">(user.teamId ?? "");
+  const [leagueId, setLeagueId] = useState<number | "">(user.leagueId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [signedOut, setSignedOut] = useState(false);
 
+  // A GM's competition comes from the club they manage, and an admin runs
+  // both, so only the roles with no club of their own are narrowed by hand.
+  const scopedByLeague = role === "UMPIRE" || role === "HEAD_UMPIRE" || role === "WRITER";
+  const league = scopedByLeague ? leagueId || null : null;
+
   const name = displayName.trim();
-  const changed = name !== user.displayName || role !== user.role || (teamId || null) !== user.teamId;
+  const changed =
+    name !== user.displayName ||
+    role !== user.role ||
+    (teamId || null) !== user.teamId ||
+    league !== user.leagueId;
   const needsTeam = role === "GM" && !teamId;
 
   async function save() {
@@ -37,7 +56,7 @@ export function UserRoleRow({
       const response = await fetch("/api/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, role, teamId: teamId || null, displayName: name }),
+        body: JSON.stringify({ userId: user.id, role, teamId: teamId || null, leagueId: league, displayName: name }),
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
@@ -98,6 +117,22 @@ export function UserRoleRow({
           <option key={option} value={option}>{option.replace("_", " ")}</option>
         ))}
       </select>
+
+      {/* Blank is both, which is what most officials are: the same people
+          call and review games in either competition. */}
+      {scopedByLeague && (
+        <select
+          value={leagueId}
+          onChange={(event) => setLeagueId(Number(event.target.value) || "")}
+          aria-label={`League for ${user.displayName}`}
+          className="ui-select !py-1 text-xs"
+        >
+          <option value="">Both leagues</option>
+          {leagues.map((option) => (
+            <option key={option.id} value={option.id}>{option.name}</option>
+          ))}
+        </select>
+      )}
 
       {/* Only a GM has a club, so the picker appears only for that role. */}
       {role === "GM" && (

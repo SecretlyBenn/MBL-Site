@@ -19,14 +19,14 @@ export default async function HeadUmpirePage() {
   const leagueUser = await requireRole(["HEAD_UMPIRE", "ADMIN"], "/head-umpire");
 
   const db = getDb();
-  const pending = await db
+  const allPending = await db
     .select()
     .from(scorecards)
     .where(eq(scorecards.status, "PENDING"))
     .orderBy(asc(scorecards.submittedAt));
 
   // Already on the site, newest first - these are what a reopen acts on.
-  const approved = await db
+  const allApproved = await db
     .select()
     .from(scorecards)
     .where(eq(scorecards.status, "APPROVED"))
@@ -43,6 +43,23 @@ export default async function HeadUmpirePage() {
   const userNameById = new Map(allUsers.map((user) => [user.id, user.displayName]));
   const playerNameById = new Map(allPlayers.map((player) => [player.id, player.displayName]));
 
+  // A head umpire tied to one competition reviews only that competition's
+  // cards; most are tied to neither, which means both. A card whose game or
+  // club has gone missing stays in the queue rather than vanishing from it -
+  // an unreviewable card should be visible, not silently dropped.
+  const teamLeagueById = new Map(allTeams.map((team) => [team.id, team.leagueId]));
+  const mine = (scorecard: { gameId: number }) => {
+    if (leagueUser.leagueId == null) return true;
+    const game = gameById.get(scorecard.gameId);
+    if (!game) return true;
+    return (
+      teamLeagueById.get(game.awayTeamId) === leagueUser.leagueId ||
+      teamLeagueById.get(game.homeTeamId) === leagueUser.leagueId
+    );
+  };
+  const pending = allPending.filter(mine);
+  const approved = allApproved.filter(mine);
+
   const appearances =
     pending.length === 0
       ? []
@@ -57,7 +74,6 @@ export default async function HeadUmpirePage() {
       title="Scorecard review"
       subtitle={`${leagueUser.displayName} · ${leagueUser.role.replace("_", " ").toLowerCase()}`}
     >
-      <h2 className="section-title mb-3">Waiting for review</h2>
       <h2 className="section-title mb-3">Waiting for review</h2>
       {pending.length === 0 ? (
         <EmptyState>No scorecards waiting for review.</EmptyState>

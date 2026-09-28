@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { ROLES, users, type Role } from "@/db/schema";
+import { ROLES, leagues, users, type Role } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 
 type UserPayload = {
@@ -15,6 +15,7 @@ type UserUpdate = {
   userId: number;
   role: Role;
   teamId?: number | null;
+  leagueId?: number | null;
   displayName?: string;
 };
 
@@ -61,12 +62,22 @@ export async function PATCH(request: Request) {
     // not keep authority over a roster.
     const teamId = payload.role === "GM" ? payload.teamId ?? null : null;
 
+    // Only the roles with no club of their own are narrowed to a competition:
+    // a GM takes theirs from the club, and an admin runs both. Null is both,
+    // which is what an official is unless somebody says otherwise. Cleared on
+    // any other role so a former umpire's league cannot linger.
+    const scopedByLeague = ["UMPIRE", "HEAD_UMPIRE", "WRITER"].includes(payload.role);
+    const leagueId = scopedByLeague ? payload.leagueId ?? null : null;
+    if (leagueId !== null && !(await db.query.leagues.findFirst({ where: eq(leagues.id, leagueId) }))) {
+      return Response.json({ error: "That league does not exist." }, { status: 400 });
+    }
+
     // The name on the account is what the league calls this person; their
     // sessions carry the old one until they sign in again, which shows only in
     // the greeting, so there is nothing to invalidate here.
     await db
       .update(users)
-      .set({ role: payload.role, teamId, ...(displayName ? { displayName } : {}) })
+      .set({ role: payload.role, teamId, leagueId, ...(displayName ? { displayName } : {}) })
       .where(eq(users.id, payload.userId));
 
     await logAudit({

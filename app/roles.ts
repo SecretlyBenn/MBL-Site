@@ -11,6 +11,8 @@ export type LeagueUser = {
   displayName: string;
   role: Role;
   teamId: number | null;
+  /** The competition this account's role covers, or null for both. */
+  leagueId: number | null;
 };
 
 /** Where an anonymous visitor is sent to sign in, returning to `returnTo`. */
@@ -43,6 +45,7 @@ export async function getLeagueUser(): Promise<LeagueUser | null> {
     displayName: row.displayName,
     role: row.role as Role,
     teamId: row.teamId,
+    leagueId: row.leagueId,
   };
 }
 
