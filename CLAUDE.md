@@ -264,8 +264,15 @@ D1 limits below are the real constraints.
 - minecraftbaseball.com is not pointed at this site yet. The contact address is
   now in `app/site.ts`. The domain, the Workers Paid plan and the Discord OAuth
   redirect URLs are all waiting on the owner for launch day.
-- The MCBA has fourteen archived seasons but **no live clubs**, so nothing is
-  scored there yet. `/admin`, `/umpire` and `/gm` still list clubs from both
-  competitions in one list, which is right while every live club is the MBL's
-  and will want revisiting when that changes.
+- The MCBA now has nine live clubs (0059), taken from MCBA XIV, but no live
+  players, fixtures or GMs yet - a club is only the first of those.
+  `/admin`, `/umpire` and `/gm` list clubs from both competitions in one list.
+  That was harmless while every live club was the MBL's; now that it is not,
+  the pickers in `/admin/games` group by competition and the umpire pages are
+  scoped by `users.league_id`, but `/gm` and the other admin lists are still
+  mixed.
+- **`teams.name` is unique across the whole table, not per league.** Two
+  competitions cannot both have a club of the same name. It has not bitten yet
+  - the MBL names clubs by city and the MCBA by nickname - but it would need a
+  table rebuild to change.
 - `/[league]/teams/[teamId]` is a live club's page. Nothing links to it yet.
