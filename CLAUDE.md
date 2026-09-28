@@ -264,8 +264,14 @@ D1 limits below are the real constraints.
 - minecraftbaseball.com is not pointed at this site yet. The contact address is
   now in `app/site.ts`. The domain, the Workers Paid plan and the Discord OAuth
   redirect URLs are all waiting on the owner for launch day.
-- The MCBA now has nine live clubs (0059), taken from MCBA XIV, but no live
-  players, fixtures or GMs yet - a club is only the first of those.
+- The MCBA has nine live clubs and 161 live players (0059, 0060, 0061), all
+  taken from MCBA XIV. It has no fixtures or GMs yet.
+- **The MiBL is a status, not a second club.** The Coyotes (MIBL) are a live
+  club in their own division, but fourteen of their MCBA XIV roster are MBL
+  players who were sent down and are ACTIVE on MBL clubs today. A player has
+  one club, so they were left where they are: being sent down is TRIPLE_A plus
+  a SEND_DOWN move on their own club. Do not import an MiBL roster over the
+  MBL pool.
   `/admin`, `/umpire` and `/gm` list clubs from both competitions in one list.
   That was harmless while every live club was the MBL's; now that it is not,
   the pickers in `/admin/games` group by competition and the umpire pages are
