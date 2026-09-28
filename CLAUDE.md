@@ -11,6 +11,27 @@ a Minecraft baseball league. Read this before changing anything.
 - The league is real and the data is live. Seasons IV-XII are published history
   that people read; there is no staging copy of it.
 
+**The site holds two competitions**, not one: the MBL and the Minecraft
+Collegiate Baseball Association, whose fourteen seasons were imported from
+MyStatsOnline. The MiBL's clubs sit under the MCBA, which is where their games
+are played. Every public page lives under `app/[league]/` and takes its league
+from the address - `/mbl/standings`, `/mcba/standings`.
+
+Which league a row belongs to is recorded in exactly two places:
+
+- **`historical_seasons.league_id`** for the archive. Everything archived hangs
+  off a season, so one column tells the whole archive apart.
+- **`teams.league_id`** for the live side. Nothing live hangs off a season, so
+  players, fixtures and roles reach their league through the club they point
+  at.
+
+`users.league_id` is a third, but it means something different: which
+competition an official's role covers, **null meaning both**, which is the
+usual case. A GM ignores it and takes their league from the club they manage.
+
+The two are kept apart on purpose. A player who appears in both gets a tab for
+each and their records are never added together - see `PlayerLeagues`.
+
 ## Deploying
 
 Three commands, in this order:
@@ -91,17 +112,56 @@ Rules learned the hard way:
   plus every row in `fielding_changes` (a player leaving is a `BENCH` move).
   Any new route that moves a player must record a move there, or the box score
   will credit the whole game to the final alignment - see `drizzle/0044`.
+- **A fixture takes its league from the clubs playing it**, so both have to be
+  in the same one, and a season fixture's clubs must be in the season's own
+  competition. `fixtureClubs` in `db/queries.ts` is the check, and it treats
+  two clubs with *no* league as disagreeing rather than matching - otherwise an
+  unfiled club could be scheduled against anything.
+- **A failure to write an audit row must never fail the action it describes.**
+  The row is written after the change has already happened, so throwing there
+  reported "Nothing was changed" about a change that had gone through, and sent
+  an admin back to redo finished work. `logAudit` logs and carries on. When a
+  route does fail, `apiError` logs the whole `cause` chain: the outer message is
+  only the query, and the reason is one level down.
+- **Merging two names is not renaming.** `/api/players/rename` refuses to
+  rename onto an existing name for that reason. A merge is a hand-written
+  migration, and which kind depends on the data: 0039, 0048, 0049, 0052 and
+  0053 are plain renames because the two names share no club-season, while
+  0051, 0054 and 0055 have to *add the two lines together* because they do. No
+  player in the archive has two lines for one club-season; check before
+  assuming a rename is safe. Before merging at all, check the two names never
+  appear in the same game - that proves they are two people, and it caught two
+  wrong merges in 0053.
 - Never invent data. Fabricated playoff dates, guessed forfeits and a partial
   score import have each had to be undone by hand afterwards.
 
 ## Cloudflare limits
 
-The Worker is on the **free plan**: 10ms CPU per request. Several pages use
-26-102ms, so they intermittently fail with Error 1102 - the umpire page's game
-list is the worst. The fix is the $5/month Workers Paid plan, which the owner
-has not bought yet; until then, prefer fewer and cheaper queries per page over
-anything clever. Do not add work to a page's render path without checking what
-it costs.
+The Worker is on the **free plan** and the owner has not bought the $5/month
+Workers Paid plan.
+
+This section used to say a page had 10ms of CPU and that several were failing
+with Error 1102. That is no longer what happens. Measured from `wrangler tail`
+on 2026-09-28, every page answered `ok`:
+
+| page | CPU | wall |
+| --- | --- | --- |
+| `/mcba/statistics/batting` | 251ms | 812ms |
+| `/mbl/schedule` | 199ms | 1262ms |
+| `/mbl/statistics/batting` | 178ms | 1243ms |
+| `/mcba/schedule` | 155ms | 2567ms |
+| `/mcba` | 123ms | 1297ms |
+| `/mcba/standings` | 66ms | 1416ms |
+
+So the ceiling is well above 10ms now and 1102 is not the live problem it was.
+Measure before believing either number: check with `wrangler tail --format
+json`, which reports `cpuTime` and `wallTime` per request, rather than trusting
+this table as it ages.
+
+What is still worth caring about is the **wall** column - one to two and a half
+seconds before a reader sees anything. That is query count and query cost, not
+CPU, and `wrangler d1 insights` is what shows which query is responsible. The
+D1 limits below are the real constraints.
 
 ## Minecraft accounts and heads
 
@@ -113,6 +173,31 @@ it costs.
   machine and fail in production - test the fallback, not just the happy path.
 - Bulk lookups of many names are cheaper to run from a developer's machine than
   from the Worker; several migrations were written that way.
+- **Renames and new skins reach the site on their own.** `/api/head/[uuid]`
+  refreshes a skin every six hours, and when it finds the account renamed it
+  writes the new name into `minecraft_profiles.current_name`. Nothing needs a
+  cron or an admin. The player pages lead with that name and keep the archived
+  one underneath; the stat tables keep the name used at the time, because that
+  is what the box scores and the season's own screenshots say.
+- **One account often holds two site names**, because each competition filed a
+  player under whatever they used there - `Purpeyy` and `_purp__` are one man.
+  The account id is the only thing tying them together, which is what
+  `getAccountNames` uses. If a name you are about to link already belongs to
+  another name's account, that is a merge waiting to happen, or a mistake.
+- **Mojang dropped the name-history API in 2022.** For a name whose account has
+  since been renamed, NameMC's owner history is the way back - look the name up
+  there, then resolve the account it names through Mojang so the id comes from
+  Mojang rather than a scraped page. laby.net and crafty.gg are both gated.
+  NameMC shows `[Hidden Result]` for accounts whose owner opted out; those
+  cannot be resolved and should be left alone.
+- **Do not chase names from MBL Season VI or earlier.** The league only started
+  requiring Discord nicknames to match in-game names around Season VII, so
+  those are Discord nicknames and often not Minecraft usernames at all - a name
+  with a space or a dot in it is from this era. They are untraceable; say so
+  and move on.
+- A player with no account gets a neutral block from `PlayerHead`, not a broken
+  image. A blank head is the right answer when the alternative is a stranger's
+  face.
 
 ## Access and security
 
@@ -162,8 +247,17 @@ it costs.
 
 ## Things that are deliberately not done
 
-- `scripts/` holds scrapers for the old mystatsonline site. They exist only for
-  the Season XII import; Season XIII is being entered on the site itself. Do
-  not build on them.
-- minecraftbaseball.com is not pointed at this site yet, and there is no
-  contact email listed. Both are waiting on the owner.
+- `scripts/` holds scrapers for the old mystatsonline site. They exist for the
+  Season XII import and the MCBA's fourteen seasons; seasons run here are
+  entered on the site itself. Do not build on them. Two of them -
+  `import-mso.mjs` and `import-boxscores.mjs` - open with wholesale
+  `DELETE FROM historical_*` and would destroy every league's history; the
+  additive importers written for the MCBA are the ones to copy.
+- minecraftbaseball.com is not pointed at this site yet. The contact address is
+  now in `app/site.ts`. The domain, the Workers Paid plan and the Discord OAuth
+  redirect URLs are all waiting on the owner for launch day.
+- The MCBA has fourteen archived seasons but **no live clubs**, so nothing is
+  scored there yet. `/admin`, `/umpire` and `/gm` still list clubs from both
+  competitions in one list, which is right while every live club is the MBL's
+  and will want revisiting when that changes.
+- `/[league]/teams/[teamId]` is a live club's page. Nothing links to it yet.
