@@ -38,12 +38,14 @@ export default async function TeamPage({
 
   const db = getDb();
   const team = await db.query.teams.findFirst({ where: eq(teams.id, teamId) });
-  if (!team) notFound();
+  // A club belongs to one competition, so reaching it through the other one's
+  // address is a wrong address rather than a club with no games.
+  if (!team || team.leagueId !== league.id) notFound();
 
   const [roster, standings, schedule] = await Promise.all([
     getTeamRoster(teamId),
-    getStandings(),
-    getScheduleWithTeams(),
+    getStandings(league.id),
+    getScheduleWithTeams(league.id),
   ]);
 
   const record = standings.find((row) => row.teamId === teamId);

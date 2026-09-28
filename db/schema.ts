@@ -46,6 +46,11 @@ export const teams = sqliteTable("teams", {
   abbreviation: text("abbreviation").notNull(),
   color: text("color"),
   logoUrl: text("logo_url"),
+  // Which competition the club plays in. Everything else on the live side -
+  // players, fixtures, roles - reaches its league through the club, so this is
+  // the only place it is recorded. Nullable only because SQLite could not add
+  // it as NOT NULL to a table with rows; 0057 filled every one.
+  leagueId: integer("league_id").references(() => leagues.id),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

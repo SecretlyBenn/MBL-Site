@@ -40,10 +40,12 @@ export type StandingsRow = {
  * Standings computed from FINAL games only. Ties aren't possible in baseball,
  * so a game with equal scores is treated as not yet decided and skipped.
  */
-export async function getStandings(): Promise<StandingsRow[]> {
+export async function getStandings(leagueId?: number): Promise<StandingsRow[]> {
   const db = getDb();
   const [allTeams, finalGames] = await Promise.all([
-    db.select().from(teams),
+    leagueId === undefined
+      ? db.select().from(teams)
+      : db.select().from(teams).where(eq(teams.leagueId, leagueId)),
     db.select().from(games).where(eq(games.status, "FINAL")),
   ]);
 
@@ -106,7 +108,7 @@ export async function getStandings(): Promise<StandingsRow[]> {
   return standings;
 }
 
-export async function getScheduleWithTeams() {
+export async function getScheduleWithTeams(leagueId?: number) {
   const db = getDb();
   const [allGames, allTeams] = await Promise.all([
     db.select().from(games).orderBy(games.scheduledAt),
@@ -114,11 +116,21 @@ export async function getScheduleWithTeams() {
   ]);
   const teamById = new Map(allTeams.map((team) => [team.id, team]));
 
-  return allGames.map((game) => ({
-    ...game,
-    homeTeam: teamById.get(game.homeTeamId) ?? null,
-    awayTeam: teamById.get(game.awayTeamId) ?? null,
-  }));
+  return allGames
+    .map((game) => ({
+      ...game,
+      homeTeam: teamById.get(game.homeTeamId) ?? null,
+      awayTeam: teamById.get(game.awayTeamId) ?? null,
+    }))
+    // A fixture belongs to the league its clubs play in. Filtered here rather
+    // than in SQL because the clubs are already in hand, and a game whose club
+    // has gone missing should disappear from both leagues rather than show up
+    // in the wrong one.
+    .filter((game) =>
+      leagueId === undefined
+        ? true
+        : game.homeTeam?.leagueId === leagueId || game.awayTeam?.leagueId === leagueId,
+    );
 }
 
 export type CareerBatting = {

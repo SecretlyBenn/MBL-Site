@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { logoKey } from "@/db/logos";
-import { games, historicalGames, historicalTeams, players, rosterMoves, teamLogos, teams, users } from "@/db/schema";
+import { games, historicalGames, historicalTeams, leagues, players, rosterMoves, teamLogos, teams, users } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
 import { requireRoleForApi } from "@/app/roles";
 
@@ -11,6 +11,7 @@ type TeamPayload = {
   abbreviation: string;
   color?: string;
   logoUrl?: string;
+  leagueId?: number;
 };
 
 export async function POST(request: Request) {
@@ -28,6 +29,20 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
+
+    // Which competition the club plays in decides which standings it appears
+    // in and which league its players and fixtures belong to, so it is asked
+    // for rather than assumed - a club filed under the wrong one has to be
+    // moved along with everything pointing at it.
+    const leagueId = Number(payload.leagueId);
+    if (!Number.isInteger(leagueId)) {
+      return Response.json({ error: "Choose which league the club plays in." }, { status: 400 });
+    }
+    const league = await db.query.leagues.findFirst({ where: eq(leagues.id, leagueId) });
+    if (!league) {
+      return Response.json({ error: "That league does not exist." }, { status: 400 });
+    }
+
     const [team] = await db
       .insert(teams)
       .values({
@@ -35,6 +50,7 @@ export async function POST(request: Request) {
         abbreviation,
         color: payload.color?.trim() || null,
         logoUrl: payload.logoUrl?.trim() || null,
+        leagueId,
       })
       .returning();
 
@@ -43,7 +59,7 @@ export async function POST(request: Request) {
       action: "team.create",
       entityType: "team",
       entityId: team.id,
-      detail: { name, abbreviation },
+      detail: { name, abbreviation, league: league.slug },
     });
 
     return Response.json({ team }, { status: 201 });

@@ -44,23 +44,41 @@ function TeamSelect({
 
 /* ------------------------------------------------------------------ Teams */
 
-export function CreateTeamForm() {
+export function CreateTeamForm({ leagues }: { leagues: Option[] }) {
   const { send, busy, error } = useRequest();
   const [name, setName] = useState("");
   const [abbreviation, setAbbreviation] = useState("");
   const [color, setColor] = useState("#1f66af");
+  const [leagueId, setLeagueId] = useState<number | "">("");
 
   return (
     <FormCard
       title="Add team"
-      help="A new club for the league. Upload its logo from the list once it's added."
+      help="A new club for one of the competitions. Upload its logo from the list once it's added."
       onSubmit={async () => {
-        if (await send("POST", "/api/teams", { name, abbreviation, color })) {
+        if (await send("POST", "/api/teams", { name, abbreviation, color, leagueId })) {
           setName("");
           setAbbreviation("");
         }
       }}
     >
+      {/* Asked outright rather than defaulted: a club filed under the wrong
+          competition shows up in the wrong standings, and moving it later
+          means moving its players and fixtures with it. */}
+      <select
+        aria-label="League"
+        className="ui-select w-full"
+        value={leagueId}
+        onChange={(event) => setLeagueId(Number(event.target.value) || "")}
+        required
+      >
+        <option value="">Which league?</option>
+        {leagues.map((league) => (
+          <option key={league.id} value={league.id}>
+            {league.name}
+          </option>
+        ))}
+      </select>
       <input className="ui-input" placeholder="Team name, e.g. Seattle Sharks" value={name} onChange={(event) => setName(event.target.value)} required />
       <div className="flex gap-2">
         <input
