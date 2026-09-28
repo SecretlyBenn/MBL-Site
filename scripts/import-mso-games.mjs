@@ -4,7 +4,7 @@
  *   node scripts/import-mso-games.mjs <slug> <schedule.json> <team-mode.json> [out.sql]
  *
  * Runs after import-mso-league.mjs, which creates the seasons and the clubs
- * these games point at, and before import-boxscores.mjs, which hangs line
+ * these games point at, and before import-one-boxscore.mjs, which hangs line
  * scores and box scores off the source ids written here.
  *
  * Only this league's games are touched. The schedule names a club by its

@@ -6,8 +6,8 @@
  * The visitor pages are public, so this needs no login. Season ids come from
  * the season dropdown on the schedule page; MBL Season XII is 109541.
  *
- * Output matches the `seasons[].games[]` shape that import-mso.mjs and
- * import-boxscores.mjs already expect, so a fresh scrape drops straight into
+ * Output matches the `seasons[].games[]` shape that import-mso-games.mjs and
+ * import-one-boxscore.mjs already expect, so a fresh scrape drops straight into
  * the existing pipeline. An unplayed game keeps MyStatsOnline's "-" score.
  */
 import fs from "node:fs";

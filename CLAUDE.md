@@ -249,10 +249,12 @@ D1 limits below are the real constraints.
 
 - `scripts/` holds scrapers for the old mystatsonline site. They exist for the
   Season XII import and the MCBA's fourteen seasons; seasons run here are
-  entered on the site itself. Do not build on them. Two of them -
-  `import-mso.mjs` and `import-boxscores.mjs` - open with wholesale
-  `DELETE FROM historical_*` and would destroy every league's history; the
-  additive importers written for the MCBA are the ones to copy.
+  entered on the site itself. Do not build on them. The two that rebuilt the
+  whole archive - `import-mso.mjs` and `import-boxscores.mjs` - were deleted:
+  they opened with wholesale `DELETE FROM historical_*` and would have
+  destroyed both leagues' history. The additive ones that replaced them
+  (`import-mso-league.mjs`, `import-mso-games.mjs`, `import-one-boxscore.mjs`)
+  touch only the league they are given.
 - minecraftbaseball.com is not pointed at this site yet. The contact address is
   now in `app/site.ts`. The domain, the Workers Paid plan and the Discord OAuth
   redirect URLs are all waiting on the owner for launch day.

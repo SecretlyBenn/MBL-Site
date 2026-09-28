@@ -5,7 +5,7 @@
  *
  * Takes a schedule produced by scrape-mso-schedule.mjs and fetches the game
  * page for every fixture that carries a score, writing the `games[]` shape
- * import-boxscores.mjs already expects. Unplayed and cancelled fixtures are
+ * import-one-boxscore.mjs already expects. Unplayed and cancelled fixtures are
  * skipped - their pages exist but hold no box score.
  *
  * Pages are fetched one at a time with a short pause. The archive is a few

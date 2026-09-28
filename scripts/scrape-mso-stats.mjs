@@ -3,7 +3,7 @@
  *
  *   node scripts/scrape-mso-stats.mjs <IDLeague> <IDSeason,IDSeason,...> [prefix]
  *
- * Writes the two files import-mso.mjs expects. They came from a hand-made
+ * Writes the two files import-mso-league.mjs expects. They came from a hand-made
  * extraction when the MBL's own history was imported; the MCBA has fourteen
  * seasons of its own, and doing that by hand fourteen times is how mistakes
  * get in.

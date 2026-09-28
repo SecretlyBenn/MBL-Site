@@ -3,7 +3,7 @@
  *
  *   node scripts/import-one-boxscore.mjs <boxscores.json> <sourceGameId> [out.sql]
  *
- * import-boxscores.mjs rebuilds the whole archive: it opens with
+ * import-boxscores.mjs, now deleted, rebuilt the whole archive: it opened with
  * `DELETE FROM historical_game_stats;` and repopulates from a full scrape.
  * That is right for a re-import and catastrophic for a single correction, so
  * this exists for the one-game case - it deletes only the rows belonging to the
