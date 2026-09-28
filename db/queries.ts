@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, like, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, like, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
 import { playedOnValue } from "@/app/formatStats";
@@ -14,6 +14,7 @@ import {
   historicalTeams,
   leagues,
   players,
+  rosterSpots,
   fieldingChanges,
   scorecardLines,
   scorecardLineups,
@@ -917,12 +918,32 @@ export async function getHistoricalLeaders(
     .limit(limit);
 }
 
+/**
+ * A club's active squad: the players who belong to it, plus anyone holding an
+ * extra spot there.
+ *
+ * The extra spots are the MiBL. A player sent down keeps the club they belong
+ * to and gains a spot on the affiliate, because the site cannot tell from one
+ * day to the next whether they are down or have been recalled - so they are
+ * available to both rather than moved between them.
+ */
 export async function getTeamRoster(teamId: number) {
   const db = getDb();
   return db
     .select()
     .from(players)
-    .where(and(eq(players.teamId, teamId), eq(players.status, "ACTIVE")));
+    .where(
+      and(
+        or(
+          eq(players.teamId, teamId),
+          inArray(
+            players.id,
+            db.select({ id: rosterSpots.playerId }).from(rosterSpots).where(eq(rosterSpots.teamId, teamId)),
+          ),
+        ),
+        eq(players.status, "ACTIVE"),
+      ),
+    );
 }
 
 /** Names per profile lookup, under D1's cap of 100 bound parameters. */

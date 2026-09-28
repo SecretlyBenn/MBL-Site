@@ -71,6 +71,26 @@ export const players = sqliteTable("players", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+/**
+ * A second club a player is available for, on top of `players.teamId`.
+ *
+ * Almost nobody needs one. The MiBL does: the Coyotes' roster is MBL players
+ * who were sent down, and the league keeps them available to both clubs
+ * because the site cannot know on any given day whether someone is down or has
+ * been recalled. Moving them would take them off the MBL roster they are
+ * actually on, so they hold an extra spot here instead.
+ */
+export const rosterSpots = sqliteTable("roster_spots", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  playerId: integer("player_id")
+    .notNull()
+    .references(() => players.id),
+  teamId: integer("team_id")
+    .notNull()
+    .references(() => teams.id),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const rosterMoves = sqliteTable("roster_moves", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   playerId: integer("player_id")

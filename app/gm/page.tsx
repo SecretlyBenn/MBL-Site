@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "@/db";
-import { players, teams } from "@/db/schema";
+import { players, rosterSpots, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
@@ -68,7 +68,21 @@ export default async function GmPage({
     );
   }
 
-  const teamPlayers = await db.select().from(players).where(eq(players.teamId, teamId));
+  // The squad is the players who belong to the club plus anyone holding an
+  // extra spot there - the MiBL's sent-down players, who stay available to
+  // both clubs because the site cannot tell when they are down.
+  const teamPlayers = await db
+    .select()
+    .from(players)
+    .where(
+      or(
+        eq(players.teamId, teamId),
+        inArray(
+          players.id,
+          db.select({ id: rosterSpots.playerId }).from(rosterSpots).where(eq(rosterSpots.teamId, teamId)),
+        ),
+      ),
+    );
   const byName = (a: { displayName: string }, b: { displayName: string }) => a.displayName.localeCompare(b.displayName);
   const active = teamPlayers.filter((player) => player.status === "ACTIVE").sort(byName);
   const tripleA = teamPlayers.filter((player) => player.status === "TRIPLE_A").sort(byName);
