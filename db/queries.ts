@@ -206,14 +206,21 @@ export async function getPlayerLiveStats(playerId: number) {
 }
 
 /** Historical (imported) season lines for a player, newest season first. */
-export async function getPlayerHistoricalStats(playerName: string) {
+export async function getPlayerHistoricalStats(playerName: string | string[]) {
   const db = getDb();
+  const names = Array.isArray(playerName) ? playerName : [playerName];
+  if (names.length === 0) return [];
   const rows = await db
     .select({
       historicalTeamId: historicalTeams.id,
       seasonId: historicalSeasons.id,
       seasonName: historicalSeasons.name,
       sortOrder: historicalSeasons.sortOrder,
+      // Which competition the season belongs to, so a player who appears in
+      // both can have them kept apart rather than added together.
+      leagueSlug: leagues.slug,
+      leagueName: leagues.name,
+      playerName: historicalPlayerStats.playerName,
       teamName: historicalTeams.name,
       isSeasonEndTeam: historicalPlayerStats.isSeasonEndTeam,
       games: historicalPlayerStats.games,
@@ -256,7 +263,8 @@ export async function getPlayerHistoricalStats(playerName: string) {
       historicalTeams,
       eq(historicalPlayerStats.historicalTeamId, historicalTeams.id),
     )
-    .where(eq(historicalPlayerStats.playerName, playerName))
+    .leftJoin(leagues, eq(historicalSeasons.leagueId, leagues.id))
+    .where(inArray(historicalPlayerStats.playerName, names))
     .orderBy(desc(historicalSeasons.sortOrder));
 
   // The archive's stored ERA was worked out over nine innings, which is not
@@ -932,6 +940,35 @@ export async function getAvatarsFor(names: string[]): Promise<Record<string, str
   return Object.fromEntries(Object.entries(profiles).map(([name, row]) => [name, row.uuid]));
 }
 
+/**
+ * Every name on the site belonging to the same Minecraft account, this one
+ * included.
+ *
+ * The two competitions file a player under whatever name they used there, so
+ * one person's MCBA record and their MBL record sit under different names -
+ * Purpeyy and _purp__ are the same man. The account id is the only thing
+ * tying them together, which is why linking heads turned up so many of them.
+ *
+ * A name with no account linked is on its own, and so is one whose account
+ * nobody else shares.
+ */
+export async function getAccountNames(playerName: string): Promise<string[]> {
+  const db = getDb();
+  const [mine] = await db
+    .select({ uuid: minecraftProfiles.uuid })
+    .from(minecraftProfiles)
+    .where(eq(minecraftProfiles.playerName, playerName))
+    .limit(1);
+  if (!mine) return [playerName];
+
+  const rows = await db
+    .select({ playerName: minecraftProfiles.playerName })
+    .from(minecraftProfiles)
+    .where(eq(minecraftProfiles.uuid, mine.uuid));
+  const others = rows.map((row) => row.playerName).filter((name) => name !== playerName);
+  return [playerName, ...others];
+}
+
 /** An account as the site knows it: the id a head comes from, and today's name. */
 export type LinkedAccount = { uuid: string; currentName: string };
 
@@ -981,8 +1018,10 @@ export async function getProfilesFor(names: string[]): Promise<Record<string, Li
  * Batting and pitching lines are separate rows in the archive, so both are
  * returned and the caller shows whichever tab is open.
  */
-export async function getPlayerGameLog(playerName: string) {
+export async function getPlayerGameLog(playerName: string | string[]) {
   const db = getDb();
+  const names = Array.isArray(playerName) ? playerName : [playerName];
+  if (names.length === 0) return [];
   const away = alias(historicalTeams, "away_team");
   const home = alias(historicalTeams, "home_team");
 
@@ -996,6 +1035,9 @@ export async function getPlayerGameLog(playerName: string) {
       // Season XII sorts among games from Season IV.
       seasonSort: historicalSeasons.sortOrder,
       seasonName: historicalSeasons.name,
+      // The competition the game belongs to, so a player who appears in both
+      // has each log kept to its own.
+      leagueSlug: leagues.slug,
       isHome: historicalGameStats.isHome,
       kind: historicalGameStats.kind,
       awayName: away.name,
@@ -1026,7 +1068,8 @@ export async function getPlayerGameLog(playerName: string) {
     .innerJoin(historicalSeasons, eq(historicalGames.seasonId, historicalSeasons.id))
     .leftJoin(away, eq(historicalGames.awayTeamId, away.id))
     .leftJoin(home, eq(historicalGames.homeTeamId, home.id))
-    .where(eq(historicalGameStats.playerName, playerName));
+    .leftJoin(leagues, eq(historicalSeasons.leagueId, leagues.id))
+    .where(inArray(historicalGameStats.playerName, names));
 
   return rows
     .map((row) => {

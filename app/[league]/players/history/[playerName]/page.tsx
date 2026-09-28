@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions, getProfilesFor } from "@/db/queries";
+import { getAccountNames, getLeagues, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions, getProfilesFor } from "@/db/queries";
 import { PageShell } from "@/app/SiteNav";
 import { BackButton } from "@/app/BackButton";
 import { PlayerHead } from "@/app/PlayerHead";
-import { PlayerProfile } from "@/app/[league]/players/PlayerProfile";
+import { PlayerLeagues, type LeagueRecord } from "@/app/[league]/players/PlayerLeagues";
 import { TeamLogo } from "@/app/TeamLogo";
 import { CareerLine, careerTotals } from "@/app/[league]/players/CareerLine";
 import { leagueFrom } from "../../../league";
@@ -30,14 +30,43 @@ export default async function HistoricalPlayerPage({
   const { playerName } = await params;
   const name = decodeURIComponent(playerName);
 
-  const [history, games, profiles] = await Promise.all([
-    getPlayerHistoricalStats(name),
-    getPlayerGameLog(name),
+  // Each competition files a player under the name they used there, so one
+  // person's MCBA record and their MBL record sit under different names. The
+  // Minecraft account is what ties them together, so both are fetched at once
+  // and split by league below - two queries for the pair rather than two each.
+  const names = await getAccountNames(name);
+
+  const [allHistory, allGames, profiles, allLeagues] = await Promise.all([
+    getPlayerHistoricalStats(names),
+    getPlayerGameLog(names),
     // One head is drawn on this page - his. Reading all 600-odd profiles for
     // it was the single most wasteful query on the site.
     getProfilesFor([name]),
+    getLeagues(),
   ]);
-  if (history.length === 0) notFound();
+  if (allHistory.length === 0) notFound();
+
+  // One record per competition, in the leagues' own order, so a player who
+  // came up through the MCBA opens on the MBL - the senior competition is the
+  // one people mean. The two are never added together: they are two careers.
+  const records: LeagueRecord[] = allLeagues
+    .map((competition) => {
+      const seasons = allHistory.filter((row) => row.leagueSlug === competition.slug);
+      return {
+        slug: competition.slug,
+        name: competition.name,
+        playerName: seasons[0]?.playerName ?? name,
+        seasonCount: new Set(seasons.map((row) => row.seasonId)).size,
+        seasons: seasons as never[],
+        games: allGames.filter((row) => row.leagueSlug === competition.slug) as never[],
+        playedPitching: seasons.some((row) => (row.inningsPitched ?? 0) > 0),
+      };
+    })
+    .filter((record) => record.seasons.length > 0);
+
+  // The header describes the record the page opens on, so the career line and
+  // the club above always belong to the tab showing underneath it.
+  const history = records[0]?.seasons.length ? (records[0].seasons as typeof allHistory) : allHistory;
 
   // The page is about a person, so it leads with the name they go by now,
   // which the head route keeps up to date on its own. The archive filed them
@@ -51,7 +80,6 @@ export default async function HistoricalPlayerPage({
   const seasonCount = new Set(history.map((row) => row.seasonId)).size;
   // The team they most recently appeared for leads the header.
   const latest = [...history].sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))[0];
-  const playedPitching = history.some((row) => (row.inningsPitched ?? 0) > 0);
 
   // The number comes from the archive, which recorded one for almost nobody.
   // The position is the one they have played most in scored games, so it fills
@@ -116,11 +144,7 @@ export default async function HistoricalPlayerPage({
         </div>
       }
     >
-      <PlayerProfile
-        seasons={history as never}
-        games={games as never}
-        playedPitching={playedPitching}
-      />
+      <PlayerLeagues records={records} />
     </PageShell>
   );
 }
