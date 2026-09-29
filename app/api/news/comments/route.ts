@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { rateLimit } from "@/db/rate-limit";
 import { newsArticles, newsComments } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
-import { getLeagueUser } from "@/app/roles";
+import { getLeagueUser, hasRole } from "@/app/roles";
 import { getSession } from "@/app/session";
 
 /**
@@ -80,7 +80,7 @@ export async function DELETE(request: Request) {
 
     const leagueUser = await getLeagueUser();
     const mine = comment.discordId === session.discordId;
-    if (!mine && leagueUser?.role !== "ADMIN") {
+    if (!mine && !hasRole(leagueUser, "ADMIN")) {
       return Response.json({ error: "That is not your comment." }, { status: 403 });
     }
 

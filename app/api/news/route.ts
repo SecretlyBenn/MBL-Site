@@ -4,7 +4,7 @@ import { logAudit } from "@/db/audit";
 import { slugify } from "@/db/news";
 import { newsArticles, newsComments, newsImages, newsLikes } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
-import { requireRoleForApi } from "@/app/roles";
+import { hasRole, requireRoleForApi, type LeagueUser } from "@/app/roles";
 import { getLeagues } from "@/db/queries";
 
 /**
@@ -16,8 +16,8 @@ import { getLeagues } from "@/db/queries";
  */
 
 /** Whether this account may change this article. */
-function mayEdit(article: { authorUserId: number | null }, user: { id: number; role: string }) {
-  return user.role === "ADMIN" || article.authorUserId === user.id;
+function mayEdit(article: { authorUserId: number | null }, user: LeagueUser) {
+  return hasRole(user, "ADMIN") || article.authorUserId === user.id;
 }
 
 const MAX_TITLE = 140;

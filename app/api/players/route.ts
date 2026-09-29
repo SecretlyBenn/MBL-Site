@@ -13,7 +13,7 @@ import {
   teams,
 } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
-import { requireRoleForApi } from "@/app/roles";
+import { hasRole, requireRoleForApi } from "@/app/roles";
 
 type PlayerPayload = {
   minecraftUsername: string;
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
     // A GM adds to their own club only. An admin may put the player anywhere,
     // including nowhere.
-    const isGm = leagueUser.role === "GM";
+    const isGm = hasRole(leagueUser, "GM");
     if (isGm) {
       if (!leagueUser.teamId) {
         return Response.json({ error: "Your account has no club assigned." }, { status: 403 });

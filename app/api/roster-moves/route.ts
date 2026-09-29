@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { leagues, players, rosterMoves, teams, ROSTER_MOVE_TYPES, type RosterMoveType } from "@/db/schema";
-import { RoleError, requireRoleForApi } from "@/app/roles";
+import { RoleError, hasRole, requireRoleForApi } from "@/app/roles";
 
 type MovePayload = {
   playerId: number;
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     }
 
     // GMs may only act on their own team's players (or free agents, for SIGN).
-    if (leagueUser.role === "GM") {
+    if (hasRole(leagueUser, "GM")) {
       const authError = checkGmAuthority(payload, player, leagueUser.teamId);
       if (authError) return Response.json({ error: authError }, { status: 403 });
     }

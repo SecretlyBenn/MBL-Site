@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { newsArticles, newsImages } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
-import { requireRoleForApi } from "@/app/roles";
+import { hasRole, requireRoleForApi } from "@/app/roles";
 
 /**
  * Uploads a picture for an article.
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       where: eq(newsArticles.id, Number(articleId)),
     });
     if (!article) return Response.json({ error: "No such article." }, { status: 404 });
-    if (user.role !== "ADMIN" && article.authorUserId !== user.id) {
+    if (!hasRole(user, "ADMIN") && article.authorUserId !== user.id) {
       return Response.json({ error: "That is not your article." }, { status: 403 });
     }
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, players, plateAppearances, scorecards, teams, users } from "@/db/schema";
-import { requireRole } from "@/app/roles";
+import { describeRoles, requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { deriveBoxScore } from "@/app/derive-box-score";
 import { formatInnings } from "@/app/formatStats";
@@ -72,7 +72,7 @@ export default async function HeadUmpirePage() {
     <PageShell
       wide
       title="Scorecard review"
-      subtitle={`${leagueUser.displayName} · ${leagueUser.role.replace("_", " ").toLowerCase()}`}
+      subtitle={`${leagueUser.displayName} · ${describeRoles(leagueUser.roles)}`}
     >
       <h2 className="section-title mb-3">Waiting for review</h2>
       {pending.length === 0 ? (

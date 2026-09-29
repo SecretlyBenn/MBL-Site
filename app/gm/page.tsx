@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { and, asc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { leagues, players, rosterSpots, teams } from "@/db/schema";
-import { requireRole } from "@/app/roles";
+import { hasRole, requireRole } from "@/app/roles";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
 import { AddPlayerButton, RosterActionButton } from "./RosterActions";
@@ -53,7 +53,7 @@ export default async function GmPage({
   // A GM manages their own club. An admin has no club of their own, so they
   // choose one - previously they were silently given whichever team sorted
   // first, with no way to reach any other roster.
-  const isAdmin = leagueUser.role === "ADMIN";
+  const isAdmin = hasRole(leagueUser, "ADMIN");
   const chosen = Number((await searchParams).team);
   const teamId = isAdmin
     ? (allTeams.some((row) => row.id === chosen) ? chosen : allTeams[0]?.id ?? null)

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, historicalGames, historicalSeasons, scorecards, teams } from "@/db/schema";
-import { requireRole } from "@/app/roles";
+import { describeRoles, requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { ScheduledGames, type Fixture } from "./ScheduledGames";
 import { seriesFor } from "@/app/season-series";
@@ -100,7 +100,7 @@ export default async function UmpirePage() {
   return (
     <PageShell
       title="Umpire"
-      subtitle={`${leagueUser.displayName} · ${leagueUser.role.replace("_", " ").toLowerCase()}`}
+      subtitle={`${leagueUser.displayName} · ${describeRoles(leagueUser.roles)}`}
     >
       <section className="mb-8">
         <h2 className="section-title mb-3">Games being scored</h2>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { asc } from "drizzle-orm";
 import { getDb } from "@/db";
-import { teams, users } from "@/db/schema";
+import { ROLES, teams, userRoles, users } from "@/db/schema";
 import { getLeagues } from "@/db/queries";
 import { requireRole } from "@/app/roles";
 import { EmptyState, SectionHeader } from "@/app/SiteNav";
@@ -14,11 +14,19 @@ export const dynamic = "force-dynamic";
 export default async function AdminAccountsPage() {
   await requireRole(["ADMIN"], "/admin/accounts");
   const db = getDb();
-  const [allUsers, allTeams, allLeagues] = await Promise.all([
+  const [allUsers, allTeams, allLeagues, held] = await Promise.all([
     db.select().from(users).orderBy(asc(users.displayName)),
     db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.name)),
     getLeagues(),
+    // Every account's roles in one read rather than one query per row. There
+    // are a handful of accounts and at most a handful of roles each.
+    db.select({ userId: userRoles.userId, role: userRoles.role }).from(userRoles),
   ]);
+
+  const rolesOf = (userId: number) =>
+    ROLES.filter((role) =>
+      held.some((entry) => entry.userId === userId && entry.role === role),
+    );
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
@@ -29,7 +37,12 @@ export default async function AdminAccountsPage() {
         ) : (
           <ul className="flex flex-col gap-2">
             {allUsers.map((user) => (
-              <UserRoleRow key={user.id} user={user} teams={allTeams} leagues={allLeagues} />
+              <UserRoleRow
+                key={user.id}
+                user={{ ...user, roles: rolesOf(user.id) }}
+                teams={allTeams}
+                leagues={allLeagues}
+              />
             ))}
           </ul>
         )}

@@ -10,7 +10,7 @@ import { EmptyState, PageShell } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
 import { StandingsSeasonSelect } from "@/app/[league]/standings/StandingsSeasonSelect";
 import { hasInningByInning, isForfeit } from "@/app/formatStats";
-import { getLeagueUser } from "@/app/roles";
+import { getLeagueUser, hasAnyRole } from "@/app/roles";
 import { getScheduledTimes } from "@/db/queries";
 import { ScheduleGame, formatAgreedTime } from "./ScheduleGame";
 import { leagueFrom } from "../league";
@@ -138,7 +138,7 @@ export default async function SchedulePage({
   // controls to change it.
   const viewer = await getLeagueUser();
   const mayArrange =
-    viewer !== null && ["GM", "HEAD_UMPIRE", "ADMIN"].includes(viewer.role);
+    viewer !== null && hasAnyRole(viewer, ["GM", "HEAD_UMPIRE", "ADMIN"]);
   const arrangements = await getScheduledTimes();
 
   return (

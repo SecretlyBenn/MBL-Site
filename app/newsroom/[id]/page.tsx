@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { newsArticles, newsImages } from "@/db/schema";
-import { requireRole } from "@/app/roles";
+import { hasRole, requireRole } from "@/app/roles";
 import { PageShell } from "@/app/SiteNav";
 import { ArticleEditor } from "./ArticleEditor";
 
@@ -21,7 +21,7 @@ export default async function EditArticlePage({ params }: { params: Promise<{ id
   if (!article) notFound();
   // A writer edits their own pieces. Someone else's is not found rather than
   // forbidden, so the newsroom does not confirm what others are drafting.
-  if (user.role !== "ADMIN" && article.authorUserId !== user.id) notFound();
+  if (!hasRole(user, "ADMIN") && article.authorUserId !== user.id) notFound();
 
   // Only the ids: the pictures themselves are fetched by the browser, from
   // addresses it can cache, rather than carried through this page.

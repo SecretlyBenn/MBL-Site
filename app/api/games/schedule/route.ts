@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { games, historicalGames, historicalTeams, scorecards, teams } from "@/db/schema";
-import { RoleError, requireRoleForApi } from "@/app/roles";
+import { RoleError, hasAnyRole, requireRoleForApi, type LeagueUser } from "@/app/roles";
 
 type SchedulePayload = {
   /** The archive fixture being given a date, e.g. "1926578". */
@@ -53,13 +53,18 @@ async function liveTeamsFor(fixture: { awayTeamId: number | null; homeTeamId: nu
 /**
  * A general manager arranges their own club's games; head umpires and admins
  * arrange any of them.
+ *
+ * Someone holding both is held to the wider of the two, not the narrower. A
+ * head umpire who also runs a club is still a head umpire, and restricting
+ * them to their own fixtures because of the second hat would take away access
+ * they already had.
  */
 function assertMayArrange(
-  role: string,
-  teamId: number | null,
+  user: LeagueUser,
   sides: { away: { id: number } | null; home: { id: number } | null },
 ) {
-  if (role !== "GM") return;
+  if (hasAnyRole(user, ["HEAD_UMPIRE", "ADMIN"])) return;
+  const teamId = user.teamId;
   const mine = teamId !== null && (sides.away?.id === teamId || sides.home?.id === teamId);
   if (!mine) throw new RoleError(403, "You can only schedule your own club's games.");
 }
@@ -87,7 +92,7 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-    assertMayArrange(user.role, user.teamId, sides);
+    assertMayArrange(user, sides);
 
     const existing = await db.query.games.findFirst({
       where: eq(games.sourceGameId, payload.sourceGameId),
@@ -144,7 +149,7 @@ export async function DELETE(request: Request) {
     if (!existing) return Response.json({ error: "That game is not scheduled." }, { status: 404 });
 
     const fixture = await fixtureFor(sourceGameId);
-    assertMayArrange(user.role, user.teamId, await liveTeamsFor(fixture));
+    assertMayArrange(user, await liveTeamsFor(fixture));
 
     // Scoring has begun, so the arrangement is no longer just a date - taking
     // it away would strand the scorecard.

@@ -2,18 +2,44 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { rateLimit, sweepRateLimits } from "@/db/rate-limit";
-import { users, type Role } from "@/db/schema";
+import { ROLES, userRoles, users, type Role } from "@/db/schema";
 import { getSession } from "./session";
 
 export type LeagueUser = {
   id: number;
   discordId: string;
   displayName: string;
-  role: Role;
+  /**
+   * Every role this account holds. A plain array rather than a method, because
+   * this object is handed to components and has to survive being serialised.
+   */
+  roles: Role[];
   teamId: number | null;
-  /** The competition this account's role covers, or null for both. */
+  /** The competition this account's roles cover, or null for both. */
   leagueId: number | null;
 };
+
+/** Whether an account holds a role. Safe on a null user, which most callers have. */
+export function hasRole(user: { roles: Role[] } | null | undefined, role: Role) {
+  return user?.roles.includes(role) ?? false;
+}
+
+/** Whether an account holds any of these roles - the check every guard makes. */
+export function hasAnyRole(user: { roles: Role[] } | null | undefined, roles: Role[]) {
+  return user ? roles.some((role) => user.roles.includes(role)) : false;
+}
+
+/**
+ * The roles written out for a page heading: "gm · umpire".
+ *
+ * Ordered by ROLES rather than by whatever order they came back in, so the
+ * same account always reads the same way.
+ */
+export function describeRoles(roles: Role[]) {
+  return ROLES.filter((role) => roles.includes(role))
+    .map((role) => role.replace(/_/g, " ").toLowerCase())
+    .join(" · ");
+}
 
 /** Where an anonymous visitor is sent to sign in, returning to `returnTo`. */
 export function signInPath(returnTo: string) {
@@ -39,11 +65,19 @@ export async function getLeagueUser(): Promise<LeagueUser | null> {
   // in, whatever it says.
   if ((session.epoch ?? 0) !== row.sessionEpoch) return null;
 
+  // An account with no roles is recognised but holds nothing. That is on
+  // purpose: taking someone's last role should leave them with no access, not
+  // drop them to some lesser default.
+  const held = await db
+    .select({ role: userRoles.role })
+    .from(userRoles)
+    .where(eq(userRoles.userId, row.id));
+
   return {
     id: row.id,
     discordId: row.discordId,
     displayName: row.displayName,
-    role: row.role as Role,
+    roles: held.map((entry) => entry.role as Role),
     teamId: row.teamId,
     leagueId: row.leagueId,
   };
@@ -62,7 +96,7 @@ export async function requireRole(
   if (!session) redirect(signInPath(returnTo));
 
   const leagueUser = await getLeagueUser();
-  if (!leagueUser || !allowedRoles.includes(leagueUser.role)) {
+  if (!leagueUser || !hasAnyRole(leagueUser, allowedRoles)) {
     redirect("/unauthorized");
   }
 
@@ -90,7 +124,7 @@ export async function requireRoleForApi(
   if (!session) throw new RoleError(401, "Not signed in.");
 
   const leagueUser = await getLeagueUser();
-  if (!leagueUser || !allowedRoles.includes(leagueUser.role)) {
+  if (!leagueUser || !hasAnyRole(leagueUser, allowedRoles)) {
     throw new RoleError(403, "You do not have access to this action.");
   }
 

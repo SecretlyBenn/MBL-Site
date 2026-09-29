@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { describeLocalDateTime } from "@/app/datetime";
+import type { Role } from "@/db/schema";
 import { TeamLogo } from "@/app/TeamLogo";
 import { DeleteButton, DoneText, ErrorText, FormCard, useRequest, type Option } from "./ui";
 
@@ -768,19 +769,34 @@ export function CurrentSeasonForm({ seasons, current }: { seasons: Option[]; cur
 
 /* --------------------------------------------------------------- Accounts */
 
+/** What each role is called and what it lets someone do, for the account form. */
+const ROLE_LABELS: { role: Role; label: string }[] = [
+  { role: "UMPIRE", label: "Umpire - scores games" },
+  { role: "HEAD_UMPIRE", label: "Head umpire - reviews scorecards" },
+  { role: "GM", label: "General manager - runs one club" },
+  { role: "WRITER", label: "Writer - news articles only" },
+  { role: "ADMIN", label: "Admin - everything" },
+];
+
 export function CreateUserForm({ teams }: { teams: Option[] }) {
   const { send, busy, error } = useRequest();
   const [discordId, setDiscordId] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [role, setRole] = useState("UMPIRE");
+  const [roles, setRoles] = useState<Role[]>(["UMPIRE"]);
   const [teamId, setTeamId] = useState<number | "">("");
+
+  const isGm = roles.includes("GM");
+  const toggle = (role: Role) =>
+    setRoles((held) =>
+      held.includes(role) ? held.filter((other) => other !== role) : [...held, role],
+    );
 
   return (
     <FormCard
       title="Add league account"
-      help="Signing in with Discord grants nothing on its own - someone can only reach a portal once they have an account here."
+      help="Signing in with Discord grants nothing on its own - someone can only reach a portal once they have an account here. Tick every role they hold; most officials hold more than one."
       onSubmit={async () => {
-        if (await send("POST", "/api/users", { discordId, displayName, role, teamId: role === "GM" ? teamId : undefined })) {
+        if (await send("POST", "/api/users", { discordId, displayName, roles, teamId: isGm ? teamId : undefined })) {
           setDiscordId("");
           setDisplayName("");
         }
@@ -788,15 +804,22 @@ export function CreateUserForm({ teams }: { teams: Option[] }) {
     >
       <input className="ui-input" placeholder="Discord user ID (18-19 digits)" inputMode="numeric" value={discordId} onChange={(event) => setDiscordId(event.target.value)} required />
       <input className="ui-input" placeholder="Display name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
-      <select className="ui-select w-full" value={role} onChange={(event) => setRole(event.target.value)}>
-        <option value="UMPIRE">Umpire</option>
-        <option value="HEAD_UMPIRE">Head umpire</option>
-        <option value="GM">General manager</option>
-        <option value="WRITER">Writer - news articles only</option>
-        <option value="ADMIN">Admin</option>
-      </select>
-      {role === "GM" && <TeamSelect teams={teams} value={teamId} onChange={setTeamId} placeholder="Team they manage" required />}
-      <button type="submit" disabled={busy} className="ui-button-primary self-start">
+      <fieldset className="flex flex-col gap-1.5">
+        <legend className="sr-only">Roles</legend>
+        {ROLE_LABELS.map((option) => (
+          <label key={option.role} className="flex items-center gap-2 text-sm text-slate-300">
+            <input
+              type="checkbox"
+              checked={roles.includes(option.role)}
+              onChange={() => toggle(option.role)}
+              className="h-4 w-4 accent-sky-500"
+            />
+            {option.label}
+          </label>
+        ))}
+      </fieldset>
+      {isGm && <TeamSelect teams={teams} value={teamId} onChange={setTeamId} placeholder="Team they manage" required />}
+      <button type="submit" disabled={busy || roles.length === 0} className="ui-button-primary self-start">
         {busy ? "Adding…" : "Add account"}
       </button>
       <ErrorText>{error}</ErrorText>

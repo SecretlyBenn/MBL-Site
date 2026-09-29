@@ -4,6 +4,7 @@ import { Analytics } from "./Analytics";
 import { CookieNotice } from "./CookieNotice";
 import { LeaguesProvider } from "./Leagues";
 import { LogoOverridesProvider } from "./LogoOverrides";
+import { OffBoard } from "./OffBoard";
 import { getLogoOverrides } from "@/db/logos";
 import { getLeagues } from "@/db/queries";
 import { SITE } from "./site";
@@ -59,8 +60,11 @@ export default async function RootLayout({
         <LeaguesProvider value={await getLeagues()}>
           <LogoOverridesProvider value={await getLogoOverrides()}>{children}</LogoOverridesProvider>
         </LeaguesProvider>
-        <CookieNotice />
-        <Analytics />
+        {/* Neither belongs on a stadium jumbotron - see OffBoard. */}
+        <OffBoard>
+          <CookieNotice />
+          <Analytics />
+        </OffBoard>
       </body>
     </html>
   );

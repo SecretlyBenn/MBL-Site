@@ -1,5 +1,5 @@
 import { getSession } from "./session";
-import { getLeagueUser } from "./roles";
+import { describeRoles, getLeagueUser } from "./roles";
 
 /**
  * Signed-out visitors get a sign-in link; signed-in ones get their name, their
@@ -36,7 +36,7 @@ export async function SignInButton() {
       <span className="hidden flex-col text-right leading-tight sm:flex">
         <span className="text-sm font-semibold text-slate-100">{session.displayName}</span>
         <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-          {leagueUser ? leagueUser.role.toLowerCase() : "visitor"}
+          {leagueUser ? describeRoles(leagueUser.roles) : "visitor"}
         </span>
       </span>
       <form action="/api/auth/signout" method="post">

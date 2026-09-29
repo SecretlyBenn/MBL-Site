@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getArticleBySlug, getComments, getLikes } from "@/db/news";
-import { getLeagueUser } from "@/app/roles";
+import { getLeagueUser, hasRole } from "@/app/roles";
 import { getSession } from "@/app/session";
 import { PageShell } from "@/app/SiteNav";
 import { Article } from "../render";
@@ -48,7 +48,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ league
   const leagueUser = await getLeagueUser();
   // A draft is visible to whoever is writing it, and to an admin, so a piece
   // can be read in place before it goes out. To everyone else it is not there.
-  const mine = leagueUser && (leagueUser.role === "ADMIN" || leagueUser.id === article.authorUserId);
+  const mine = leagueUser && (hasRole(leagueUser, "ADMIN") || leagueUser.id === article.authorUserId);
   if (article.status !== "PUBLISHED" && !mine) notFound();
 
   const [comments, likes] = await Promise.all([
@@ -108,7 +108,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ league
             comments={comments}
             signedIn={Boolean(session)}
             me={session?.discordId ?? null}
-            isAdmin={leagueUser?.role === "ADMIN"}
+            isAdmin={hasRole(leagueUser, "ADMIN")}
           />
         )}
       </article>

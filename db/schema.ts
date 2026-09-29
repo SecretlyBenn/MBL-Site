@@ -29,8 +29,12 @@ export const users = sqliteTable("users", {
   // the league identifies people by their Discord account.
   discordId: text("discord_id").notNull().unique(),
   displayName: text("display_name").notNull(),
-  role: text("role").notNull(),
-  // Only meaningful (and required) for GM role - which team they manage.
+  // Which roles this account holds is in `user_roles`, not here. People in
+  // this league wear more than one hat - a GM who also umpires is the ordinary
+  // case, not an exception - and a single column could only ever say one of
+  // them.
+  //
+  // The club a GM manages. Only meaningful for an account holding GM.
   teamId: integer("team_id").references(() => teams.id),
   // Which competition this account's role covers, for roles with no club of
   // their own - an umpire, a head umpire, a writer. Null means both, which is
@@ -42,6 +46,30 @@ export const users = sqliteTable("users", {
   // accepted - the only way to end a session before it expires, since sessions
   // are signed cookies rather than rows.
   sessionEpoch: integer("session_epoch").notNull().default(0),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
+ * The roles an account holds, one row each.
+ *
+ * This was a single column on `users`, which quietly decided that nobody could
+ * be two things at once. In a league this size most officials are: a GM who
+ * umpires other clubs' games is normal, and the single column forced a choice
+ * between letting them score and letting them run their roster.
+ *
+ * An account with no rows here can sign in and is recognised, but holds no
+ * access at all - the same as having no `users` row, and deliberately so: a
+ * role removed should never fall back to some lesser default.
+ *
+ * (user_id, role) is unique, enforced by an index in 0064 rather than declared
+ * here, which is how the rest of this file does it.
+ */
+export const userRoles = sqliteTable("user_roles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  role: text("role").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

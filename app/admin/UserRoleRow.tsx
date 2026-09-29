@@ -2,14 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ROLES } from "@/db/schema";
+import { ROLES, type Role } from "@/db/schema";
+
+/** The roles narrowed to one competition; the others cover both. */
+const SCOPED: Role[] = ["UMPIRE", "HEAD_UMPIRE", "WRITER"];
 
 /**
- * One league account: its name, its role and - for a GM - the club it manages.
- * Changes are staged and saved together, so promoting someone to GM and giving
- * them a team is one action rather than two states, the first of which would be
- * a GM with no roster. The name is the league's name for the person, not their
- * Discord one, so renaming it here is safe: the account is found by Discord id.
+ * One league account: its name, the roles it holds and - for a GM - the club it
+ * manages. Changes are staged and saved together, so making someone a GM and
+ * giving them a team is one action rather than two states, the first of which
+ * would be a GM with no roster. The name is the league's name for the person,
+ * not their Discord one, so renaming it here is safe: the account is found by
+ * Discord id.
+ *
+ * Roles are checkboxes rather than a dropdown because people here hold more
+ * than one - a GM who umpires other clubs' games is the ordinary case.
  */
 export function UserRoleRow({
   user,
@@ -20,7 +27,7 @@ export function UserRoleRow({
     id: number;
     displayName: string;
     discordId: string;
-    role: string;
+    roles: Role[];
     teamId: number | null;
     leagueId: number | null;
   };
@@ -29,7 +36,7 @@ export function UserRoleRow({
 }) {
   const router = useRouter();
   const [displayName, setDisplayName] = useState(user.displayName);
-  const [role, setRole] = useState(user.role);
+  const [roles, setRoles] = useState<Role[]>(user.roles);
   const [teamId, setTeamId] = useState<number | "">(user.teamId ?? "");
   const [leagueId, setLeagueId] = useState<number | "">(user.leagueId ?? "");
   const [busy, setBusy] = useState(false);
@@ -37,17 +44,30 @@ export function UserRoleRow({
   const [signedOut, setSignedOut] = useState(false);
 
   // A GM's competition comes from the club they manage, and an admin runs
-  // both, so only the roles with no club of their own are narrowed by hand.
-  const scopedByLeague = role === "UMPIRE" || role === "HEAD_UMPIRE" || role === "WRITER";
+  // both, so the picker appears only when a role with no club of its own is
+  // held.
+  const isGm = roles.includes("GM");
+  const scopedByLeague = roles.some((held) => SCOPED.includes(held));
   const league = scopedByLeague ? leagueId || null : null;
+
+  const sameRoles =
+    roles.length === user.roles.length && roles.every((held) => user.roles.includes(held));
 
   const name = displayName.trim();
   const changed =
     name !== user.displayName ||
-    role !== user.role ||
+    !sameRoles ||
     (teamId || null) !== user.teamId ||
     league !== user.leagueId;
-  const needsTeam = role === "GM" && !teamId;
+  const needsTeam = isGm && !teamId;
+  // Nothing ticked would leave the account with no access at all. That is a
+  // thing to do deliberately, by removing the account, not by mis-clicking here.
+  const needsRole = roles.length === 0;
+
+  const toggle = (role: Role) =>
+    setRoles((held) =>
+      held.includes(role) ? held.filter((other) => other !== role) : [...held, role],
+    );
 
   async function save() {
     setBusy(true);
@@ -56,7 +76,7 @@ export function UserRoleRow({
       const response = await fetch("/api/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, role, teamId: teamId || null, leagueId: league, displayName: name }),
+        body: JSON.stringify({ userId: user.id, roles, teamId: teamId || null, leagueId: league, displayName: name }),
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
@@ -98,7 +118,10 @@ export function UserRoleRow({
 
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3">
-      <span className="flex min-w-0 flex-1 items-center gap-2">
+      {/* A floor under the name, or a row carrying several role chips and a
+          league picker squeezes it down to a couple of characters and the
+          admin cannot read who they are editing. */}
+      <span className="flex min-w-[15rem] flex-1 items-center gap-2">
         <input
           value={displayName}
           onChange={(event) => setDisplayName(event.target.value)}
@@ -108,15 +131,26 @@ export function UserRoleRow({
         <span className="shrink-0 text-xs text-slate-500">{user.discordId}</span>
       </span>
 
-      <select
-        value={role}
-        onChange={(event) => setRole(event.target.value)}
-        className="ui-select !py-1 text-xs"
-      >
+      <span className="flex flex-wrap items-center gap-1.5">
         {ROLES.map((option) => (
-          <option key={option} value={option}>{option.replace("_", " ")}</option>
+          <label
+            key={option}
+            className={`cursor-pointer select-none rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+              roles.includes(option)
+                ? "border-sky-500 bg-sky-600/20 text-sky-200"
+                : "border-slate-700 text-slate-500 hover:border-slate-600"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={roles.includes(option)}
+              onChange={() => toggle(option)}
+              className="sr-only"
+            />
+            {option.replace("_", " ").toLowerCase()}
+          </label>
         ))}
-      </select>
+      </span>
 
       {/* Blank is both, which is what most officials are: the same people
           call and review games in either competition. */}
@@ -134,8 +168,8 @@ export function UserRoleRow({
         </select>
       )}
 
-      {/* Only a GM has a club, so the picker appears only for that role. */}
-      {role === "GM" && (
+      {/* Only a GM has a club, so the picker appears only when that is held. */}
+      {isGm && (
         <select
           value={teamId}
           onChange={(event) => setTeamId(Number(event.target.value) || "")}
@@ -151,7 +185,7 @@ export function UserRoleRow({
       <button
         type="button"
         onClick={save}
-        disabled={busy || !changed || needsTeam || name === ""}
+        disabled={busy || !changed || needsTeam || needsRole || name === ""}
         className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
       >
         {busy ? "Saving…" : "Save"}

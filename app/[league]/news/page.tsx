@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getPublishedArticles } from "@/db/news";
-import { getLeagueUser } from "@/app/roles";
+import { getLeagueUser, hasRole } from "@/app/roles";
 import { EmptyState, PageShell } from "@/app/SiteNav";
 import { leagueFrom } from "../league";
 
@@ -33,7 +33,7 @@ function published(value: string | null) {
 export default async function NewsPage({ params }: { params: Promise<{ league: string }> }) {
   const league = await leagueFrom(params);
   const [articles, leagueUser] = await Promise.all([getPublishedArticles(league.id), getLeagueUser()]);
-  const writes = leagueUser?.role === "ADMIN" || leagueUser?.role === "WRITER";
+  const writes = hasRole(leagueUser, "ADMIN") || hasRole(leagueUser, "WRITER");
 
   return (
     <PageShell title="News" subtitle="Written by the league.">

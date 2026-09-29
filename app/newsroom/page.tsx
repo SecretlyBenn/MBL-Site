@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAllArticles, getArticlesByAuthor } from "@/db/news";
-import { requireRole } from "@/app/roles";
+import { describeRoles, hasRole, requireRole } from "@/app/roles";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { NewArticleForm } from "./NewArticleForm";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function NewsroomPage() {
   const user = await requireRole(["ADMIN", "WRITER"], "/newsroom");
-  const articles = user.role === "ADMIN" ? await getAllArticles() : await getArticlesByAuthor(user.id);
+  const articles = hasRole(user, "ADMIN") ? await getAllArticles() : await getArticlesByAuthor(user.id);
   const drafts = articles.filter((article) => article.status !== "PUBLISHED");
   const published = articles.filter((article) => article.status === "PUBLISHED");
 
@@ -46,7 +46,7 @@ export default async function NewsroomPage() {
   );
 
   return (
-    <PageShell title="Newsroom" subtitle={`${user.displayName} · ${user.role.toLowerCase()}`}>
+    <PageShell title="Newsroom" subtitle={`${user.displayName} · ${describeRoles(user.roles)}`}>
       <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
         <div className="flex min-w-0 flex-col gap-8">
           <section>

@@ -209,17 +209,71 @@ D1 limits below are the real constraints.
 
 - Sign-in is Discord OAuth. Being signed in proves identity only; access needs
   a row in `users` created by an admin.
+- **An account holds a set of roles, not one.** They live in `user_roles`, one
+  row each; `users` has no `role` column (0064). People here wear more than one
+  hat - a GM who umpires other clubs' games is the ordinary case - and the old
+  single column forced the league to choose. `hasRole`, `hasAnyRole` and
+  `describeRoles` in `app/roles.ts` are how it is read; an account with no rows
+  in `user_roles` holds nothing at all, which is how access is taken away.
+  Where two roles disagree the **wider** one wins: `assertMayArrange` in
+  `/api/games/schedule` checks HEAD_UMPIRE before GM, because otherwise a head
+  umpire who also runs a club would lose access they already had.
+- `users.team_id` is the club a GM manages, and `users.league_id` the
+  competition an umpire, head umpire or writer covers. Both are cleared when
+  the role that carried them is removed, so a former GM does not keep authority
+  over a roster.
 - Sessions are signed cookies, not rows. Each carries the account's
   `session_epoch`; Admin -> Accounts -> "Sign out everywhere" bumps it and
   every older cookie stops working.
 - Every admin API call passes through `requireRoleForApi`, which rate limits
   per account (240/minute). Sign-in is limited per IP address.
 - There is no self-signup and no setup route. **The first admin is created by
-  hand:**
+  hand**, and since 0064 that is two statements rather than one - the account,
+  then the role. Miss the second and they can sign in and reach nothing:
 
   ```bash
-  npx --no-install wrangler d1 execute mbl-site-db --remote --command "INSERT INTO users (discord_id, display_name, role) VALUES ('<discord id>', '<name>', 'ADMIN')"
+  npx --no-install wrangler d1 execute mbl-site-db --remote --command "INSERT INTO users (discord_id, display_name) VALUES ('<discord id>', '<name>'); INSERT INTO user_roles (user_id, role) SELECT id, 'ADMIN' FROM users WHERE discord_id = '<discord id>';"
   ```
+
+## The stadium jumbotrons
+
+`/scoreboard/<clubId>` is a club's ballpark scoreboard, shown on a screen inside
+Minecraft by the MBLJumbotron Fabric mod (MCEF/Chromium) and driven by the
+mblteams Paper plugin. Both live in their own repositories next to this one.
+
+The board has two halves, and the split is the whole design:
+
+- **The plugin owns the count, the outs, the score and the inning.** They are
+  what the umpire types at the plate (`/ball`, `/strike`, `/out`), they live in
+  `Arena.Bar`, and they reach the page by the mod calling
+  `window.mblJumbotron.updateState(...)` on it. The site never sees them, and
+  does not record pitches at all.
+- **The site owns every name**: the clubs, their crests, who is on the bases,
+  who is up, who is pitching. `db/scoreboard.ts` builds it and
+  `/api/scoreboard/<clubId>` serves it.
+
+Rules that are easy to break:
+
+- **The page must never poll.** Every player runs their own Chromium, so one
+  fetch on the page is one poller per viewer; twenty at a second would spend the
+  day's hundred thousand requests in under two hours. The *plugin* polls once
+  for everybody and relays the answer inside its own state message. The only
+  `fetch` in `Jumbotron.tsx` is behind `?preview=1`, which exists so the board
+  can be watched in an ordinary browser.
+- **Both sides carry their own next batter and pitcher.** The plugin is normally
+  a play ahead - the third out is called on the field well before it is written
+  down - so the board has to name the other side's leadoff man the moment the
+  half turns over.
+- **When the plugin's half-inning disagrees with the site's, the bases are
+  shown empty.** The site's runners belong to the half it thinks is being
+  played; drawing them after the plugin has rolled over puts a man on second who
+  is already in the dugout.
+- An arena is tied to a club by `teams.<key>.site-team-id` in the plugin's
+  `config.yml`, never by matching names: the plugin's abbreviations are
+  MiniMessage strings and the site's are plain.
+- `OffBoard` in `app/layout.tsx` keeps the cookie notice and the analytics
+  beacon off these pages. A banner over the score, and every player's client
+  counted as a visitor, are both things nobody thinks to check.
 
 ## News
 
