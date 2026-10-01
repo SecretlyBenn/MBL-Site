@@ -11,9 +11,17 @@ type Slot = { playerId: string; position: string };
 const EMPTY: Slot = { playerId: "", position: "" };
 
 /**
- * One team's batting order. The pitcher bats by default, which is how the
- * league scores it; ticking DH drops the pitcher out of the order and asks
- * which fielder the DH is batting for.
+ * One team's batting order.
+ *
+ * Everyone bats by default, which is how the league scores it. Ticking DH
+ * takes one fielder out of the order and puts a designated hitter in their
+ * place - and that fielder is **any** of the nine, not only the pitcher. A side
+ * here will bat for a shortstop who cannot hit as readily as for a pitcher, and
+ * the editor used to assume the pitcher and offer nothing else.
+ *
+ * Because the fielder who sits out is no longer necessarily the pitcher, who is
+ * starting on the mound is now asked separately every time, rather than being
+ * inferred from which box the DH question was in.
  */
 export function LineupEditor({
   scorecardId,
@@ -31,7 +39,9 @@ export function LineupEditor({
     Array.from({ length: FULL_LINEUP }, () => ({ ...EMPTY })),
   );
   const [useDh, setUseDh] = useState(false);
-  const [dhPitcherId, setDhPitcherId] = useState("");
+  /** The fielder the DH bats for: they take the field and never come to the plate. */
+  const [benchedId, setBenchedId] = useState("");
+  const [benchedPosition, setBenchedPosition] = useState("P");
   const [starterId, setStarterId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -40,22 +50,36 @@ export function LineupEditor({
   const update = (index: number, patch: Partial<Slot>) =>
     setSlots((current) => current.map((slot, at) => (at === index ? { ...slot, ...patch } : slot)));
 
-  const chosen = slots.map((slot) => slot.playerId).filter(Boolean);
-  const duplicate = new Set(chosen).size !== chosen.length;
-  // Under a DH the pitcher is named separately; otherwise they must be batting.
-  const pitcher = useDh ? dhPitcherId : starterId;
-
   // Only the slots that have somebody in them count. A side short of nine is
   // ordinary here, so the order simply runs shorter and comes round sooner -
   // an empty slot at the bottom is one nobody filled, not an incomplete
   // lineup.
   const filled = slots.filter((slot) => slot.playerId);
+
+  // The man the DH bats for counts as chosen too. He is on the card and on the
+  // field, so naming him in the order as well would be one player in two
+  // places - and the order would come round to somebody who is not batting.
+  const chosen = [...filled.map((slot) => slot.playerId), ...(useDh && benchedId ? [benchedId] : [])];
+  const duplicate = new Set(chosen).size !== chosen.length;
+
+  /** Everyone on the card, batting or not - the pitcher is one of them. */
+  const onCard = [
+    ...filled
+      .map((slot) => roster.find((player) => player.id === Number(slot.playerId)))
+      .filter((player): player is Player => Boolean(player)),
+    ...(useDh ? roster.filter((player) => player.id === Number(benchedId)) : []),
+  ];
+
   const complete =
     filled.length >= MINIMUM_LINEUP &&
     filled.every((slot) => slot.position) &&
     !duplicate &&
-    Boolean(pitcher) &&
-    (!useDh || filled.some((slot) => slot.position === "DH"));
+    // Whoever is on the mound has to be on the card, which he stops being the
+    // moment the lineup is rearranged around him.
+    Boolean(starterId) &&
+    onCard.some((player) => player.id === Number(starterId)) &&
+    (!useDh ||
+      (filled.some((slot) => slot.position === "DH") && Boolean(benchedId) && Boolean(benchedPosition)));
 
   async function save() {
     setBusy(true);
@@ -71,18 +95,20 @@ export function LineupEditor({
         playerId: Number(slot.playerId),
         battingOrder: index + 1,
         position: slot.position,
-        // The DH bats for the pitcher who is not in the order.
-        dhForPlayerId: useDh && slot.position === "DH" ? Number(dhPitcherId) : null,
-        pitchingOrder: !useDh && Number(slot.playerId) === Number(starterId) ? 1 : null,
+        // Who the DH is batting for - any fielder, not only the pitcher.
+        dhForPlayerId: useDh && slot.position === "DH" ? Number(benchedId) : null,
+        // The pitcher may now be in the order or out of it, so he is matched
+        // by name rather than assumed from whether a DH is in use.
+        pitchingOrder: Number(slot.playerId) === Number(starterId) ? 1 : null,
       }));
 
       if (useDh) {
         rows.push({
-          playerId: Number(dhPitcherId),
+          playerId: Number(benchedId),
           battingOrder: null,
-          position: "P",
+          position: benchedPosition,
           dhForPlayerId: null,
-          pitchingOrder: 1,
+          pitchingOrder: Number(benchedId) === Number(starterId) ? 1 : null,
         });
       }
 
@@ -184,30 +210,56 @@ export function LineupEditor({
       </div>
 
       <div className="mt-3 space-y-2">
-        {useDh ? (
-          <label className="ui-field-label flex-col !items-start gap-1.5">
-            Pitcher (not batting — the DH bats for them)
-            <select value={dhPitcherId} onChange={(event) => setDhPitcherId(event.target.value)} className="ui-select w-full">
-              <option value="">Select pitcher…</option>
-              {roster.map((player) => (
-                <option key={player.id} value={player.id}>{player.name}</option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <label className="ui-field-label flex-col !items-start gap-1.5">
-            Starting pitcher
-            <select value={starterId} onChange={(event) => setStarterId(event.target.value)} className="ui-select w-full">
-              <option value="">Select from the order…</option>
-              {slots
-                .filter((slot) => slot.playerId)
-                .map((slot) => roster.find((player) => player.id === Number(slot.playerId)))
-                .filter((player): player is Player => Boolean(player))
-                .map((player) => (
+        {useDh && (
+          <div className="grid gap-2 sm:grid-cols-[1fr_7rem]">
+            <label className="ui-field-label flex-col !items-start gap-1.5">
+              The DH bats for
+              <select
+                value={benchedId}
+                onChange={(event) => setBenchedId(event.target.value)}
+                className="ui-select w-full"
+              >
+                <option value="">Select a fielder…</option>
+                {roster.map((player) => (
                   <option key={player.id} value={player.id}>{player.name}</option>
                 ))}
-            </select>
-          </label>
+              </select>
+            </label>
+            <label className="ui-field-label flex-col !items-start gap-1.5">
+              Their position
+              <select
+                value={benchedPosition}
+                onChange={(event) => setBenchedPosition(event.target.value)}
+                className="ui-select w-full"
+              >
+                {POSITIONS.filter((position) => position !== "DH").map((position) => (
+                  <option key={position} value={position}>{position}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
+
+        {/* Asked whether or not a DH is in use, because the man who sits out
+            is no longer necessarily the pitcher. */}
+        <label className="ui-field-label flex-col !items-start gap-1.5">
+          Starting pitcher
+          <select
+            value={starterId}
+            onChange={(event) => setStarterId(event.target.value)}
+            className="ui-select w-full"
+          >
+            <option value="">Select from the card…</option>
+            {onCard.map((player) => (
+              <option key={player.id} value={player.id}>{player.name}</option>
+            ))}
+          </select>
+        </label>
+
+        {useDh && benchedId && !filled.some((slot) => slot.position === "DH") && (
+          <p className="text-xs text-amber-400">
+            Give one spot in the order the DH position.
+          </p>
         )}
 
         {duplicate && <p className="text-xs text-amber-400">The same player appears twice.</p>}

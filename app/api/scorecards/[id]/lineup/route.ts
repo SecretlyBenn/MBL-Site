@@ -1,8 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { insertInChunks } from "@/db/chunk";
 import { logAudit } from "@/db/audit";
 import { fieldingChanges, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
+import { apiError } from "@/app/api-errors";
 import { MINIMUM_LINEUP } from "@/app/scoring";
 
 type LineupRow = {
@@ -48,8 +50,37 @@ export async function PUT(
         { status: 400 },
       );
     }
-    if (!rows.some((row) => row.pitchingOrder === 1)) {
+    const starters = rows.filter((row) => row.pitchingOrder === 1);
+    if (starters.length === 0) {
       return Response.json({ error: "Pick a starting pitcher." }, { status: 400 });
+    }
+    // Two men cannot open the same game. Worth refusing here rather than
+    // trusting the screen, because every later at-bat is charged to whoever
+    // holds the mound and two claims to it cannot both be honoured.
+    if (starters.length > 1) {
+      return Response.json({ error: "Only one player can be the starting pitcher." }, { status: 400 });
+    }
+
+    // A designated hitter bats for somebody, and that somebody has to be on
+    // this card and out of the order - they field without batting. The DH may
+    // bat for any fielder here, not only the pitcher, so the man named is
+    // checked rather than assumed.
+    const onCard = new Set(rows.map((row) => row.playerId));
+    for (const row of rows) {
+      if (row.dhForPlayerId === null || row.dhForPlayerId === undefined) continue;
+      if (!onCard.has(row.dhForPlayerId)) {
+        return Response.json(
+          { error: "The DH is batting for somebody who is not on this card." },
+          { status: 400 },
+        );
+      }
+      const batting = rows.find((other) => other.playerId === row.dhForPlayerId);
+      if (batting && batting.battingOrder !== null) {
+        return Response.json(
+          { error: "The player the DH bats for cannot also be in the batting order." },
+          { status: 400 },
+        );
+      }
     }
 
     // Replacing a lineup that already has at-bats behind it would leave those
@@ -82,7 +113,12 @@ export async function PUT(
     // replaced, and anyone who came on or moved is written down as a move -
     // otherwise the box score would credit them from the first out.
     const before = new Map(existing.map((row) => [row.playerId, row]));
-    await db.insert(scorecardLineups).values(
+    // In slices: eleven columns a row means ten rows is a hundred and ten
+    // bound parameters, and D1 refuses past a hundred. Ten rows is exactly a
+    // nine-man order plus a pitcher who does not bat - so every side using a
+    // designated hitter failed here, and every side without one fitted.
+    await insertInChunks(
+      (values) => db.insert(scorecardLineups).values(values),
       rows.map((row) => {
         const previous = before.get(row.playerId);
         return {
@@ -100,6 +136,7 @@ export async function PUT(
         };
       }),
     );
+
 
     if (scored) {
       const appearances = await db
@@ -138,6 +175,10 @@ export async function PUT(
     if (error instanceof RoleError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
-    return Response.json({ error: "Could not save the lineup." }, { status: 500 });
+    // Was a bare 500 with the reason thrown away, which is how a lineup that
+    // could never be saved looked identical to a momentary blip for as long as
+    // it did. apiError logs the whole cause chain: the outer message is only
+    // the query, and what actually went wrong is a level down.
+    return apiError(error, "Could not save the lineup.");
   }
 }

@@ -21,7 +21,27 @@ test("a season's game stats are matched by subquery, not by binding every id", (
 });
 
 test("inserts stay under the same limit", () => {
-  assert.ok(publish.includes("MAX_BOUND_PARAMETERS / columns"));
+  // The slicing moved to db/chunk.ts when the lineup route turned out to need
+  // it too - a side batting a designated hitter is one row past the cap.
+  const chunk = readFileSync(new URL("../db/chunk.ts", import.meta.url), "utf8");
+  assert.ok(chunk.includes("MAX_BOUND_PARAMETERS / columns"), "the slicing arithmetic is gone");
+  assert.ok(publish.includes("insertInChunks"), "box scores no longer insert in slices");
+});
+
+test("a lineup is inserted in slices too", () => {
+  // Eleven columns a row: nine batters is ninety-nine bound parameters and
+  // fits, ten rows is a hundred and ten and does not. Ten rows is exactly a
+  // nine-man order plus somebody who fields without batting, so every side
+  // using a DH failed to save and every side without one worked.
+  const lineup = readFileSync(
+    new URL("../app/api/scorecards/[id]/lineup/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.ok(lineup.includes("insertInChunks"), "a lineup is inserted in one statement again");
+  assert.ok(
+    lineup.includes("apiError(error"),
+    "the lineup route throws the reason away again, leaving a bare 500",
+  );
 });
 
 test("a pitcher's record survives a recompute that cannot rebuild it", () => {

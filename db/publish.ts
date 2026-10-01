@@ -1,4 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
+import { insertInChunks } from "./chunk";
 import { getDb } from "@/db";
 import {
   games,
@@ -33,25 +34,8 @@ import { earnedRunAverage, perGame } from "@/app/scoring";
  */
 
 
-/**
- * D1 caps the bound parameters in a single statement, and a multi-row insert
- * spends one per column per row - a full box score blows past it and the query
- * fails outright rather than degrading. Inserting in slices keeps every
- * statement inside the limit.
- */
-const MAX_BOUND_PARAMETERS = 90;
-
-async function insertInChunks<Row extends Record<string, unknown>>(
-  insert: (rows: Row[]) => Promise<unknown>,
-  rows: Row[],
-) {
-  if (rows.length === 0) return;
-  const columns = Math.max(1, Object.keys(rows[0]).length);
-  const perChunk = Math.max(1, Math.floor(MAX_BOUND_PARAMETERS / columns));
-  for (let index = 0; index < rows.length; index += perChunk) {
-    await insert(rows.slice(index, index + perChunk));
-  }
-}
+// Lives in db/chunk.ts now, because the lineup route needs it too - a side
+// using a designated hitter is one row past D1's limit.
 
 /**
  * The season a game the archive has never seen is published into - the season
