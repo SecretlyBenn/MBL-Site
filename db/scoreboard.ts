@@ -1,9 +1,10 @@
 import { and, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "./index";
 import { getLogoOverrides } from "./logos";
+import { getAvatarsFor } from "./queries";
 import { logoKey, teamLogoPath } from "@/app/logo-key";
 import { runnersOn, type BaseName } from "@/app/bases";
-import { currentBases, gameState } from "@/app/derive-box-score";
+import { REGULATION_INNINGS, currentBases, gameState } from "@/app/derive-box-score";
 import { nextInOrder } from "@/app/scoring";
 import { games, players, plateAppearances, scorecardLineups, scorecards, teams } from "./schema";
 
@@ -22,11 +23,55 @@ import { games, players, plateAppearances, scorecardLineups, scorecards, teams }
  * ahead - the umpire calls the third out on the field well before they record
  * it here - so the board has to be able to name the other side's leadoff man
  * the moment the half turns over, without waiting for this to catch up.
+ *
+ * The line score and every man's figures for the day come out of the box score
+ * that is derived here anyway, so they cost nothing to send. What is
+ * deliberately *not* sent is season averages. Those live in the archive, keyed
+ * by name, and reading them on a poll that runs every few seconds all evening
+ * is the kind of query that has taken this site down before. A real board
+ * leads with what a man has done today in any case.
  */
+
+/** What a batter has done in this game. Not his season - see above. */
+export type BatterGameLine = {
+  atBats: number;
+  hits: number;
+  runs: number;
+  homeRuns: number;
+  rbis: number;
+  walks: number;
+  strikeouts: number;
+};
+
+/**
+ * What a pitcher has done in this game. Outs rather than innings, so the board
+ * can write 4.2 the way a scoreboard writes it without the thirds being
+ * rounded on the way here.
+ */
+export type PitcherGameLine = {
+  outs: number;
+  hits: number;
+  runs: number;
+  earnedRuns: number;
+  walks: number;
+  strikeouts: number;
+};
 
 export type ScoreboardPlayer = {
   playerId: number;
   name: string;
+  /**
+   * The Minecraft account behind the name, which is where the head beside it
+   * comes from. Null for a player nobody has linked, and the board draws a
+   * blank square rather than a stranger's face.
+   */
+  uuid: string | null;
+};
+
+export type ScoreboardLineupRow = ScoreboardPlayer & {
+  slot: number | null;
+  position: string;
+  line: BatterGameLine;
 };
 
 export type ScoreboardSide = {
@@ -36,11 +81,31 @@ export type ScoreboardSide = {
   color: string | null;
   logo: string | null;
   /** The order as handed in, with whoever holds each slot now. */
-  lineup: { slot: number | null; playerId: number; name: string; position: string }[];
+  lineup: ScoreboardLineupRow[];
   /** Who bats next for this side, by the last slot it batted. */
-  nextBatter: (ScoreboardPlayer & { slot: number | null }) | null;
+  nextBatter:
+    | (ScoreboardPlayer & { slot: number | null; position: string; line: BatterGameLine })
+    | null;
   /** Whoever is standing at P for this side. */
-  pitcher: ScoreboardPlayer | null;
+  pitcher: (ScoreboardPlayer & { line: PitcherGameLine }) | null;
+};
+
+/**
+ * The row of numbers that makes a scoreboard a scoreboard.
+ *
+ * `away` and `home` run only as far as each side has actually batted, so a
+ * half-inning that has not been played is a gap rather than a nought - the
+ * difference between being held scoreless and still being in the dugout.
+ */
+export type Linescore = {
+  /** A full game here is six innings, not nine. */
+  regulation: number;
+  away: number[];
+  home: number[];
+  awayHits: number;
+  homeHits: number;
+  awayErrors: number;
+  homeErrors: number;
 };
 
 export type Scoreboard = {
@@ -63,6 +128,7 @@ export type Scoreboard = {
   homeScore: number;
   /** Runners aboard, nearest home first - the order they would score in. */
   bases: { base: BaseName; playerId: number; name: string }[];
+  linescore: Linescore;
 };
 
 /** Columns `deriveBoxScore` needs, and nothing else - this runs on a poll. */
@@ -87,6 +153,26 @@ const APPEARANCE_COLUMNS = {
   putoutPlayerId: plateAppearances.putoutPlayerId,
   basesAfter: plateAppearances.basesAfter,
   runnersScored: plateAppearances.runnersScored,
+};
+
+/** A man who has not come to the plate yet still gets a line, all noughts. */
+const NO_BATTING: BatterGameLine = {
+  atBats: 0,
+  hits: 0,
+  runs: 0,
+  homeRuns: 0,
+  rbis: 0,
+  walks: 0,
+  strikeouts: 0,
+};
+
+const NO_PITCHING: PitcherGameLine = {
+  outs: 0,
+  hits: 0,
+  runs: 0,
+  earnedRuns: 0,
+  walks: 0,
+  strikeouts: 0,
 };
 
 /**
@@ -165,6 +251,44 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
   const nameOf = new Map(roster.map((player) => [player.id, player.displayName]));
   const name = (playerId: number) => nameOf.get(playerId) ?? "Unknown";
 
+  // Heads come from the account id and never from the name, for the reason the
+  // rest of the site gives: names get reused by strangers. One batched lookup
+  // covers the two dozen men in a game, which is what getAvatarsFor is for.
+  const avatars = await getAvatarsFor(roster.map((player) => player.displayName));
+  const uuidOf = (playerId: number) => avatars[nameOf.get(playerId) ?? ""] ?? null;
+
+  // Everybody's figures for the day, taken out of the box score that was
+  // derived above anyway. Both sides go in one map because the man the board is
+  // featuring may belong to either: when the plugin has rolled the half over,
+  // the batter shown is the other side's leadoff man.
+  const batting = new Map(
+    [...state.awayBatting, ...state.homeBatting].map((line): [number, BatterGameLine] => [
+      line.playerId,
+      {
+        atBats: line.atBats,
+        hits: line.hits,
+        runs: line.runs,
+        homeRuns: line.homeRuns,
+        rbis: line.rbis,
+        walks: line.walks,
+        strikeouts: line.strikeouts,
+      },
+    ]),
+  );
+  const pitching = new Map(
+    [...state.awayPitching, ...state.homePitching].map((line): [number, PitcherGameLine] => [
+      line.playerId,
+      {
+        outs: line.outs,
+        hits: line.hits,
+        runs: line.runs,
+        earnedRuns: line.earnedRuns,
+        walks: line.walks,
+        strikeouts: line.strikeouts,
+      },
+    ]),
+  );
+
   // Somebody who has walked off the field keeps their lineup row and their
   // batting slot, because in this league they come back - but the turn passes
   // over them and they are not standing anywhere. Same rule the umpire's board
@@ -210,11 +334,27 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
           playerId: row.playerId,
           name: name(row.playerId),
           position: row.position,
+          uuid: uuidOf(row.playerId),
+          line: batting.get(row.playerId) ?? NO_BATTING,
         })),
       nextBatter: up
-        ? { playerId: up.playerId, name: name(up.playerId), slot: up.battingOrder }
+        ? {
+            playerId: up.playerId,
+            name: name(up.playerId),
+            slot: up.battingOrder,
+            position: up.position,
+            uuid: uuidOf(up.playerId),
+            line: batting.get(up.playerId) ?? NO_BATTING,
+          }
         : null,
-      pitcher: onMound ? { playerId: onMound.playerId, name: name(onMound.playerId) } : null,
+      pitcher: onMound
+        ? {
+            playerId: onMound.playerId,
+            name: name(onMound.playerId),
+            uuid: uuidOf(onMound.playerId),
+            line: pitching.get(onMound.playerId) ?? NO_PITCHING,
+          }
+        : null,
     };
   };
 
@@ -235,5 +375,14 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
       playerId: runner.playerId,
       name: name(runner.playerId),
     })),
+    linescore: {
+      regulation: REGULATION_INNINGS,
+      away: state.awayInnings,
+      home: state.homeInnings,
+      awayHits: state.awayHits,
+      homeHits: state.homeHits,
+      awayErrors: state.awayErrors,
+      homeErrors: state.homeErrors,
+    },
   };
 }

@@ -268,8 +268,13 @@ Rules that are easy to break:
   shown empty.** The site's runners belong to the half it thinks is being
   played; drawing them after the plugin has rolled over puts a man on second who
   is already in the dugout.
-- An arena is tied to a club by `teams.<key>.site-team-id` in the plugin's
-  `config.yml`, never by matching names: the plugin's abbreviations are
+- **A ground takes its club from its own board's address**, so a screen
+  pointed at `/scoreboard/8` is Philadelphia's. Nothing in the plugin's
+  `config.yml` says it. It was configured there once, per team, and that was
+  wrong twice over: the same fact lived in two files that could disagree, and
+  it was reached through whichever game was loaded in the arena, so a stadium
+  with no game running belonged to no club and silently got no lineups.
+  Nothing is ever matched on a name - the plugin's abbreviations are
   MiniMessage strings and the site's are plain.
 - `OffBoard` in `app/layout.tsx` keeps the cookie notice and the analytics
   beacon off these pages. A banner over the score, and every player's client

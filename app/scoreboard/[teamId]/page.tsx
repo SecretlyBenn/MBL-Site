@@ -44,8 +44,15 @@ export default async function ScoreboardPage({
   // The board is rendered from whatever host is serving it, so the logo
   // addresses it hands out are right on workers.dev today and right on the
   // league's own domain the day that changes.
-  const host = (await headers()).get("host");
-  const origin = host ? `https://${host}` : SITE.url;
+  // The scheme is taken from the proxy that forwarded the request, not assumed.
+  // Hardcoding https served the live site correctly and made every logo on a
+  // developer's machine point at an https localhost that answers nothing, so
+  // the board could only be looked at in production.
+  const incoming = await headers();
+  const host = incoming.get("host");
+  const scheme =
+    incoming.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+  const origin = host ? `${scheme}://${host}` : SITE.url;
 
   const [board, overrides, league] = await Promise.all([
     getScoreboard(teamId, origin),
@@ -56,6 +63,12 @@ export default async function ScoreboardPage({
   ]);
 
   const path = overrides[logoKey(club.name)] ?? teamLogoPath(club.name);
+
+  // The league's own crest, from the site rather than from whatever address an
+  // operator typed into the plugin. Those were small images scaled up on a
+  // screen the size of a wall; these are the 512px ones the site already ships,
+  // and they need no configuring to be right.
+  const leagueLogo = league?.slug ? new URL(`/${league.slug}-logo.png`, origin).toString() : null;
 
   return (
     <Jumbotron
@@ -68,6 +81,8 @@ export default async function ScoreboardPage({
         logo: path ? new URL(path, origin).toString() : null,
       }}
       leagueName={league?.name ?? SITE.name}
+      leagueLogo={leagueLogo}
+      origin={origin}
       preview={(await searchParams).preview === "1"}
     />
   );

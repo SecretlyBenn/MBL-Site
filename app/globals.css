@@ -882,3 +882,38 @@ body {
   }
 
 }
+
+/*
+ * The condensed face the stadium jumbotrons are set in, and nothing else on the
+ * site. A scoreboard is condensed type: it is how names and figures that would
+ * not otherwise fit across a panel do, and how the numerals line up in columns.
+ *
+ * Served from public/ with the address written out by hand rather than through
+ * next/font, because vinext writes the developer's own filesystem path into the
+ * @font-face it generates - the live site asks for
+ * file:///C:/Users/.../.vinext/fonts/... , which no browser will load. That
+ * affects Geist too and has been the case for as long as both have been there;
+ * the board is simply the first page whose layout is measured against its font,
+ * so it is the first place the fallback was obvious.
+ */
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/fonts/barlow-condensed-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/barlow-condensed-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Barlow Condensed";
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url("/fonts/barlow-condensed-900.woff2") format("woff2");
+}
