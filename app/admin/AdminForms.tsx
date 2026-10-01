@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { describeLocalDateTime } from "@/app/datetime";
+import { describeEastern } from "@/app/datetime";
+import { easternInputToIso } from "@/app/eastern";
 import type { Role } from "@/db/schema";
 import { TeamLogo } from "@/app/TeamLogo";
 import { DeleteButton, DoneText, ErrorText, FormCard, useRequest, type Option } from "./ui";
@@ -499,15 +500,18 @@ export function ScheduleGameForm({ teams }: { teams: Option[] }) {
       title="One-off game"
       help="A game that isn't a fixture in any season - an exhibition, say. Season games are scheduled from the schedule page."
       onSubmit={async () => {
-        if (await send("POST", "/api/games", { awayTeamId, homeTeamId, scheduledAt: new Date(scheduledAt).toISOString() })) {
+        if (await send("POST", "/api/games", { awayTeamId, homeTeamId, scheduledAt: easternInputToIso(scheduledAt) })) {
           setScheduledAt("");
         }
       }}
     >
       <TeamSelect teams={teams} value={awayTeamId} onChange={setAwayTeamId} placeholder="Away team" required />
       <TeamSelect teams={teams} value={homeTeamId} onChange={setHomeTeamId} placeholder="Home team" required />
-      <input className="ui-input" type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} required />
-      {describeLocalDateTime(scheduledAt) && <p className="text-xs font-medium text-slate-300">{describeLocalDateTime(scheduledAt)}</p>}
+      <label className="flex flex-col gap-1 text-xs font-bold uppercase tracking-wide text-slate-400">
+        Start time (Eastern)
+        <input className="ui-input" type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} required />
+      </label>
+      {describeEastern(scheduledAt) && <p className="text-xs font-medium text-slate-300">{describeEastern(scheduledAt)}</p>}
       <button type="submit" disabled={busy || !awayTeamId || awayTeamId === homeTeamId} className="ui-button-primary self-start">
         {busy ? "Scheduling…" : "Schedule game"}
       </button>

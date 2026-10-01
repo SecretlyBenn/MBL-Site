@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { inEastern } from "@/app/eastern";
 
 /**
  * The part of an article readers take part in: the like, and the comments.
@@ -19,15 +20,14 @@ type Comment = {
   createdAt: string;
 };
 
+/**
+ * When a comment was left, in the league's time like every other clock on the
+ * site. `created_at` is a UTC timestamp from the database rather than a
+ * wall-clock string, so it is stamped Z before being read.
+ */
 function when(value: string) {
-  const date = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const utc = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  return inEastern(/[zZ]|[+-]\d\d:?\d\d$/.test(utc) ? utc : `${utc}Z`, "short");
 }
 
 export function Reactions({

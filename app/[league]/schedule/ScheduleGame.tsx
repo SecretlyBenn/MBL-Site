@@ -2,29 +2,20 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { describeLocalDateTime } from "@/app/datetime";
+import { describeEastern } from "@/app/datetime";
+import { easternInputToIso, inEastern, toEasternInputValue } from "@/app/eastern";
 
 /**
- * An agreed time as it should read: "Sun, Sep 13, 7:00 PM".
+ * The time two clubs agreed on, in the league's own timezone.
  *
- * The stored value is a wall-clock time with no zone - "2026-09-13T19:00", as
- * the clubs typed it. Formatting it with the viewer's own locale and zone meant
- * the server (running in UTC, in a different locale) and the browser produced
- * different text, and React threw the card away on load to re-render it. Read
- * as UTC and printed as UTC in a fixed locale, the numbers come out exactly as
- * entered, identically everywhere.
+ * This used to render in UTC with no label, which read correctly only for the
+ * older rows - those are bare wall-clock strings and UTC left them alone. A
+ * game entered through the admin page is a real instant, so the same code
+ * showed it four or five hours out: one arranged for ten at night appeared on
+ * the umpire's page as five the next morning.
  */
 export function formatAgreedTime(scheduledAt: string) {
-  const parsed = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(scheduledAt) ? scheduledAt : `${scheduledAt}Z`);
-  if (Number.isNaN(parsed.valueOf())) return scheduledAt;
-  return parsed.toLocaleString("en-US", {
-    timeZone: "UTC",
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return inEastern(scheduledAt, "short") || scheduledAt;
 }
 
 /**
@@ -48,7 +39,9 @@ export function ScheduleGame({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState(scheduledAt ?? "");
+  // Shown in Eastern, so a GM in another timezone edits the hour the league
+  // agreed rather than the hour their own laptop would have shown.
+  const [value, setValue] = useState(toEasternInputValue(scheduledAt));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -59,7 +52,9 @@ export function ScheduleGame({
       const response = await fetch("/api/games/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceGameId, scheduledAt: value }),
+        // Stored as a real instant. What the box holds is Eastern, because
+        // that is what the person was told to type.
+        body: JSON.stringify({ sourceGameId, scheduledAt: easternInputToIso(value) ?? value }),
       });
       const body = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Could not schedule the game.");
@@ -117,14 +112,17 @@ export function ScheduleGame({
 
   return (
     <div className="mt-2 space-y-2 border-t border-slate-800/80 pt-2">
+      <p className="text-[0.65rem] font-bold uppercase tracking-wide text-slate-500">
+        Start time (Eastern)
+      </p>
       <input
         type="datetime-local"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         className="ui-select w-full !py-1 text-xs"
       />
-      {describeLocalDateTime(value) && (
-        <p className="text-[11px] font-medium text-slate-300">{describeLocalDateTime(value)}</p>
+      {describeEastern(value) && (
+        <p className="text-[11px] font-medium text-slate-300">{describeEastern(value)}</p>
       )}
       {error && <p role="alert" className="text-[11px] text-rose-400">{error}</p>}
       <div className="flex flex-wrap gap-2">

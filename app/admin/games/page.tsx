@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { inEastern } from "@/app/eastern";
 import { asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, historicalGames, historicalSeasons, historicalTeams, leagues, scorecards, teams } from "@/db/schema";
@@ -65,7 +66,7 @@ export default async function AdminGamesPage({ searchParams }: { searchParams: P
                     {teamName.get(game.awayTeamId) ?? "Away"} @ {teamName.get(game.homeTeamId) ?? "Home"}
                   </span>
                   <span className="text-xs text-slate-400">
-                    {new Date(game.scheduledAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                    {inEastern(game.scheduledAt, "short")}
                   </span>
                   <span className="text-xs text-slate-500">
                     {game.status}
