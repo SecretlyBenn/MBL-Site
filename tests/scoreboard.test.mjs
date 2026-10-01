@@ -126,19 +126,49 @@ test("a half-inning nobody has batted in is a gap, not a nought", () => {
   );
 });
 
-test("the board reads nothing from the archive on a poll", () => {
-  // Season averages would look right on screen and are not worth it: they live
-  // in the archive, keyed by name, and this runs every few seconds all evening.
-  // An unindexed archive read has exhausted the day's budget before and taken
-  // the whole site down with it.
-  assert.ok(
-    !query.includes("historicalPlayerStats") && !query.includes("historical_player_stats"),
-    "the jumbotron query reaches into the archive",
-  );
-  // Everything it does show about a player comes out of the box score it
-  // derives anyway, so it costs nothing.
+test("season figures are held rather than read on every poll", () => {
+  // The query is cheap - the archive indexes player_name and a game's worth of
+  // players is a couple of hundred rows - but this endpoint is polled every few
+  // seconds for a whole evening, and a couple of hundred rows two thousand
+  // times over is a quarter of the day's read budget for one game. A season
+  // total cannot move while the game is being played: it changes when a
+  // scorecard is approved, which is after the last pitch.
+  assert.ok(query.includes("seasonCache"), "season figures are read on every poll again");
+  assert.ok(query.includes("SEASON_HELD_MS"), "the figures are no longer held for a while");
+});
+
+test("the day's figures still cost nothing, because the box score is derived anyway", () => {
   assert.ok(query.includes("state.awayBatting"), "the day's batting lines are no longer reused");
   assert.ok(query.includes("state.awayInnings"), "the line score is no longer reused");
+});
+
+test("the averages come from whichever season the league has set", () => {
+  // Not a season named in the code. During the playoffs the setting says
+  // playoffs, and the board should not quietly disagree with the rest of the
+  // site about what is being played.
+  assert.ok(query.includes("currentSeasonName"), "the board picks its own season again");
+  assert.doesNotMatch(query, /Season X[I]*["']/, "a season is named in the code");
+});
+
+test("one competition's averages cannot land on the other's board", () => {
+  // current_season names one season for the whole site, and the MCBA's seasons
+  // are not the MBL's. A club whose league that season does not belong to gets
+  // no averages rather than somebody else's.
+  const held = query.slice(query.indexOf("async function seasonLines"));
+  assert.ok(
+    held.includes("season.leagueId !== leagueId"),
+    "the season is no longer checked against the club's competition",
+  );
+});
+
+test("the order shows the season, the man at the plate shows his day", () => {
+  // Which is how a ballpark board splits it: the column beside each name is
+  // what he hits, and what he has done tonight belongs to whoever is up.
+  assert.ok(
+    board.includes("detail={average(row.season)}"),
+    "the order is back to showing tonight's line beside every name",
+  );
+  assert.ok(board.includes("dayLine(batter.line)"), "the man at the plate lost his day");
 });
 
 test("heads come from the account id, batched, and by an absolute address", () => {

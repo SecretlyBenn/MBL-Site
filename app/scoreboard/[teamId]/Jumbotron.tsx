@@ -7,6 +7,7 @@ import type {
   PitcherGameLine,
   Scoreboard,
   ScoreboardSide,
+  SeasonLine,
 } from "@/db/scoreboard";
 
 /**
@@ -139,9 +140,21 @@ function dayNotes(line: BatterGameLine) {
   return notes;
 }
 
-/** The short form beside a name in the order - what he has done today. */
-const shortLine = (line: BatterGameLine) =>
-  line.atBats > 0 ? `${line.hits}-${line.atBats}` : line.walks > 0 ? "BB" : "";
+/**
+ * A batting average the way it is written on a scoreboard: .405, no nought in
+ * front of it. Three dashes for somebody who has not had an at-bat this season,
+ * because a blank column reads as a board that has stopped working.
+ */
+function average(season: SeasonLine | null) {
+  if (!season || season.average === null) return "---";
+  return season.average.toFixed(3).replace(/^0/, "");
+}
+
+/** An earned run average, which here is runs per six-inning game. */
+function era(season: SeasonLine | null) {
+  if (!season || season.era === null) return "---";
+  return season.era.toFixed(2);
+}
 
 export function Jumbotron({
   initial,
@@ -269,13 +282,13 @@ export function Jumbotron({
               src={view.leagueLogo}
               alt=""
               className={`shrink-0 object-contain drop-shadow-[0_0_1vh_rgba(0,0,0,0.6)] ${
-                view.live ? "h-[calc(var(--u)*6)]" : "h-[calc(var(--u)*12)]"
+                view.live ? "h-[calc(var(--u)*5)]" : "h-[calc(var(--u)*12)]"
               }`}
             />
           ) : null}
           <span
             className={`truncate font-black uppercase tracking-[0.18em] text-white ${
-              view.live ? "text-[length:calc(var(--u)*3)]" : "text-[length:calc(var(--u)*5)]"
+              view.live ? "text-[length:calc(var(--u)*2.7)]" : "text-[length:calc(var(--u)*5)]"
             }`}
           >
             {view.leagueName}
@@ -472,7 +485,7 @@ function LineupCard({
 
   return (
     <section
-      className="flex w-[23%] shrink-0 flex-col overflow-hidden rounded-[calc(var(--u)*0.8)] bg-black/40"
+      className="flex w-[25.5%] shrink-0 flex-col overflow-hidden rounded-[calc(var(--u)*0.8)] bg-black/40"
       style={{ boxShadow: `inset 0 0 0 0.3vh ${batting ? "#ffffff" : "rgba(255,255,255,0.14)"}` }}
     >
       <div
@@ -481,17 +494,17 @@ function LineupCard({
       >
         {side.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={side.logo} alt="" className="h-[calc(var(--u)*7)] w-[calc(var(--u)*7)] shrink-0 object-contain" />
+          <img src={side.logo} alt="" className="h-[calc(var(--u)*8.5)] w-[calc(var(--u)*8.5)] shrink-0 object-contain" />
         ) : null}
         <div className="min-w-0 flex-1">
-          <div className="text-[length:calc(var(--u)*1.6)] font-bold uppercase leading-none tracking-[0.3em] opacity-60">
+          <div className="text-[length:calc(var(--u)*1.9)] font-bold uppercase leading-none tracking-[0.3em] opacity-60">
             {label}
           </div>
-          <div className="truncate text-[length:calc(var(--u)*4.2)] font-black uppercase leading-none tracking-tight">
+          <div className="truncate text-[length:calc(var(--u)*5.4)] font-black uppercase leading-none tracking-tight">
             {side.abbreviation}
           </div>
         </div>
-        <div className="text-[length:calc(var(--u)*7)] font-black leading-[0.8] tabular-nums tracking-tighter">
+        <div className="text-[length:calc(var(--u)*9.5)] font-black leading-[0.8] tabular-nums tracking-tighter">
           {score}
         </div>
       </div>
@@ -504,7 +517,7 @@ function LineupCard({
             name={row.name}
             position={row.position}
             uuid={row.uuid}
-            detail={shortLine(row.line)}
+            detail={average(row.season)}
             up={row.playerId === batterId}
             origin={origin}
           />
@@ -516,7 +529,7 @@ function LineupCard({
             name={pitcher.name}
             position="P"
             uuid={pitcher.uuid}
-            detail={inningsPitched(pitcher.line.outs)}
+            detail={era(pitcher.season)}
             up={false}
             origin={origin}
           />
@@ -550,25 +563,25 @@ function LineupRow({
       }`}
     >
       <span
-        className={`w-[calc(var(--u)*2.2)] shrink-0 text-right text-[length:calc(var(--u)*2.1)] font-bold tabular-nums ${
+        className={`w-[calc(var(--u)*2.6)] shrink-0 text-right text-[length:calc(var(--u)*2.6)] font-bold tabular-nums ${
           up ? "opacity-70" : "text-white/40"
         }`}
       >
         {slot ?? "·"}
       </span>
-      <Head uuid={uuid} size="calc(var(--u)*3)" origin={origin} />
-      <span className="min-w-0 flex-1 truncate text-[length:calc(var(--u)*2.6)] font-bold uppercase tracking-tight">
+      <Head uuid={uuid} size="calc(var(--u)*3.8)" origin={origin} />
+      <span className="min-w-0 flex-1 truncate text-[length:calc(var(--u)*3.3)] font-bold uppercase tracking-tight">
         {name}
       </span>
       <span
-        className={`w-[calc(var(--u)*3.2)] shrink-0 text-[length:calc(var(--u)*1.9)] font-bold uppercase ${
+        className={`w-[calc(var(--u)*3.3)] shrink-0 text-[length:calc(var(--u)*2.2)] font-bold uppercase ${
           up ? "opacity-70" : "text-white/45"
         }`}
       >
         {position}
       </span>
       <span
-        className={`w-[calc(var(--u)*4.2)] shrink-0 text-right text-[length:calc(var(--u)*2)] font-bold tabular-nums ${
+        className={`w-[calc(var(--u)*5)] shrink-0 text-right text-[length:calc(var(--u)*2.6)] font-bold tabular-nums ${
           up ? "opacity-80" : "text-amber-300/80"
         }`}
       >
@@ -596,8 +609,8 @@ function Feature({ view, origin }: { view: BoardView; origin: string }) {
         className="flex shrink-0 items-baseline justify-between rounded-[calc(var(--u)*0.6)] px-[calc(var(--u)*1.2)] py-[calc(var(--u)*0.5)]"
         style={{ background: tint, color: ink }}
       >
-        <span className="text-[length:calc(var(--u)*2.2)] font-black uppercase tracking-[0.3em]">At bat</span>
-        <span className="truncate text-[length:calc(var(--u)*2.4)] font-bold uppercase tracking-wider opacity-80">
+        <span className="text-[length:calc(var(--u)*2.6)] font-black uppercase tracking-[0.3em]">At bat</span>
+        <span className="truncate text-[length:calc(var(--u)*2.8)] font-bold uppercase tracking-wider opacity-80">
           {view.battingSide?.name ?? ""}
         </span>
       </div>
@@ -606,45 +619,73 @@ function Feature({ view, origin }: { view: BoardView; origin: string }) {
         className="flex shrink-0 items-center gap-[calc(var(--u)*1.6)] rounded-[calc(var(--u)*0.6)] p-[calc(var(--u)*1)]"
         style={{ background: `linear-gradient(90deg, ${tint}59, transparent 70%)` }}
       >
-        <Head uuid={batter?.uuid} size="calc(var(--u)*16)" origin={origin} className="rounded-[calc(var(--u)*0.5)]" />
+        <Head uuid={batter?.uuid} size="calc(var(--u)*19)" origin={origin} className="rounded-[calc(var(--u)*0.5)]" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-[calc(var(--u)*1.2)]">
-            <span className="shrink-0 text-[length:calc(var(--u)*6)] font-black leading-none tabular-nums text-white/30">
+          <div className="flex items-baseline gap-[calc(var(--u)*1.4)]">
+            <span className="shrink-0 text-[length:calc(var(--u)*7)] font-black leading-none tabular-nums text-white/30">
               {batter?.slot ?? "·"}
             </span>
-            <span className="min-w-0 truncate text-[length:calc(var(--u)*6)] font-black uppercase leading-none tracking-tight">
+            <span className="min-w-0 truncate text-[length:calc(var(--u)*7.6)] font-black uppercase leading-none tracking-tight">
               {batter?.name ?? "—"}
             </span>
-            <span className="shrink-0 text-[length:calc(var(--u)*2.6)] font-bold uppercase text-white/50">
+            <span className="shrink-0 text-[length:calc(var(--u)*3)] font-bold uppercase text-white/50">
               {batter?.position ?? ""}
             </span>
           </div>
-          <div className="mt-[calc(var(--u)*0.8)] flex items-baseline gap-[calc(var(--u)*1)]">
-            <span className="shrink-0 text-[length:calc(var(--u)*3.2)] font-black uppercase tracking-tight text-amber-300">
+          <div className="mt-[calc(var(--u)*1)] flex items-baseline gap-[calc(var(--u)*1.2)]">
+            <span className="shrink-0 text-[length:calc(var(--u)*4.2)] font-black uppercase tracking-tight text-amber-300">
               {batter ? dayLine(batter.line) : ""}
             </span>
             {notes.map((note) => (
               <span
                 key={note}
-                className="shrink-0 rounded-[calc(var(--u)*0.4)] bg-white/10 px-[calc(var(--u)*0.8)] py-[calc(var(--u)*0.2)] text-[length:calc(var(--u)*2.1)] font-bold uppercase tracking-wider text-white/80"
+                className="shrink-0 rounded-[calc(var(--u)*0.4)] bg-white/10 px-[calc(var(--u)*0.9)] py-[calc(var(--u)*0.2)] text-[length:calc(var(--u)*2.6)] font-bold uppercase tracking-wider text-white/80"
               >
                 {note}
               </span>
             ))}
           </div>
+          {/* His season, under the day he is having. The two are different
+              questions - how he is going tonight, and whether he is any good -
+              and a board that shows only one of them gets asked for the other. */}
+          {batter?.season ? (
+            <div className="mt-[calc(var(--u)*0.7)] flex items-baseline gap-[calc(var(--u)*1.6)] text-white/70">
+              <span className="text-[length:calc(var(--u)*3.6)] font-black tabular-nums tracking-tight">
+                {average(batter.season)}
+              </span>
+              <span className="text-[length:calc(var(--u)*2.6)] font-bold uppercase tracking-wider">
+                {batter.season.homeRuns} HR
+              </span>
+              <span className="text-[length:calc(var(--u)*2.6)] font-bold uppercase tracking-wider">
+                {batter.season.rbis} RBI
+              </span>
+            </div>
+          ) : null}
         </div>
       </div>
 
       <Bases bases={view.bases} onDeck={view.onDeck} />
 
-      <div className="flex shrink-0 items-center gap-[calc(var(--u)*1.4)] rounded-[calc(var(--u)*0.6)] bg-white/[0.05] px-[calc(var(--u)*1.2)] py-[calc(var(--u)*0.8)]">
-        <span className="shrink-0 text-[length:calc(var(--u)*1.9)] font-black uppercase tracking-[0.2em] text-white/45">
+      <div className="flex shrink-0 items-center gap-[calc(var(--u)*1.1)] rounded-[calc(var(--u)*0.6)] bg-white/[0.05] px-[calc(var(--u)*1)] py-[calc(var(--u)*0.8)]">
+        <span className="shrink-0 text-[length:calc(var(--u)*2)] font-black uppercase tracking-[0.1em] text-white/45">
           Pitching
         </span>
-        <Head uuid={pitcher?.uuid} size="calc(var(--u)*6)" origin={origin} className="rounded-[calc(var(--u)*0.4)]" />
-        <span className="min-w-0 flex-1 truncate text-[length:calc(var(--u)*3.6)] font-black uppercase leading-none tracking-tight">
-          {pitcher?.name ?? "—"}
-        </span>
+        <Head uuid={pitcher?.uuid} size="calc(var(--u)*7.5)" origin={origin} className="rounded-[calc(var(--u)*0.4)]" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[length:calc(var(--u)*4.2)] font-black uppercase leading-none tracking-tight">
+            {pitcher?.name ?? "—"}
+          </div>
+          {pitcher?.season && (pitcher.season.era !== null || pitcher.season.wins + pitcher.season.losses > 0) ? (
+            <div className="mt-[calc(var(--u)*0.5)] flex items-baseline gap-[calc(var(--u)*1.4)] text-white/60">
+              <span className="text-[length:calc(var(--u)*2.4)] font-bold tabular-nums">
+                {pitcher.season.wins}-{pitcher.season.losses}
+              </span>
+              <span className="text-[length:calc(var(--u)*2.4)] font-bold tabular-nums">
+                {era(pitcher.season)} ERA
+              </span>
+            </div>
+          ) : null}
+        </div>
         {pitcher ? <PitcherLine line={pitcher.line} /> : null}
       </div>
     </section>
@@ -664,11 +705,11 @@ function PitcherLine({ line }: { line: PitcherGameLine }) {
   return (
     <div className="flex shrink-0 gap-[calc(var(--u)*0.9)]">
       {columns.map(([label, value]) => (
-        <div key={label} className="flex w-[calc(var(--u)*5.2)] flex-col items-center">
-          <span className="text-[length:calc(var(--u)*1.6)] font-bold uppercase tracking-widest text-white/40">
+        <div key={label} className="flex w-[calc(var(--u)*5.6)] flex-col items-center">
+          <span className="text-[length:calc(var(--u)*2)] font-bold uppercase tracking-widest text-white/40">
             {label}
           </span>
-          <span className="text-[length:calc(var(--u)*3)] font-black leading-none tabular-nums">{value}</span>
+          <span className="text-[length:calc(var(--u)*3.8)] font-black leading-none tabular-nums">{value}</span>
         </div>
       ))}
     </div>
@@ -701,7 +742,7 @@ function Bases({
     const on = runner(which) !== null;
     return (
       <span
-        className="h-[calc(var(--u)*6.4)] w-[calc(var(--u)*6.4)] rotate-45 border-[calc(var(--u)*0.4)]"
+        className="h-[calc(var(--u)*8.8)] w-[calc(var(--u)*8.8)] rotate-45 border-[calc(var(--u)*0.5)]"
         style={
           on
             ? { background: "#fbbf24", borderColor: "#ffffff", boxShadow: "0 0 2vh #fbbf24aa" }
@@ -715,7 +756,7 @@ function Bases({
 
   return (
     <div className="flex min-h-0 flex-1 items-center gap-[calc(var(--u)*2.6)] rounded-[calc(var(--u)*0.6)] bg-white/[0.04] px-[calc(var(--u)*1.8)] py-[calc(var(--u)*1)]">
-      <div className="flex w-[calc(var(--u)*22)] shrink-0 flex-col items-center gap-[calc(var(--u)*2.2)]">
+      <div className="flex w-[calc(var(--u)*30)] shrink-0 flex-col items-center gap-[calc(var(--u)*3)]">
         {base("second")}
         <div className="flex w-full items-center justify-between">
           {base("third")}
@@ -725,16 +766,16 @@ function Bases({
 
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-[calc(var(--u)*0.5)]">
         {aboard.length === 0 ? (
-          <span className="text-[length:calc(var(--u)*2.8)] font-bold uppercase tracking-[0.3em] text-white/35">
+          <span className="text-[length:calc(var(--u)*3.6)] font-bold uppercase tracking-[0.3em] text-white/35">
             Bases empty
           </span>
         ) : (
           aboard.map((which) => (
             <div key={which} className="flex min-w-0 items-baseline gap-[calc(var(--u)*1.2)]">
-              <span className="w-[calc(var(--u)*4.6)] shrink-0 text-[length:calc(var(--u)*2.2)] font-black uppercase tracking-widest text-amber-300">
+              <span className="w-[calc(var(--u)*6)] shrink-0 text-[length:calc(var(--u)*3.2)] font-black uppercase tracking-widest text-amber-300">
                 {BASE_LABELS[which]}
               </span>
-              <span className="min-w-0 truncate text-[length:calc(var(--u)*3.2)] font-bold uppercase tracking-tight">
+              <span className="min-w-0 truncate text-[length:calc(var(--u)*4.8)] font-bold uppercase tracking-tight">
                 {runner(which)?.name}
               </span>
             </div>
@@ -744,10 +785,10 @@ function Bases({
             nothing: it is the next name down the order already on screen. */}
         {onDeck ? (
           <div className="mt-[calc(var(--u)*0.8)] flex min-w-0 items-baseline gap-[calc(var(--u)*1.2)] border-t-[calc(var(--u)*0.2)] border-white/10 pt-[calc(var(--u)*0.8)]">
-            <span className="shrink-0 text-[length:calc(var(--u)*2)] font-bold uppercase tracking-[0.25em] text-white/40">
+            <span className="shrink-0 text-[length:calc(var(--u)*2.4)] font-bold uppercase tracking-[0.25em] text-white/40">
               On deck
             </span>
-            <span className="min-w-0 truncate text-[length:calc(var(--u)*2.8)] font-bold uppercase tracking-tight text-white/75">
+            <span className="min-w-0 truncate text-[length:calc(var(--u)*4.2)] font-bold uppercase tracking-tight text-white/75">
               {onDeck}
             </span>
           </div>
@@ -810,29 +851,29 @@ function LinescoreBoard({
       >
         {side.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={side.logo} alt="" className="h-[calc(var(--u)*3.6)] w-[calc(var(--u)*3.6)] shrink-0 object-contain" />
+          <img src={side.logo} alt="" className="h-[calc(var(--u)*4.6)] w-[calc(var(--u)*4.6)] shrink-0 object-contain" />
         ) : null}
-        <span className="truncate text-[length:calc(var(--u)*3)] font-black uppercase tracking-tight">
+        <span className="truncate text-[length:calc(var(--u)*4.2)] font-black uppercase tracking-tight">
           {side.abbreviation}
         </span>
       </div>
       {frames.map((frame) => (
         <div
           key={frame}
-          className={`flex items-center justify-center text-[length:calc(var(--u)*3)] font-bold tabular-nums ${
+          className={`flex items-center justify-center text-[length:calc(var(--u)*4.4)] font-bold tabular-nums ${
             live && frame === inning ? "bg-amber-300/20 text-amber-200" : "text-white/80"
           }`}
         >
           {cell(runs, frame)}
         </div>
       ))}
-      <div className="flex items-center justify-center border-l-[calc(var(--u)*0.3)] border-white/20 text-[length:calc(var(--u)*3.6)] font-black tabular-nums">
+      <div className="flex items-center justify-center border-l-[calc(var(--u)*0.3)] border-white/20 text-[length:calc(var(--u)*5.4)] font-black tabular-nums">
         {score}
       </div>
-      <div className="flex items-center justify-center text-[length:calc(var(--u)*3)] font-bold tabular-nums text-white/70">
+      <div className="flex items-center justify-center text-[length:calc(var(--u)*4.2)] font-bold tabular-nums text-white/70">
         {hits}
       </div>
-      <div className="flex items-center justify-center text-[length:calc(var(--u)*3)] font-bold tabular-nums text-white/70">
+      <div className="flex items-center justify-center text-[length:calc(var(--u)*4.2)] font-bold tabular-nums text-white/70">
         {errors}
       </div>
     </>
@@ -850,7 +891,7 @@ function LinescoreBoard({
       {frames.map((frame) => (
         <div
           key={frame}
-          className={`flex items-center justify-center bg-white/[0.06] py-[calc(var(--u)*0.2)] text-[length:calc(var(--u)*2)] font-bold tabular-nums ${
+          className={`flex items-center justify-center bg-white/[0.06] py-[calc(var(--u)*0.2)] text-[length:calc(var(--u)*2.4)] font-bold tabular-nums ${
             frame === inning ? "text-amber-300" : "text-white/45"
           }`}
         >
@@ -860,7 +901,7 @@ function LinescoreBoard({
       {["R", "H", "E"].map((label) => (
         <div
           key={label}
-          className="flex items-center justify-center bg-white/[0.06] py-[calc(var(--u)*0.2)] text-[length:calc(var(--u)*2)] font-black uppercase tracking-widest text-white/45"
+          className="flex items-center justify-center bg-white/[0.06] py-[calc(var(--u)*0.2)] text-[length:calc(var(--u)*2.4)] font-black uppercase tracking-widest text-white/45"
         >
           {label}
         </div>
@@ -884,12 +925,12 @@ function CountPanel({ balls, strikes, outs }: { balls: number; strikes: number; 
   // fixed width: "strike" is half as long again as "ball", and pinning all
   // three to one width ran the labels into each other.
   const column = (label: string, value: number, amber: boolean) => (
-    <div className="flex flex-col items-center justify-center px-[calc(var(--u)*1.4)]">
-      <span className="whitespace-nowrap text-[length:calc(var(--u)*1.9)] font-bold uppercase tracking-[0.18em] text-white/45">
+    <div className="flex flex-col items-center justify-center px-[calc(var(--u)*1.8)]">
+      <span className="whitespace-nowrap text-[length:calc(var(--u)*2.4)] font-bold uppercase tracking-[0.18em] text-white/45">
         {label}
       </span>
       <span
-        className={`text-[length:calc(var(--u)*8)] font-black leading-[0.9] tabular-nums ${
+        className={`text-[length:calc(var(--u)*11)] font-black leading-[0.9] tabular-nums ${
           amber ? "text-amber-300" : "text-white"
         }`}
       >

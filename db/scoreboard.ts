@@ -1,12 +1,22 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "./index";
 import { getLogoOverrides } from "./logos";
 import { getAvatarsFor } from "./queries";
+import { currentSeasonName } from "./settings";
 import { logoKey, teamLogoPath } from "@/app/logo-key";
 import { runnersOn, type BaseName } from "@/app/bases";
 import { REGULATION_INNINGS, currentBases, gameState } from "@/app/derive-box-score";
-import { nextInOrder } from "@/app/scoring";
-import { games, players, plateAppearances, scorecardLineups, scorecards, teams } from "./schema";
+import { earnedRunAverage, nextInOrder } from "@/app/scoring";
+import {
+  games,
+  historicalPlayerStats,
+  historicalSeasons,
+  players,
+  plateAppearances,
+  scorecardLineups,
+  scorecards,
+  teams,
+} from "./schema";
 
 /**
  * What a stadium's jumbotron needs from the site.
@@ -57,6 +67,30 @@ export type PitcherGameLine = {
   strikeouts: number;
 };
 
+/**
+ * What a player has done this season, which is the number a ballpark board
+ * puts beside a name.
+ *
+ * Taken from the archive, which is where a season's totals live once a game is
+ * approved, and from whichever season the league has set as the current one -
+ * so during the playoffs these are playoff figures, on a handful of games.
+ * That is what the Seasons page says the league is playing, and the board
+ * should not quietly disagree with the rest of the site.
+ *
+ * A player who has changed club mid-season has a row per club, so the rows are
+ * added together rather than taking the first.
+ */
+export type SeasonLine = {
+  /** Worked out here: a board has no room to print hits and at-bats as well. */
+  average: number | null;
+  homeRuns: number;
+  rbis: number;
+  /** Nulls for somebody who has not pitched, which is most of a side. */
+  era: number | null;
+  wins: number;
+  losses: number;
+};
+
 export type ScoreboardPlayer = {
   playerId: number;
   name: string;
@@ -72,6 +106,7 @@ export type ScoreboardLineupRow = ScoreboardPlayer & {
   slot: number | null;
   position: string;
   line: BatterGameLine;
+  season: SeasonLine | null;
 };
 
 export type ScoreboardSide = {
@@ -84,10 +119,15 @@ export type ScoreboardSide = {
   lineup: ScoreboardLineupRow[];
   /** Who bats next for this side, by the last slot it batted. */
   nextBatter:
-    | (ScoreboardPlayer & { slot: number | null; position: string; line: BatterGameLine })
+    | (ScoreboardPlayer & {
+        slot: number | null;
+        position: string;
+        line: BatterGameLine;
+        season: SeasonLine | null;
+      })
     | null;
   /** Whoever is standing at P for this side. */
-  pitcher: (ScoreboardPlayer & { line: PitcherGameLine }) | null;
+  pitcher: (ScoreboardPlayer & { line: PitcherGameLine; season: SeasonLine | null }) | null;
 };
 
 /**
@@ -176,6 +216,89 @@ const NO_PITCHING: PitcherGameLine = {
 };
 
 /**
+ * Season figures for the men in one game, kept for a while rather than read on
+ * every poll.
+ *
+ * The query itself is cheap - the archive indexes player_name, and a game's
+ * worth of players comes back in a couple of hundred rows - but this endpoint
+ * is polled every few seconds for the whole of a three-hour evening, and a
+ * couple of hundred rows two thousand times over is a quarter of the day's
+ * read budget for one game. A season total cannot change while a game is being
+ * played: it moves when a scorecard is approved, which is after the last pitch.
+ * So it is looked up once and held.
+ *
+ * Module state in a Worker lives as long as the isolate does, which is not
+ * promised. Losing it costs one more query, so there is nothing to handle.
+ */
+const SEASON_HELD_MS = 10 * 60 * 1000;
+let seasonCache: { key: string; at: number; lines: Record<string, SeasonLine> } | null = null;
+
+/** Names per statement, the way the rest of the site batches them for D1. */
+const SEASON_BATCH = 80;
+
+async function seasonLines(names: string[], leagueId: number | null) {
+  const wanted = [...new Set(names)].sort();
+  if (wanted.length === 0) return {};
+
+  const seasonName = await currentSeasonName();
+  const key = `${seasonName}|${leagueId ?? "none"}|${wanted.join(",")}`;
+  const held = seasonCache;
+  if (held && held.key === key && Date.now() - held.at < SEASON_HELD_MS) return held.lines;
+
+  const db = getDb();
+  const season = await db.query.historicalSeasons.findFirst({
+    where: eq(historicalSeasons.name, seasonName),
+  });
+  // The current-season setting names one season for the whole site, and the
+  // MCBA's seasons are not the MBL's. Rather than put one competition's
+  // averages on the other's board, a club whose league the season does not
+  // belong to simply gets none.
+  if (!season || (leagueId !== null && season.leagueId !== null && season.leagueId !== leagueId)) {
+    seasonCache = { key, at: Date.now(), lines: {} };
+    return {};
+  }
+
+  const lines: Record<string, SeasonLine> = {};
+  for (let at = 0; at < wanted.length; at += SEASON_BATCH) {
+    const batch = wanted.slice(at, at + SEASON_BATCH);
+    const rows = await db
+      .select({
+        name: historicalPlayerStats.playerName,
+        atBats: sql<number>`sum(coalesce(${historicalPlayerStats.atBats}, 0))`,
+        hits: sql<number>`sum(coalesce(${historicalPlayerStats.hits}, 0))`,
+        homeRuns: sql<number>`sum(coalesce(${historicalPlayerStats.homeRuns}, 0))`,
+        rbis: sql<number>`sum(coalesce(${historicalPlayerStats.rbis}, 0))`,
+        innings: sql<number>`sum(coalesce(${historicalPlayerStats.inningsPitched}, 0))`,
+        earnedRuns: sql<number>`sum(coalesce(${historicalPlayerStats.earnedRuns}, 0))`,
+        wins: sql<number>`sum(coalesce(${historicalPlayerStats.wins}, 0))`,
+        losses: sql<number>`sum(coalesce(${historicalPlayerStats.losses}, 0))`,
+      })
+      .from(historicalPlayerStats)
+      .where(
+        and(
+          eq(historicalPlayerStats.seasonId, season.id),
+          inArray(historicalPlayerStats.playerName, batch),
+        ),
+      )
+      .groupBy(historicalPlayerStats.playerName);
+
+    for (const row of rows) {
+      lines[row.name] = {
+        average: row.atBats > 0 ? row.hits / row.atBats : null,
+        homeRuns: row.homeRuns,
+        rbis: row.rbis,
+        era: row.innings > 0 ? earnedRunAverage(row.earnedRuns, row.innings) : null,
+        wins: row.wins,
+        losses: row.losses,
+      };
+    }
+  }
+
+  seasonCache = { key, at: Date.now(), lines };
+  return lines;
+}
+
+/**
  * A club's logo as an address the jumbotron can load.
  *
  * Resolved exactly the way `TeamLogo` resolves it, so the screen in the stadium
@@ -257,6 +380,15 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
   const avatars = await getAvatarsFor(roster.map((player) => player.displayName));
   const uuidOf = (playerId: number) => avatars[nameOf.get(playerId) ?? ""] ?? null;
 
+  // Season figures are keyed by name, the way the whole archive is. Both clubs
+  // are in one competition - a fixture takes its league from the clubs playing
+  // it - so either one answers for which season applies.
+  const season = await seasonLines(
+    roster.map((player) => player.displayName),
+    awayClub.leagueId,
+  );
+  const seasonOf = (playerId: number) => season[nameOf.get(playerId) ?? ""] ?? null;
+
   // Everybody's figures for the day, taken out of the box score that was
   // derived above anyway. Both sides go in one map because the man the board is
   // featuring may belong to either: when the plugin has rolled the half over,
@@ -336,6 +468,7 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
           position: row.position,
           uuid: uuidOf(row.playerId),
           line: batting.get(row.playerId) ?? NO_BATTING,
+          season: seasonOf(row.playerId),
         })),
       nextBatter: up
         ? {
@@ -345,6 +478,7 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
             position: up.position,
             uuid: uuidOf(up.playerId),
             line: batting.get(up.playerId) ?? NO_BATTING,
+            season: seasonOf(up.playerId),
           }
         : null,
       pitcher: onMound
@@ -353,6 +487,7 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
             name: name(onMound.playerId),
             uuid: uuidOf(onMound.playerId),
             line: pitching.get(onMound.playerId) ?? NO_PITCHING,
+            season: seasonOf(onMound.playerId),
           }
         : null,
     };
