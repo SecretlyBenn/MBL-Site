@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "./Analytics";
 import { CookieNotice } from "./CookieNotice";
 import { LeaguesProvider } from "./Leagues";
@@ -9,16 +8,6 @@ import { getLogoOverrides } from "@/db/logos";
 import { getLeagues } from "@/db/queries";
 import { SITE } from "./site";
 import "./globals.css";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -50,9 +39,11 @@ export default async function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} bg-slate-950 antialiased`}
-      >
+      {/* The typefaces are declared in globals.css rather than loaded through
+          next/font, which writes an address no browser will fetch - see the
+          comment there. --font-geist-sans and --font-geist-mono, which the
+          class on this element used to define, are set on :root instead. */}
+      <body className="font-sans bg-slate-950 antialiased">
         {/* Uploaded logos are read once here, as a handful of names and URLs,
             and every TeamLogo below looks itself up in them. */}
         {/* Two rows, read once, so the bar at the top of every page knows which
