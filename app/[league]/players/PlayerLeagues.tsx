@@ -6,6 +6,12 @@ import { PlayerProfile } from "./PlayerProfile";
 export type LeagueRecord = {
   slug: string;
   name: string;
+  /**
+   * How long a game is in this competition. A player who appears in both has
+   * his MBL seasons divided by six and his MCBA seasons by five, so it belongs
+   * to the record rather than to the page.
+   */
+  inningsPerGame: number;
   /** The name the competition filed them under, shown when it differs. */
   playerName: string;
   /**
@@ -72,6 +78,7 @@ export function PlayerLeagues({ records }: { records: LeagueRecord[] }) {
         seasons={current.seasons}
         games={current.games}
         playedPitching={current.playedPitching}
+        inningsPerGame={current.inningsPerGame}
       />
     </div>
   );

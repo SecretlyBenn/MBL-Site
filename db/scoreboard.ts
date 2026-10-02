@@ -1,7 +1,7 @@
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "./index";
 import { getLogoOverrides } from "./logos";
-import { getAvatarsFor } from "./queries";
+import { getAvatarsFor, inningsPerGameFor } from "./queries";
 import { currentSeasonName } from "./settings";
 import { logoKey, teamLogoPath } from "@/app/logo-key";
 import { runnersOn, type BaseName } from "@/app/bases";
@@ -258,6 +258,10 @@ async function seasonLines(names: string[], leagueId: number | null) {
     return {};
   }
 
+  // The length of a game here, which is the divisor in an earned run average:
+  // six in the MBL and five in the MCBA.
+  const inningsPerGame = await inningsPerGameFor(leagueId);
+
   const lines: Record<string, SeasonLine> = {};
   for (let at = 0; at < wanted.length; at += SEASON_BATCH) {
     const batch = wanted.slice(at, at + SEASON_BATCH);
@@ -287,7 +291,7 @@ async function seasonLines(names: string[], leagueId: number | null) {
         average: row.atBats > 0 ? row.hits / row.atBats : null,
         homeRuns: row.homeRuns,
         rbis: row.rbis,
-        era: row.innings > 0 ? earnedRunAverage(row.earnedRuns, row.innings) : null,
+        era: row.innings > 0 ? earnedRunAverage(row.earnedRuns, row.innings, inningsPerGame) : null,
         wins: row.wins,
         losses: row.losses,
       };

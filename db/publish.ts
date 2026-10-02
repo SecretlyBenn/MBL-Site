@@ -17,6 +17,7 @@ import {
   scorecards,
   teams,
 } from "@/db/schema";
+import { inningsPerGameForSeason } from "@/db/queries";
 import { currentSeasonName } from "@/db/settings";
 import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/derive-box-score";
 import { fieldingHistory } from "@/app/fielding-history";
@@ -296,6 +297,12 @@ export async function unpublishScorecard(scorecardId: number) {
 export async function recomputeSeason(seasonId: number) {
   const db = getDb();
 
+  // Every rate written below is per whole game, and how long a game is depends
+  // on the competition the season belongs to: the MBL plays six innings and
+  // the MCBA five. This used to be a constant of six, which wrote every MCBA
+  // pitcher's ERA a fifth too high.
+  const inningsPerGame = await inningsPerGameForSeason(seasonId);
+
   const seasonTeams = await db
     .select()
     .from(historicalTeams)
@@ -526,10 +533,10 @@ export async function recomputeSeason(seasonId: number) {
       homeRunsAllowed: totals.homeRunsAllowed ?? null,
       strikeoutsPitched: totals.strikeoutsPitched ?? null,
       walksAllowed: totals.walksAllowed ?? null,
-      era: earnedRunAverage(totals.earnedRuns, innings),
+      era: earnedRunAverage(totals.earnedRuns, innings, inningsPerGame),
       whip: innings > 0 ? ((totals.walksAllowed ?? 0) + (totals.hitsAllowed ?? 0)) / innings : null,
-      walksPerGame: perGame(totals.walksAllowed, innings),
-      strikeoutsPerGame: perGame(totals.strikeoutsPitched, innings),
+      walksPerGame: perGame(totals.walksAllowed, innings, inningsPerGame),
+      strikeoutsPerGame: perGame(totals.strikeoutsPitched, innings, inningsPerGame),
     };
   });
 

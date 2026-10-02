@@ -43,7 +43,7 @@ function format(value: unknown, kind?: Column["format"]) {
   return String(value);
 }
 
-function totalRows(rows: HistoryRow[]) {
+function totalRows(rows: HistoryRow[], inningsPerGame: number) {
   const total = { ...rows[0], teamName: "Total" };
   for (const key of TOTALS) total[key] = rows.reduce((sum, row) => sum + Number(row[key] ?? 0), 0);
   for (const key of ["leftOnBase", "putouts", "errors"] as const) {
@@ -57,7 +57,7 @@ function totalRows(rows: HistoryRow[]) {
   total.onBasePct = ab + walks ? (hits + walks) / (ab + walks) : null;
   total.sluggingPct = ab ? (total.totalBases ?? 0) / ab : null;
   total.ops = total.onBasePct === null || total.sluggingPct === null ? null : total.onBasePct + total.sluggingPct;
-  total.era = earnedRunAverage(total.earnedRuns, innings);
+  total.era = earnedRunAverage(total.earnedRuns, innings, inningsPerGame);
   total.whip = innings ? ((total.hitsAllowed ?? 0) + (total.walksAllowed ?? 0)) / innings : null;
   return total;
 }
@@ -68,15 +68,17 @@ function HistoryTable({
   label,
   hasStats,
   leagueSlug,
+  inningsPerGame,
 }: {
   leagueSlug: string;
   seasons: HistoryRow[][];
   columns: Column[];
   label: string;
   hasStats: (row: HistoryRow) => boolean;
+  inningsPerGame: number;
 }) {
   const groups = seasons
-    .map((rows) => ({ rows, total: totalRows(rows) }))
+    .map((rows) => ({ rows, total: totalRows(rows, inningsPerGame) }))
     .filter(({ total }) => hasStats(total));
 
   if (groups.length === 0) return null;
@@ -127,15 +129,29 @@ function HistoryTable({
   );
 }
 
-export function PlayerHistory({ history, leagueSlug }: { history: HistoryRow[]; leagueSlug: string }) {
+export function PlayerHistory({
+  history,
+  leagueSlug,
+  inningsPerGame,
+}: {
+  history: HistoryRow[];
+  leagueSlug: string;
+  /**
+   * How long a game is in this competition - six innings in the MBL, five in the
+   * MCBA - which is what every rate below is expressed per. It is passed in
+   * rather than assumed, because assuming six put every MCBA pitcher's ERA a
+   * fifth too high.
+   */
+  inningsPerGame: number;
+}) {
   const grouped = new Map<number, HistoryRow[]>();
   for (const row of history) grouped.set(row.seasonId, [...(grouped.get(row.seasonId) ?? []), row]);
   const seasons = [...grouped.values()];
 
   return (
     <div className="space-y-6">
-      <HistoryTable leagueSlug={leagueSlug} seasons={seasons} columns={BATTING} label="Batting history" hasStats={(row) => (row.atBats ?? 0) > 0} />
-      <HistoryTable leagueSlug={leagueSlug} seasons={seasons} columns={PITCHING} label="Pitching history" hasStats={(row) => (row.inningsPitched ?? 0) > 0} />
+      <HistoryTable leagueSlug={leagueSlug} inningsPerGame={inningsPerGame} seasons={seasons} columns={BATTING} label="Batting history" hasStats={(row) => (row.atBats ?? 0) > 0} />
+      <HistoryTable leagueSlug={leagueSlug} inningsPerGame={inningsPerGame} seasons={seasons} columns={PITCHING} label="Pitching history" hasStats={(row) => (row.inningsPitched ?? 0) > 0} />
     </div>
   );
 }

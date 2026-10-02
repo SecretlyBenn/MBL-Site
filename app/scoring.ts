@@ -319,12 +319,16 @@ export function nextInOrder<Row extends { battingOrder: number | null }>(
 }
 
 /**
- * Innings an earned run average is expressed over.
+ * Innings a game runs to when nothing says otherwise.
  *
- * A league game here is six innings, not nine, so a pitcher who goes the
- * distance has thrown a complete game and an ERA over nine would quietly
- * inflate every one of them by half. Six is the whole game, which is what the
- * number is meant to mean: runs allowed per game pitched.
+ * A game here is not nine innings, so a pitcher who goes the distance has
+ * thrown a complete game and an ERA over nine would quietly inflate every one
+ * of them. The whole game is what the number is meant to be measured against:
+ * runs allowed per game pitched.
+ *
+ * How long that is depends on the competition - the MBL plays six and the MCBA
+ * five - so it lives on `leagues.innings_per_game` and is passed in. This is
+ * only the fallback for a figure with no league behind it.
  */
 export const ERA_INNINGS = 6;
 
@@ -332,8 +336,9 @@ export const ERA_INNINGS = 6;
 export function earnedRunAverage(
   earnedRuns: number | null | undefined,
   inningsPitched: number | null | undefined,
+  inningsPerGame: number,
 ) {
-  return perGame(earnedRuns, inningsPitched);
+  return perGame(earnedRuns, inningsPitched, inningsPerGame);
 }
 
 /**
@@ -341,15 +346,20 @@ export function earnedRunAverage(
  * earned runs. All of them are innings-based rates, so all of them scale by
  * the length of a game rather than by how many times the pitcher appeared.
  *
- * The archive already published its BB and SO rates this way, over six. The
- * live path was dividing by appearances instead, which disagreed with every
- * imported season: five walks in 19.2 innings across four games is 1.53, not
- * 1.25.
+ * The archive already published its BB and SO rates this way. The live path was
+ * dividing by appearances instead, which disagreed with every imported season:
+ * five walks in 19.2 innings across four games is 1.53, not 1.25.
+ *
+ * `inningsPerGame` has no default on purpose. It was a constant of six, which
+ * was right for the MBL and a fifth too high for every MCBA pitcher on the
+ * site; a default would have let the next caller make the same mistake
+ * silently, and there are eighteen of them.
  */
 export function perGame(
   count: number | null | undefined,
   inningsPitched: number | null | undefined,
+  inningsPerGame: number,
 ) {
   if (!inningsPitched) return null;
-  return ((count ?? 0) * ERA_INNINGS) / inningsPitched;
+  return ((count ?? 0) * inningsPerGame) / inningsPitched;
 }

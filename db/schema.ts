@@ -228,6 +228,15 @@ export const leagues = sqliteTable("leagues", {
    * college clubs have nothing below them, and the move means nothing there.
    */
   hasMinorLeague: integer("has_minor_league", { mode: "boolean" }).notNull().default(false),
+  /**
+   * How long a game is here. The MBL plays six innings and the MCBA five.
+   *
+   * Not cosmetic: every innings-based rate on this site is expressed per whole
+   * game rather than per nine, so this is the divisor in an earned run average
+   * and in the walk and strikeout rates beside it. It was a constant in the
+   * code, which recomputed every MCBA pitcher's ERA a fifth too high.
+   */
+  inningsPerGame: integer("innings_per_game").notNull().default(6),
 });
 
 export const historicalSeasons = sqliteTable("historical_seasons", {

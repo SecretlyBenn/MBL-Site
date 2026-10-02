@@ -29,7 +29,7 @@ export async function IndividualStatisticsPage({ kind, params, searchParams }: {
   const label = kind === "batting" ? "Batting Statistics" : "Pitching Statistics";
   return <PageShell wide title={label} subtitle="Individual player statistics by season or across an entire career.">
     {filtered.length
-      ? <StatsTable leagueSlug={league.slug}
+      ? <StatsTable leagueSlug={league.slug} inningsPerGame={league.inningsPerGame}
 avatars={avatars} toolbar={<SeasonSelect seasons={seasons} selected={selected} career />} rows={filtered as unknown as StatRow[]} kind={kind} seasonId={numericSeason} teamIds={Object.fromEntries(standings.map((row) => [row.name, row.id]))} />
       : <><div className="mb-5"><SeasonSelect seasons={seasons} selected={selected} career /></div><EmptyState>No statistics are available for this selection.</EmptyState></>}
   </PageShell>;
@@ -49,7 +49,7 @@ export async function TeamStatisticsPage({ kind, params, searchParams }: { kind:
   const label = kind === "batting" ? "Team Batting Statistics" : "Team Pitching Statistics";
   return <PageShell wide title={label} subtitle="Team totals for the selected season, followed by the league average.">
     {filtered.length
-      ? <StatsTable leagueSlug={league.slug}
+      ? <StatsTable leagueSlug={league.slug} inningsPerGame={league.inningsPerGame}
 toolbar={<SeasonSelect seasons={seasons} selected={selected} />} rows={filtered as unknown as StatRow[]} kind={kind} team seasonId={Number(selected)} teamIds={Object.fromEntries(standings.map((row) => [row.name, row.id]))} />
       : <><div className="mb-5"><SeasonSelect seasons={seasons} selected={selected} /></div><EmptyState>No team statistics are available for this season.</EmptyState></>}
   </PageShell>;

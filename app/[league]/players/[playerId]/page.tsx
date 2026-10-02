@@ -66,7 +66,7 @@ export default async function PlayerPage({ params }: { params: Promise<{ league:
         {current.map(([label, stat]) => <div key={label} className="rounded border border-slate-800/80 bg-slate-900/40 p-3"><p className="text-xs text-slate-500">{label}</p><p className="text-lg font-bold">{stat}</p></div>)}
       </div>}
     </section>
-    <section><h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">Career history</h2>{history.length ? <PlayerHistory leagueSlug={league.slug}
+    <section><h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-400">Career history</h2>{history.length ? <PlayerHistory leagueSlug={league.slug} inningsPerGame={league.inningsPerGame}
 history={history} /> : <EmptyState>No archived seasons found for this player.</EmptyState>}</section>
   </PageShell>;
 }

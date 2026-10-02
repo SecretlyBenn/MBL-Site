@@ -7,6 +7,7 @@ import { PlayerHead } from "@/app/PlayerHead";
 import { PlayerLeagues, type LeagueRecord } from "@/app/[league]/players/PlayerLeagues";
 import { TeamLogo } from "@/app/TeamLogo";
 import { CareerLine, careerTotals } from "@/app/[league]/players/CareerLine";
+import { ERA_INNINGS } from "@/app/scoring";
 import { leagueFrom } from "../../../league";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ export default async function HistoricalPlayerPage({
       return {
         slug: competition.slug,
         name: competition.name,
+        inningsPerGame: competition.inningsPerGame,
         playerName: seasons[0]?.playerName ?? name,
         seasonCount: new Set(seasons.map((row) => row.seasonId)).size,
         seasons: seasons as never[],
@@ -139,7 +141,7 @@ export default async function HistoricalPlayerPage({
                 seasons already on the page. It answers the question the page
                 is opened with - how good are they - before anyone reads a
                 table. */}
-            <CareerLine totals={careerTotals(history)} />
+            <CareerLine totals={careerTotals(history, records[0]?.inningsPerGame ?? ERA_INNINGS)} />
           </div>
         </div>
       }

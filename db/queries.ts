@@ -2,7 +2,7 @@ import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, like, or, sql 
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
 import { playedOnValue } from "@/app/formatStats";
-import { earnedRunAverage, perGame } from "@/app/scoring";
+import { ERA_INNINGS, earnedRunAverage, perGame } from "@/app/scoring";
 import {
   games,
   historicalGameStats,
@@ -202,8 +202,14 @@ export async function getPlayerLiveStats(playerId: number) {
     ...totals,
     gamesLogged: rows.length,
     average: totals.atBats === 0 ? 0 : totals.hits / totals.atBats,
-    era: earnedRunAverage(totals.earnedRuns, totals.inningsPitched) ?? 0,
+    era: earnedRunAverage(totals.earnedRuns, totals.inningsPitched, await playerInnings(playerId)) ?? 0,
   };
+}
+
+/** The length of a game in the competition a live player belongs to. */
+async function playerInnings(playerId: number) {
+  const player = await getDb().query.players.findFirst({ where: eq(players.id, playerId) });
+  return inningsPerGameFor(player?.leagueId);
 }
 
 /** Historical (imported) season lines for a player, newest season first. */
@@ -257,6 +263,7 @@ export async function getPlayerHistoricalStats(playerName: string | string[]) {
       strikeoutsPitched: historicalPlayerStats.strikeoutsPitched,
       wins: historicalPlayerStats.wins,
       losses: historicalPlayerStats.losses,
+      inningsPerGame: leagues.inningsPerGame,
     })
     .from(historicalPlayerStats)
     .innerJoin(historicalSeasons, eq(historicalPlayerStats.seasonId, historicalSeasons.id))
@@ -268,14 +275,15 @@ export async function getPlayerHistoricalStats(playerName: string | string[]) {
     .where(inArray(historicalPlayerStats.playerName, names))
     .orderBy(desc(historicalSeasons.sortOrder));
 
-  // The archive's stored ERA was worked out over nine innings, which is not
-  // the length of a game in this league. Recomputing from the earned runs and
-  // the innings - which are just counts, and are right either way - keeps
-  // every ERA on the site on the same footing instead of leaving the imported
-  // seasons a third higher than the ones scored here.
-  return rows.map((row) => ({
+  // Recomputed from the earned runs and the innings - which are just counts,
+  // and are right either way - rather than taken from the stored column, so
+  // every ERA on the site is on the same footing. Each row is divided by the
+  // length of a game in *its own* competition, which the join above carries:
+  // the MBL plays six innings and the MCBA five, and one number for both put
+  // every college pitcher a fifth too high.
+  return rows.map(({ inningsPerGame, ...row }) => ({
     ...row,
-    era: earnedRunAverage(row.earnedRuns, row.inningsPitched),
+    era: earnedRunAverage(row.earnedRuns, row.inningsPitched, inningsPerGame ?? ERA_INNINGS),
   }));
 }
 
@@ -298,6 +306,40 @@ export async function getHistoricalSeasons(leagueId?: number) {
 /** Every league the site holds, in the order they are offered. */
 export async function getLeagues() {
   return getDb().select().from(leagues).orderBy(asc(leagues.sortOrder));
+}
+
+/**
+ * How long a game is in a competition, which is the divisor in every rate the
+ * site prints: an earned run average and the walk and strikeout rates beside
+ * it are all per whole game here rather than per nine.
+ *
+ * Held for a few minutes rather than read on every call. There are two rows
+ * and they change about never, but these run inside loops over a season's
+ * worth of players, and a round trip each is a round trip too many.
+ */
+const LEAGUE_LENGTHS_HELD_MS = 5 * 60 * 1000;
+let leagueLengths: { at: number; byId: Map<number, number> } | null = null;
+
+export async function inningsPerGameForSeason(seasonId: number | null | undefined): Promise<number> {
+  if (!seasonId) return ERA_INNINGS;
+  const season = await getDb().query.historicalSeasons.findFirst({
+    where: eq(historicalSeasons.id, seasonId),
+  });
+  return inningsPerGameFor(season?.leagueId);
+}
+
+export async function inningsPerGameFor(leagueId: number | null | undefined): Promise<number> {
+  // A row with no competition behind it - an unfiled club, a player nobody has
+  // placed - is read as the usual six rather than left without a rate at all.
+  if (!leagueId) return ERA_INNINGS;
+  const held = leagueLengths;
+  if (!held || Date.now() - held.at > LEAGUE_LENGTHS_HELD_MS) {
+    const rows = await getDb()
+      .select({ id: leagues.id, innings: leagues.inningsPerGame })
+      .from(leagues);
+    leagueLengths = { at: Date.now(), byId: new Map(rows.map((row) => [row.id, row.innings])) };
+  }
+  return leagueLengths!.byId.get(leagueId) ?? ERA_INNINGS;
 }
 
 /** One league from the slug in the address, or null if there is no such league. */
@@ -349,6 +391,13 @@ export async function getHistoricalSeasonStandings(seasonId: number) {
  * so this unions both rather than joining one onto the other.
  */
 export async function getHistoricalTeamRoster(historicalTeamId: number) {
+  // Worked out here rather than asked of the caller: the club's own season
+  // says which competition it is, and a page passing the wrong number would
+  // be a quiet fifth of an error on every pitcher in the table.
+  const club = await getDb().query.historicalTeams.findFirst({
+    where: eq(historicalTeams.id, historicalTeamId),
+  });
+  const inningsPerGame = await inningsPerGameForSeason(club?.seasonId);
   const db = getDb();
   const [listed, statLines] = await Promise.all([
     db
@@ -420,7 +469,7 @@ export async function getHistoricalTeamRoster(historicalTeamId: number) {
     byName.set(line.playerName, {
       ...(byName.get(line.playerName) ?? { jerseyNumber: null, positions: null }),
       ...line,
-      era: earnedRunAverage(line.earnedRuns, line.inningsPitched),
+      era: earnedRunAverage(line.earnedRuns, line.inningsPitched, inningsPerGame),
       played: true,
     });
   }
@@ -732,6 +781,7 @@ function mostRecentTeam(lines: HistoricalStatViewRow[]) {
 function mergePlayerLines(
   lines: HistoricalStatViewRow[],
   teamNameFor: (lines: HistoricalStatViewRow[]) => string,
+  inningsPerGame: number,
 ) {
   const merged = new Map<string, HistoricalStatViewRow & { lines: HistoricalStatViewRow[] }>();
   for (const line of lines) {
@@ -748,14 +798,14 @@ function mergePlayerLines(
   }
 
   return [...merged.values()].map(({ lines: grouped, ...row }) =>
-    recalculateRates({ ...row, teamName: teamNameFor(grouped) }),
+    recalculateRates({ ...row, teamName: teamNameFor(grouped) }, inningsPerGame),
   );
 }
 
 /** Merging per-team lines sums the same columns a season total does. */
 const TOTAL_FIELDS = COUNTING_STATS;
 
-function recalculateRates(row: HistoricalStatViewRow) {
+function recalculateRates(row: HistoricalStatViewRow, inningsPerGame: number) {
   const atBats = row.atBats ?? 0;
   const hits = row.hits ?? 0;
   const walks = row.walks ?? 0;
@@ -774,10 +824,10 @@ function recalculateRates(row: HistoricalStatViewRow) {
   row.ops = row.onBasePct === null || row.sluggingPct === null ? null : row.onBasePct + row.sluggingPct;
   // No assists in this league, so a chance is a play made or a play muffed.
   row.fieldingPct = chances ? putouts / chances : null;
-  row.era = earnedRunAverage(row.earnedRuns, innings);
+  row.era = earnedRunAverage(row.earnedRuns, innings, inningsPerGame);
   row.whip = innings ? ((row.walksAllowed ?? 0) + (row.hitsAllowed ?? 0)) / innings : null;
-  row.walksPerGame = perGame(row.walksAllowed, innings);
-  row.strikeoutsPerGame = perGame(row.strikeoutsPitched, innings);
+  row.walksPerGame = perGame(row.walksAllowed, innings, inningsPerGame);
+  row.strikeoutsPerGame = perGame(row.strikeoutsPitched, innings, inningsPerGame);
   return row;
 }
 
@@ -789,6 +839,11 @@ function recalculateRates(row: HistoricalStatViewRow) {
  */
 export async function getIndividualHistoricalStats(seasonId?: number, leagueId?: number) {
   const lines = await getHistoricalStatLines(seasonId, leagueId);
+  // Either way of naming the competition will do; a season says which one it
+  // belongs to when the caller has not said.
+  const inningsPerGame = leagueId
+    ? await inningsPerGameFor(leagueId)
+    : await inningsPerGameForSeason(seasonId);
 
   if (seasonId !== undefined) {
     return mergePlayerLines(lines, (grouped) => {
@@ -796,18 +851,19 @@ export async function getIndividualHistoricalStats(seasonId?: number, leagueId?:
       return grouped.length === 1
         ? endedWith.teamName
         : `${endedWith.teamName} (+${grouped.length - 1})`;
-    });
+    }, inningsPerGame);
   }
 
   // Career totals show the team the player most recently played for, rather
   // than "Multiple teams" - the current club is what identifies someone at a
   // glance, and a career line covering four teams named none of them.
-  return mergePlayerLines(lines, (grouped) => mostRecentTeam(grouped).teamName);
+  return mergePlayerLines(lines, (grouped) => mostRecentTeam(grouped).teamName, inningsPerGame);
 }
 
 export type HistoricalTeamStatRow = HistoricalStatViewRow & { isLeagueAverage?: boolean };
 
 export async function getHistoricalTeamStats(seasonId: number): Promise<HistoricalTeamStatRow[]> {
+  const inningsPerGame = await inningsPerGameForSeason(seasonId);
   const lines = await getHistoricalStatLines(seasonId);
   const teamsByName = new Map<string, HistoricalTeamStatRow>();
   for (const line of lines) {
@@ -819,7 +875,7 @@ export async function getHistoricalTeamStats(seasonId: number): Promise<Historic
     }
     for (const field of TOTAL_FIELDS) row[field] = (row[field] ?? 0) + (line[field] ?? 0);
   }
-  return [...teamsByName.values()].map(recalculateRates);
+  return [...teamsByName.values()].map((row) => recalculateRates(row, inningsPerGame));
 }
 
 type SeasonStatLine = Awaited<ReturnType<typeof getHistoricalSeasonPlayerStats>>[number];
@@ -835,7 +891,7 @@ type SeasonStatLine = Awaited<ReturnType<typeof getHistoricalSeasonPlayerStats>>
  * stint the same as a 200-at-bat one - and the team shown is wherever they
  * finished the season.
  */
-export function aggregateSeasonLines(rows: SeasonStatLine[]) {
+export function aggregateSeasonLines(rows: SeasonStatLine[], inningsPerGame: number) {
   const byPlayer = new Map<string, SeasonStatLine[]>();
   for (const row of rows) {
     const existing = byPlayer.get(row.playerName);
@@ -873,7 +929,7 @@ export function aggregateSeasonLines(rows: SeasonStatLine[]) {
         atBats > 0
           ? ((totals.hits ?? 0) + walks) / (atBats + walks) + (totals.totalBases ?? 0) / atBats
           : null,
-      era: earnedRunAverage(totals.earnedRuns, innings),
+      era: earnedRunAverage(totals.earnedRuns, innings, inningsPerGame),
       whip: innings > 0 ? ((totals.hitsAllowed ?? 0) + (totals.walksAllowed ?? 0)) / innings : null,
     };
   });
@@ -881,7 +937,8 @@ export function aggregateSeasonLines(rows: SeasonStatLine[]) {
 
 /** One row per player for a season, with multi-team stints already merged. */
 export async function getHistoricalSeasonPlayerTotals(seasonId: number) {
-  return aggregateSeasonLines(await getHistoricalSeasonPlayerStats(seasonId));
+  const inningsPerGame = await inningsPerGameForSeason(seasonId);
+  return aggregateSeasonLines(await getHistoricalSeasonPlayerStats(seasonId), inningsPerGame);
 }
 
 /** Season leaderboard from the imported archive (e.g. most home runs all-time). */

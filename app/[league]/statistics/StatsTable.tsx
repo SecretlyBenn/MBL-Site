@@ -73,6 +73,8 @@ const PITCHING: Column[] = [
   { key: "completeGames", label: "CG" }, { key: "shutouts", label: "SHO" },
   { key: "blownSaves", label: "BS" },
   { key: "era", label: "ERA", rate: true }, { key: "whip", label: "WHIP", rate: true },
+  // Labelled per the length of a game, which is not the same in both
+  // competitions - see `columns` below.
   { key: "walksPerGame", label: "BB/6", rate: true },
   { key: "strikeoutsPerGame", label: "SO/6", rate: true },
 ];
@@ -130,7 +132,7 @@ function display(value: StatRow[string], column: Column, leagueAverage = false) 
   return value;
 }
 
-function leagueAverage(rows: StatRow[], kind: "batting" | "pitching") {
+function leagueAverage(rows: StatRow[], kind: "batting" | "pitching", inningsPerGame: number) {
   const n = rows.length || 1;
   const sum = (key: string) => rows.reduce((total, row) => total + Number(row[key] ?? 0), 0);
   const result: StatRow = { playerName: "League Average", teamName: "League Average" };
@@ -143,14 +145,23 @@ function leagueAverage(rows: StatRow[], kind: "batting" | "pitching") {
     result.ops = Number(result.onBasePct ?? 0) + Number(result.sluggingPct ?? 0);
   } else {
     const ip = sum("inningsPitched");
-    result.era = earnedRunAverage(sum("earnedRuns"), ip);
+    result.era = earnedRunAverage(sum("earnedRuns"), ip, inningsPerGame);
     result.whip = ip ? (sum("walksAllowed") + sum("hitsAllowed")) / ip : null;
   }
   return result;
 }
 
-export function StatsTable({ rows, kind, leagueSlug, team = false, seasonId, teamIds = {}, toolbar, avatars = {} }: { rows: StatRow[]; kind: "batting" | "pitching"; leagueSlug: string; team?: boolean; seasonId?: number; teamIds?: Record<string, number>; toolbar?: React.ReactNode; avatars?: Record<string, string> }) {
-  const columns = (kind === "batting" ? BATTING : PITCHING).filter((column) => !(team && column.playerOnly));
+export function StatsTable({ rows, kind, leagueSlug, inningsPerGame, team = false, seasonId, teamIds = {}, toolbar, avatars = {} }: { rows: StatRow[]; kind: "batting" | "pitching"; leagueSlug: string; /** Six innings in the MBL, five in the MCBA - the divisor in the ERA column. */ inningsPerGame: number; team?: boolean; seasonId?: number; teamIds?: Record<string, number>; toolbar?: React.ReactNode; avatars?: Record<string, string> }) {
+  // The two per-game rates are named after the game they are measured over, so
+  // the heading has to follow the competition: BB/6 in the MBL and BB/5 in the
+  // MCBA. A fixed "/6" over a column of fifths is a worse lie than no label.
+  const columns = (kind === "batting" ? BATTING : PITCHING)
+    .filter((column) => !(team && column.playerOnly))
+    .map((column) =>
+      column.label.endsWith("/6") && inningsPerGame !== 6
+        ? { ...column, label: column.label.replace("/6", `/${inningsPerGame}`) }
+        : column,
+    );
   const [query, setQuery] = useState("");
   // Alphabetical by name is the default: an unsorted dump has no order the
   // reader can predict, and every figure column is one click away.
@@ -183,7 +194,7 @@ export function StatsTable({ rows, kind, leagueSlug, team = false, seasonId, tea
       return direction === "desc" ? -compared : compared;
     });
   }, [columns, direction, kind, minimum, query, rows, sortKey, team]);
-  const averageRow = team ? leagueAverage(rows, kind) : null;
+  const averageRow = team ? leagueAverage(rows, kind, inningsPerGame) : null;
   const sort = (key: string) => {
     setDirection(sortKey === key && direction === "desc" ? "asc" : "desc");
     setSortKey(key);

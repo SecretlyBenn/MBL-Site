@@ -85,7 +85,7 @@ function show(value: unknown, column: Column) {
 }
 
 /** Sums a column across seasons; rates are recomputed, never averaged. */
-function careerTotals(rows: SeasonRow[], columns: Column[]) {
+function careerTotals(rows: SeasonRow[], columns: Column[], inningsPerGame: number) {
   const sum = (key: string) => rows.reduce((total, row) => total + Number(row[key] ?? 0), 0);
   const result: Record<string, number | null> = {};
   for (const column of columns) result[column.key] = sum(column.key);
@@ -102,7 +102,7 @@ function careerTotals(rows: SeasonRow[], columns: Column[]) {
   result.onBasePct = atBats + walks ? (sum("hits") + walks) / (atBats + walks) : null;
   result.sluggingPct = atBats ? totalBases / atBats : null;
   result.ops = (result.onBasePct ?? 0) + (result.sluggingPct ?? 0);
-  result.era = earnedRunAverage(sum("earnedRuns"), innings);
+  result.era = earnedRunAverage(sum("earnedRuns"), innings, inningsPerGame);
   result.whip = innings ? (sum("walksAllowed") + sum("hitsAllowed")) / innings : null;
   const putouts = sum("putouts");
   const errors = sum("errors");
@@ -114,10 +114,18 @@ export function PlayerProfile({
   seasons,
   games,
   playedPitching,
+  inningsPerGame,
 }: {
   seasons: SeasonRow[];
   games: GameRow[];
   playedPitching: boolean;
+  /**
+   * How long a game is in this competition - six innings in the MBL, five in the
+   * MCBA - which is what every rate below is expressed per. It is passed in
+   * rather than assumed, because assuming six put every MCBA pitcher's ERA a
+   * fifth too high.
+   */
+  inningsPerGame: number;
 }) {
   const [tab, setTab] = useState<"batting" | "pitching">("batting");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -135,7 +143,7 @@ export function PlayerProfile({
   const seasonRows = [...bySeason.entries()]
     .map(([seasonId, rows]) => {
       const ended = rows.find((row) => row.isSeasonEndTeam) ?? rows.at(-1)!;
-      const merged = rows.length === 1 ? rows[0] : { ...careerTotals(rows, columns), ...{
+      const merged = rows.length === 1 ? rows[0] : { ...careerTotals(rows, columns, inningsPerGame), ...{
         seasonId, seasonName: ended.seasonName, teamName: ended.teamName,
       } } as SeasonRow;
       return {
@@ -153,7 +161,7 @@ export function PlayerProfile({
     })
     .sort((a, b) => b.seasonSort - a.seasonSort);
 
-  const career = careerTotals(seasons, columns);
+  const career = careerTotals(seasons, columns, inningsPerGame);
 
   const relevantGames = games.filter((game) =>
     tab === "batting" ? game.kind === "BATTING" : game.kind === "PITCHING",

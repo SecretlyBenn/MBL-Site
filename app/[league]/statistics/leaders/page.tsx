@@ -85,6 +85,20 @@ const PITCHING: Board[] = [
   { key: "gamesStarted", label: "Games started", unit: "GS" },
 ];
 
+/**
+ * The per-game boards are named after the game they are measured over, so the
+ * heading follows the competition: "per 6" in the MBL and "per 5" in the MCBA.
+ * A fixed six over a column of fifths is a worse label than none.
+ */
+function perGameLabels(boards: Board[], inningsPerGame: number): Board[] {
+  if (inningsPerGame === 6) return boards;
+  return boards.map((board) => ({
+    ...board,
+    label: board.label.replace(" per 6", ` per ${inningsPerGame}`),
+    unit: board.unit.replace("/6", `/${inningsPerGame}`),
+  }));
+}
+
 const FIELDING: Board[] = [
   { key: "putouts", label: "Putouts", unit: "PO" },
   { key: "fieldingPct", label: "Fielding percentage", unit: "FPCT", rate: true, qualified: true },
@@ -192,7 +206,7 @@ export default async function LeadersPage({
     {
       title: "Pitching leaders",
       meta: `Rate stats need ${averageInnings.toFixed(1)} innings pitched (league average)`,
-      boards: group(PITCHING, pitchers, qualifiedPitchers),
+      boards: group(perGameLabels(PITCHING, league.inningsPerGame), pitchers, qualifiedPitchers),
     },
     {
       title: "Fielding leaders",

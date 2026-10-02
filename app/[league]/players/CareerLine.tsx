@@ -32,7 +32,7 @@ type SeasonRow = {
 
 export type CareerTotals = ReturnType<typeof careerTotals>;
 
-export function careerTotals(seasons: SeasonRow[]) {
+export function careerTotals(seasons: SeasonRow[], inningsPerGame: number) {
   const sum = (pick: (row: SeasonRow) => number | null | undefined) =>
     seasons.reduce((total, row) => total + Number(pick(row) ?? 0), 0);
 
@@ -56,7 +56,7 @@ export function careerTotals(seasons: SeasonRow[]) {
     losses: sum((row) => row.losses),
     saves: sum((row) => row.saves),
     strikeouts: sum((row) => row.strikeoutsPitched),
-    era: innings ? earnedRunAverage(sum((row) => row.earnedRuns), innings) : null,
+    era: innings ? earnedRunAverage(sum((row) => row.earnedRuns), innings, inningsPerGame) : null,
   };
 }
 
