@@ -38,7 +38,9 @@ test("an action that creates rows says which, so undo can remove them", () => {
 test("undo re-derives the score rather than adjusting it", () => {
   const route = read("../app/api/scorecards/[id]/undo/route.ts");
   assert.match(route, /resequenceInnings\(scorecardId\)/);
-  assert.match(route, /deriveBoxScore\(rows\)/);
+  // Re-derived over the length of a game in this competition, not a
+  // constant six - the MCBA plays five.
+  assert.match(route, /deriveBoxScore\(rows, \{ inningsPerGame \}\)/);
 });
 
 test("undo refuses on an approved card", () => {

@@ -1,5 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { inningsPerGameForScorecard } from "@/db/queries";
 import { games, players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore } from "@/app/derive-box-score";
@@ -60,6 +61,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const { id } = await params;
     const scorecardId = Number(id);
+    const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
 
     const db = getDb();
     const scorecard = await db.query.scorecards.findFirst({
@@ -83,7 +85,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
 
-    const bases = currentBases(all);
+    const bases = currentBases(all, inningsPerGame);
     const from = BASE_NAMES.find((base) => bases[base] === payload.playerId);
     if (!from) {
       return Response.json({ error: "That runner is not on base." }, { status: 409 });
@@ -92,7 +94,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // The play the runners are standing on. Without one there is nothing to
     // attach the move to - and with the bases empty there was no runner to
     // move in the first place.
-    const box = deriveBoxScore(all);
+    const box = deriveBoxScore(all, { inningsPerGame });
     const [standing] = await db
       .select()
       .from(plateAppearances)
@@ -189,7 +191,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .select()
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
-    const updated = deriveBoxScore(rows);
+    const updated = deriveBoxScore(rows, { inningsPerGame });
     await db
       .update(scorecards)
       .set({ homeScore: updated.homeScore, awayScore: updated.awayScore })

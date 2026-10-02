@@ -1,5 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
+import { inningsPerGameForScorecard } from "@/db/queries";
 import { logAudit } from "@/db/audit";
 import { fieldingChanges, plateAppearances, players, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
@@ -18,6 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const user = await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const scorecardId = Number((await params).id);
+    const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
     const db = getDb();
 
     const scorecard = await db.query.scorecards.findFirst({ where: eq(scorecards.id, scorecardId) });
@@ -50,7 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .select()
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
-    const state = gameState(appearances);
+    const state = gameState(appearances, inningsPerGame);
 
     // Snapshotted before anything moves, so undo can put every position back
     // as one action rather than leaving half a rearrangement behind.

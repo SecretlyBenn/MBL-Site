@@ -1,11 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  currentBases,
-  deriveBoxScore,
-  extraInningsRunner,
-  startingBases,
+  currentBases as currentBasesRaw,
+  deriveBoxScore as deriveBoxScoreRaw,
+  extraInningsRunner as extraInningsRunnerRaw,
+  startingBases as startingBasesRaw,
 } from "../app/derive-box-score.ts";
+
+/**
+ * These are MBL games unless a test says otherwise, so a full game is six
+ * innings. It is passed explicitly rather than defaulted, here and in the
+ * site, because the MCBA plays five and a default is how one competition's
+ * length ends up quietly applied to the other's games.
+ */
+const MBL = 6;
+const currentBases = (plays, innings = MBL) => currentBasesRaw(plays, innings);
+const deriveBoxScore = (plays, context = {}) =>
+  deriveBoxScoreRaw(plays, { inningsPerGame: MBL, ...context });
+const extraInningsRunner = (plays, inning, isHome, innings = MBL) =>
+  extraInningsRunnerRaw(plays, inning, isHome, innings);
+const startingBases = (plays, inning, isHome, innings = MBL) =>
+  startingBasesRaw(plays, inning, isHome, innings);
 
 /**
  * Every column the batting and pitching tabs show has to be reachable from

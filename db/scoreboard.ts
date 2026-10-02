@@ -364,8 +364,11 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
   // not need but the next batter is worked out from.
   const ordered = [...appearances].sort((a, b) => a.sequence - b.sequence);
 
-  const state = gameState(ordered);
-  const bases = currentBases(ordered);
+  // Six innings in the MBL, five in the MCBA: it decides when the game is
+  // over and how many columns the line score draws.
+  const inningsPerGame = await inningsPerGameFor(awayClub.leagueId);
+  const state = gameState(ordered, inningsPerGame);
+  const bases = currentBases(ordered, inningsPerGame);
 
   const aboard = runnersOn(bases).map((runner) => runner.playerId);
   const wanted = [...new Set([...lineups.map((row) => row.playerId), ...aboard])];
@@ -515,7 +518,7 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
       name: name(runner.playerId),
     })),
     linescore: {
-      regulation: REGULATION_INNINGS,
+      regulation: inningsPerGame,
       away: state.awayInnings,
       home: state.homeInnings,
       awayHits: state.awayHits,

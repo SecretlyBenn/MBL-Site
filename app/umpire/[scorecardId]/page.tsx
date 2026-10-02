@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { inningsPerGameForScorecard } from "@/db/queries";
 import {
   fieldingChanges,
   games,
@@ -38,6 +39,9 @@ export default async function ScorecardPage({
 
   const db = getDb();
   const scorecard = await db.query.scorecards.findFirst({ where: eq(scorecards.id, scorecardId) });
+  // Six innings in the MBL, five in the MCBA - it decides when this game is
+  // over and from which inning a runner is placed on second.
+  const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
   if (!scorecard) notFound();
 
   const game = await db.query.games.findFirst({ where: eq(games.id, scorecard.gameId) });
@@ -119,6 +123,7 @@ export default async function ScorecardPage({
     <PageShell wide title={title} subtitle={ready ? "Scoring" : "Set the lineups to begin"}>
       {ready ? (
         <ScoringBoard
+          inningsPerGame={inningsPerGame}
           scorecardId={scorecardId}
           awayName={away?.name ?? "Away"}
           homeName={home?.name ?? "Home"}
@@ -144,7 +149,7 @@ export default async function ScorecardPage({
             // older copy of the page reads this field rather than working it
             // out - which printed "inning undefined" once the raw column
             // stopped being sent.
-            inning: inningAt(appearances, move.appliedAtSequence),
+            inning: inningAt(appearances, move.appliedAtSequence, inningsPerGame),
           }))}
           starters={lineups.filter((row) => row.isStarter).map((row) => row.playerId)}
           undoable={undoable?.summary ?? null}

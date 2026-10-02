@@ -320,6 +320,24 @@ export async function getLeagues() {
 const LEAGUE_LENGTHS_HELD_MS = 5 * 60 * 1000;
 let leagueLengths: { at: number; byId: Map<number, number> } | null = null;
 
+/**
+ * The length of a game on a scorecard, taken from the clubs playing it.
+ *
+ * A fixture takes its competition from its clubs, so either one answers. This
+ * is what the umpire's board and every scoring route need: it decides when the
+ * game is over and from which inning a runner is placed on second.
+ */
+export async function inningsPerGameForScorecard(scorecardId: number): Promise<number> {
+  const [row] = await getDb()
+    .select({ leagueId: teams.leagueId })
+    .from(scorecards)
+    .innerJoin(games, eq(games.id, scorecards.gameId))
+    .innerJoin(teams, eq(teams.id, games.homeTeamId))
+    .where(eq(scorecards.id, scorecardId))
+    .limit(1);
+  return inningsPerGameFor(row?.leagueId);
+}
+
 export async function inningsPerGameForSeason(seasonId: number | null | undefined): Promise<number> {
   if (!seasonId) return ERA_INNINGS;
   const season = await getDb().query.historicalSeasons.findFirst({

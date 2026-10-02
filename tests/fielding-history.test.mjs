@@ -1,7 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { deriveBoxScore } from "../app/derive-box-score.ts";
+import { deriveBoxScore as deriveBoxScoreRaw } from "../app/derive-box-score.ts";
+
+/**
+ * These are MBL games unless a test says otherwise, so a full game is six
+ * innings. It is passed explicitly rather than defaulted, here and in the
+ * site, because the MCBA plays five and a default is how one competition's
+ * length ends up quietly applied to the other's games.
+ */
+const MBL = 6;
+const deriveBoxScore = (plays, context = {}) =>
+  deriveBoxScoreRaw(plays, { inningsPerGame: MBL, ...context });
 import { BENCH, fieldingHistory } from "../app/fielding-history.ts";
 
 /**

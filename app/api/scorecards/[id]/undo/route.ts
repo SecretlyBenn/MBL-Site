@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { inningsPerGameForScorecard } from "@/db/queries";
 import { games, plateAppearances, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { deriveBoxScore } from "@/app/derive-box-score";
@@ -20,6 +21,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const { id } = await params;
     const scorecardId = Number(id);
+    const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
 
     const db = getDb();
     const scorecard = await db.query.scorecards.findFirst({
@@ -44,7 +46,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       .select()
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
-    const box = deriveBoxScore(rows);
+    const box = deriveBoxScore(rows, { inningsPerGame });
     await db
       .update(scorecards)
       .set({ homeScore: box.homeScore, awayScore: box.awayScore })

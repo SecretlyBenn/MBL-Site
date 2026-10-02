@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, players, plateAppearances, scorecards, teams, users } from "@/db/schema";
+import { getLeagues } from "@/db/queries";
+import { REGULATION_INNINGS } from "@/app/derive-box-score";
 import { describeRoles, requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { deriveBoxScore } from "@/app/derive-box-score";
@@ -48,6 +50,11 @@ export default async function HeadUmpirePage() {
   // club has gone missing stays in the queue rather than vanishing from it -
   // an unreviewable card should be visible, not silently dropped.
   const teamLeagueById = new Map(allTeams.map((team) => [team.id, team.leagueId]));
+  // Six innings in the MBL, five in the MCBA. A box score on this screen is
+  // derived, so it has to be derived over the right length of game.
+  const inningsByLeague = new Map(
+    (await getLeagues()).map((league) => [league.id, league.inningsPerGame] as const),
+  );
   const mine = (scorecard: { gameId: number }) => {
     if (leagueUser.leagueId == null) return true;
     const game = gameById.get(scorecard.gameId);
@@ -85,6 +92,11 @@ export default async function HeadUmpirePage() {
             const home = game ? teamNameById.get(game.homeTeamId) : undefined;
             const box = deriveBoxScore(
               appearances.filter((row) => row.scorecardId === scorecard.id),
+              {
+                inningsPerGame:
+                  inningsByLeague.get(teamLeagueById.get(game?.homeTeamId ?? -1) ?? -1) ??
+                  REGULATION_INNINGS,
+              },
             );
 
             return (

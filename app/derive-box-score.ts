@@ -70,6 +70,15 @@ export type BoxContext = {
   runnerOuts?: StoredRunnerOut[];
   /** Starting lineups plus every fielding change, in any order. */
   fielding?: FieldingSlot[];
+  /**
+   * How long a game is in the competition this card belongs to: six innings in
+   * the MBL, five in the MCBA. It decides when the game is over and from which
+   * inning a runner is placed on second.
+   *
+   * Required rather than defaulted, because a default is how one competition's
+   * length ends up quietly applied to the other's games.
+   */
+  inningsPerGame: number;
 };
 
 export type BattingLine = {
@@ -202,7 +211,13 @@ function alignmentAt(fielding: FieldingSlot[], isHome: boolean, sequence: number
   return byPosition;
 }
 
-/** A league game is six innings; anything past that is extra innings. */
+/**
+ * How long a game is when nothing says otherwise.
+ *
+ * The MBL plays six innings and the MCBA five, so the real figure lives on
+ * `leagues.innings_per_game` and is passed in. This is the fallback for a card
+ * with no competition behind it.
+ */
 export const REGULATION_INNINGS = 6;
 
 /**
@@ -233,8 +248,9 @@ export function extraInningsRunner(
   appearances: StoredPlateAppearance[],
   inning: number,
   isHomeBatting: boolean,
+  inningsPerGame: number,
 ) {
-  if (inning <= REGULATION_INNINGS) return null;
+  if (inning <= inningsPerGame) return null;
   const ordered = [...appearances].sort((a, b) => a.sequence - b.sequence);
   return lastBatterByHalf(ordered).get(`${inning - 1}:${isHomeBatting}`) ?? null;
 }
@@ -244,14 +260,15 @@ export function startingBases(
   appearances: StoredPlateAppearance[],
   inning: number,
   isHomeBatting: boolean,
+  inningsPerGame: number,
 ): Bases {
-  const runner = extraInningsRunner(appearances, inning, isHomeBatting);
+  const runner = extraInningsRunner(appearances, inning, isHomeBatting, inningsPerGame);
   return runner === null ? EMPTY_BASES : { first: null, second: runner, third: null };
 }
 
 export function deriveBoxScore(
   appearances: StoredPlateAppearance[],
-  context: BoxContext = {},
+  context: BoxContext,
 ): DerivedBoxScore {
   const ordered = [...appearances].sort((a, b) => a.sequence - b.sequence);
 
@@ -311,7 +328,7 @@ export function deriveBoxScore(
       // Extra innings open with the batter who made the last out of the
       // previous inning standing on second.
       placedRunner =
-        pa.inning > REGULATION_INNINGS
+        pa.inning > context.inningsPerGame
           ? lastBatter.get(`${pa.inning - 1}:${pa.isHomeBatting}`) ?? null
           : null;
       bases =
@@ -656,7 +673,11 @@ function earnedSave(entry: Entry, outs: number) {
  * ninth needs the runners as they stood then, and offering the current ones
  * makes a runner who scored back then impossible to name.
  */
-export function basesBefore(appearances: StoredPlateAppearance[], sequence: number): Bases {
+export function basesBefore(
+  appearances: StoredPlateAppearance[],
+  sequence: number,
+  inningsPerGame: number,
+): Bases {
   const play = appearances.find((pa) => pa.sequence === sequence);
   if (!play) return EMPTY_BASES;
 
@@ -669,7 +690,7 @@ export function basesBefore(appearances: StoredPlateAppearance[], sequence: numb
     )
     .sort((a, b) => a.sequence - b.sequence);
 
-  let bases = startingBases(appearances, play.inning, play.isHomeBatting);
+  let bases = startingBases(appearances, play.inning, play.isHomeBatting, inningsPerGame);
   for (const pa of earlier) {
     if (pa.basesAfter) {
       bases = decodeBases(pa.basesAfter);
@@ -690,15 +711,15 @@ export function basesBefore(appearances: StoredPlateAppearance[], sequence: numb
  * last change of sides matter - and replaying rather than storing a running
  * total means editing an earlier at-bat corrects the diamond too.
  */
-export function currentBases(appearances: StoredPlateAppearance[]) {
-  const derived = deriveBoxScore(appearances);
+export function currentBases(appearances: StoredPlateAppearance[], inningsPerGame: number) {
+  const derived = deriveBoxScore(appearances, { inningsPerGame });
 
   // The half just ended, so what matters is how the next one opens - empty in
   // regulation, and with the placed runner on second in extra innings.
   if (derived.currentOuts >= 3) {
     const nextInning = derived.isHomeBatting ? derived.currentInning + 1 : derived.currentInning;
     const nextIsHome = !derived.isHomeBatting;
-    return startingBases(appearances, nextInning, nextIsHome);
+    return startingBases(appearances, nextInning, nextIsHome, inningsPerGame);
   }
 
   const half = appearances
@@ -708,7 +729,7 @@ export function currentBases(appearances: StoredPlateAppearance[]) {
     )
     .sort((a, b) => a.sequence - b.sequence);
 
-  let bases = startingBases(appearances, derived.currentInning, derived.isHomeBatting);
+  let bases = startingBases(appearances, derived.currentInning, derived.isHomeBatting, inningsPerGame);
   for (const pa of half) {
     // A stored end-state wins: the umpire placed those runners by hand, and
     // re-inferring would quietly overrule them.
@@ -727,9 +748,9 @@ export function currentBases(appearances: StoredPlateAppearance[]) {
 
 export function gameState(
   appearances: StoredPlateAppearance[],
-  inningsPerGame = REGULATION_INNINGS,
+  inningsPerGame: number,
 ) {
-  const derived = deriveBoxScore(appearances);
+  const derived = deriveBoxScore(appearances, { inningsPerGame });
   const halfOver = derived.currentOuts >= 3;
 
   let inning = derived.currentInning;
@@ -764,8 +785,12 @@ export function gameState(
  * The play it was made after still knows which inning it was, so ask that, and
  * never let the answer run ahead of where the game has actually got to.
  */
-export function inningAt(appearances: StoredPlateAppearance[], sequence: number) {
-  const now = gameState(appearances).inning;
+export function inningAt(
+  appearances: StoredPlateAppearance[],
+  sequence: number,
+  inningsPerGame: number,
+) {
+  const now = gameState(appearances, inningsPerGame).inning;
   const at = appearances
     .filter((pa) => pa.sequence <= sequence)
     .sort((a, b) => b.sequence - a.sequence)[0];

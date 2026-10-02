@@ -1,5 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { inningsPerGameForScorecard } from "@/db/queries";
 import {
   games,
   players,
@@ -36,6 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const { id } = await params;
     const scorecardId = Number(id);
+    const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
 
     const db = getDb();
     const scorecard = await db.query.scorecards.findFirst({
@@ -56,13 +58,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
 
-    const bases = currentBases(all);
+    const bases = currentBases(all, inningsPerGame);
     const from = BASE_NAMES.find((base) => bases[base] === payload.playerId);
     if (!from) {
       return Response.json({ error: "That runner is not on base." }, { status: 409 });
     }
 
-    const box = deriveBoxScore(all);
+    const box = deriveBoxScore(all, { inningsPerGame });
     const [standing] = await db
       .select()
       .from(plateAppearances)
@@ -129,7 +131,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .select()
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
-    const updated = deriveBoxScore(rows);
+    const updated = deriveBoxScore(rows, { inningsPerGame });
     await db
       .update(scorecards)
       .set({ homeScore: updated.homeScore, awayScore: updated.awayScore })
@@ -161,6 +163,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const { id } = await params;
     const scorecardId = Number(id);
+    const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
 
     const db = getDb();
     const scorecard = await db.query.scorecards.findFirst({
@@ -208,7 +211,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
       .select()
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
-    const updated = deriveBoxScore(rows);
+    const updated = deriveBoxScore(rows, { inningsPerGame });
     await db
       .update(scorecards)
       .set({ homeScore: updated.homeScore, awayScore: updated.awayScore })

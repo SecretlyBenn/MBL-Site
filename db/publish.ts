@@ -17,7 +17,7 @@ import {
   scorecards,
   teams,
 } from "@/db/schema";
-import { inningsPerGameForSeason } from "@/db/queries";
+import { inningsPerGameForScorecard, inningsPerGameForSeason } from "@/db/queries";
 import { currentSeasonName } from "@/db/settings";
 import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/derive-box-score";
 import { fieldingHistory } from "@/app/fielding-history";
@@ -113,6 +113,7 @@ export async function publishScorecard(scorecardId: number) {
   const box = deriveBoxScore(appearances, {
     runnerOuts: outs,
     fielding: fieldingHistory(lineups, changes),
+    inningsPerGame: await inningsPerGameForScorecard(scorecardId),
   });
 
   // A fixture carried over from the archive keeps the archive's id, so it

@@ -1,7 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { inningAt } from "../app/derive-box-score.ts";
+import { inningAt as inningAtRaw } from "../app/derive-box-score.ts";
+
+/**
+ * These are MBL games unless a test says otherwise, so a full game is six
+ * innings. It is passed explicitly rather than defaulted, here and in the
+ * site, because the MCBA plays five and a default is how one competition's
+ * length ends up quietly applied to the other's games.
+ */
+const MBL = 6;
+const inningAt = (plays, sequence, innings = MBL) => inningAtRaw(plays, sequence, innings);
 
 const grid = readFileSync(
   new URL("../app/umpire/[scorecardId]/ScoreGrid.tsx", import.meta.url),

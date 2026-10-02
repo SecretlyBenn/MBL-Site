@@ -1,5 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { inningsPerGameForScorecard } from "@/db/queries";
 import { games, players, plateAppearances, runnerOuts, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { currentBases, deriveBoxScore, gameState } from "@/app/derive-box-score";
@@ -35,9 +36,10 @@ async function open(scorecardId: number) {
  * leaving a running total that drifted.
  */
 async function syncScore(scorecardId: number, gameId: number) {
+  const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
   const db = getDb();
   const rows = await db.select().from(plateAppearances).where(eq(plateAppearances.scorecardId, scorecardId));
-  const box = deriveBoxScore(rows);
+  const box = deriveBoxScore(rows, { inningsPerGame });
   await db
     .update(scorecards)
     .set({ homeScore: box.homeScore, awayScore: box.awayScore })
@@ -53,6 +55,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const scorecardId = Number((await params).id);
+    const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
     const scorecard = await open(scorecardId);
     const body = (await request.json()) as PlateAppearanceInput & {
       batterPlayerId: number;
@@ -61,7 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const db = getDb();
 
     const rows = await db.select().from(plateAppearances).where(eq(plateAppearances.scorecardId, scorecardId));
-    const state = gameState(rows);
+    const state = gameState(rows, inningsPerGame);
 
     const problem = validatePlateAppearance(body, state.outs);
     if (problem) return Response.json({ error: problem }, { status: 400 });
@@ -118,7 +121,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Only runners actually on base can have scored. The screen can offer a
     // stale list - it did, and a name that was never out there was credited
     // with a run.
-    const before = currentBases(rows);
+    const before = currentBases(rows, inningsPerGame);
     const aboard = new Set(runnersOn(before).map((runner) => runner.playerId));
     const scored = decodeRunners(body.runnersScored ?? null).filter((id) => aboard.has(id));
     // Runners retired on the play, limited to those actually on base.

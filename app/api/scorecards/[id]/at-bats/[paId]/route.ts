@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, lt } from "drizzle-orm";
 import { getDb } from "@/db";
+import { inningsPerGameForScorecard } from "@/db/queries";
 import { games, plateAppearances, runnerOuts, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { basesBefore, deriveBoxScore } from "@/app/derive-box-score";
@@ -19,9 +20,10 @@ async function openScorecard(scorecardId: number) {
 
 /** Recomputes the score after any change, so it never drifts from the at-bats. */
 async function syncScore(scorecardId: number, gameId: number) {
+  const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
   const db = getDb();
   const rows = await db.select().from(plateAppearances).where(eq(plateAppearances.scorecardId, scorecardId));
-  const box = deriveBoxScore(rows);
+  const box = deriveBoxScore(rows, { inningsPerGame });
   await db
     .update(scorecards)
     .set({ homeScore: box.homeScore, awayScore: box.awayScore })
@@ -65,6 +67,7 @@ export async function PATCH(
     await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const { id, paId } = await params;
     const scorecardId = Number(id);
+    const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
     const scorecard = await openScorecard(scorecardId);
     const db = getDb();
 
@@ -99,7 +102,7 @@ export async function PATCH(
 
     // Recomputed from the bases as they stood before this play, and limited
     // to runners who were actually on them.
-    const standing = basesBefore(before, existing.sequence);
+    const standing = basesBefore(before, existing.sequence, inningsPerGame);
     const aboard = new Set(runnersOn(standing).map((runner) => runner.playerId));
     const scoredHere = decodeRunners(body.runnersScored ?? existing.runnersScored).filter((id) =>
       aboard.has(id),

@@ -34,6 +34,7 @@ type LineupRow = {
 
 export function ScoringBoard({
   scorecardId,
+  inningsPerGame,
   awayName,
   homeName,
   lineups,
@@ -47,6 +48,12 @@ export function ScoringBoard({
   undoable,
 }: {
   scorecardId: number;
+  /**
+   * How long this game is - six innings in the MBL, five in the MCBA. It sets
+   * when the game can be finished and from which inning a runner is placed on
+   * second, so it cannot be assumed here.
+   */
+  inningsPerGame: number;
   awayName: string;
   homeName: string;
   lineups: LineupRow[];
@@ -87,8 +94,8 @@ export function ScoringBoard({
   /** Who the umpire is about to bring in, before they confirm it. */
   const [warmingUp, setWarmingUp] = useState<string>("");
 
-  const state = useMemo(() => gameState(appearances), [appearances]);
-  const bases = useMemo(() => currentBases(appearances), [appearances]);
+  const state = useMemo(() => gameState(appearances, inningsPerGame), [appearances, inningsPerGame]);
+  const bases = useMemo(() => currentBases(appearances, inningsPerGame), [appearances, inningsPerGame]);
 
   // A player who has walked off is not standing anywhere, but he keeps his
   // place in the order: people in this league come back, and rebuilding the
@@ -126,7 +133,7 @@ export function ScoringBoard({
   // now", which is the wrong question in a half-inning that is already over -
   // and it made a run that was missed at the time impossible to add, because
   // the man who scored it was not in the list to tick.
-  const entryBases = editing ? basesBefore(appearances, editing.sequence) : bases;
+  const entryBases = editing ? basesBefore(appearances, editing.sequence, inningsPerGame) : bases;
   const entryBatter = editing ? editing.batterPlayerId : batter?.playerId;
 
   const runners = runnersOn(entryBases)
@@ -313,11 +320,11 @@ export function ScoringBoard({
    */
   const placedRunners = useMemo(() => {
     const marks = new Map<string, { scored: boolean; out: boolean }>();
-    const lastInning = Math.max(REGULATION_INNINGS, ...atBats.map((atBat) => atBat.inning));
+    const lastInning = Math.max(inningsPerGame, ...atBats.map((atBat) => atBat.inning));
 
-    for (let inning = REGULATION_INNINGS + 1; inning <= lastInning; inning += 1) {
+    for (let inning = inningsPerGame + 1; inning <= lastInning; inning += 1) {
       for (const isHome of [false, true]) {
-        const runner = extraInningsRunner(appearances, inning, isHome);
+        const runner = extraInningsRunner(appearances, inning, isHome, inningsPerGame);
         if (runner === null) continue;
 
         // His slot comes from the play he made last inning rather than from

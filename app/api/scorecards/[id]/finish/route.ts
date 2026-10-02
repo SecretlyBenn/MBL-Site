@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { inningsPerGameForScorecard } from "@/db/queries";
 import { logAudit } from "@/db/audit";
 import { games, plateAppearances, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
@@ -10,6 +11,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   try {
     const user = await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const scorecardId = Number((await params).id);
+    const inningsPerGame = await inningsPerGameForScorecard(scorecardId);
     const db = getDb();
 
     const scorecard = await db.query.scorecards.findFirst({ where: eq(scorecards.id, scorecardId) });
@@ -28,7 +30,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     if (appearances.length === 0) {
       return Response.json({ error: "Nothing has been scored yet." }, { status: 400 });
     }
-    const box = deriveBoxScore(appearances);
+    const box = deriveBoxScore(appearances, { inningsPerGame });
 
     await db
       .update(scorecards)
