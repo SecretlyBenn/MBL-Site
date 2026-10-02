@@ -35,14 +35,18 @@ import {
  * the moment the half turns over, without waiting for this to catch up.
  *
  * The line score and every man's figures for the day come out of the box score
- * that is derived here anyway, so they cost nothing to send. What is
- * deliberately *not* sent is season averages. Those live in the archive, keyed
- * by name, and reading them on a poll that runs every few seconds all evening
- * is the kind of query that has taken this site down before. A real board
- * leads with what a man has done today in any case.
+ * that is derived here anyway, so they cost nothing to send.
+ *
+ * Season averages are sent too, which this used to refuse to do on the grounds
+ * that the archive is keyed by name and would be too dear to read on a poll.
+ * That was a guess, and measuring it settled it: the whole board's worth of
+ * names is 246 rows and under two milliseconds, because `historical_player_stats`
+ * is only a few thousand rows and has an index on the name (0025). They are
+ * memoised for ten minutes besides - a season average does not move during a
+ * game - so a ground polling all evening reads them once.
  */
 
-/** What a batter has done in this game. Not his season - see above. */
+/** What a batter has done in this game, as against his season - see `SeasonLine`. */
 export type BatterGameLine = {
   atBats: number;
   hits: number;
