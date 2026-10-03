@@ -114,8 +114,18 @@ body {
     text-overflow: ellipsis;
   }
 
+  /* Every table on the site sits in one of these.
+   *
+   * It scrolls sideways rather than hiding what will not fit. It used to be
+   * plain `overflow: hidden`, which is what rounds the table's corners off
+   * against the card, and most of the wide tables had an `overflow-x-auto`
+   * added by hand on top of it. The ones that did not - a box score, the
+   * head umpire's review of one - simply lost their last columns on a narrow
+   * screen, with no scrollbar and no way to reach them. Clipping is still
+   * what happens vertically, so the corners are unaffected. */
   .data-table-shell {
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: clip;
     border: 1px solid rgb(35 44 56 / 0.7);
     border-radius: 0.75rem;
     background: rgb(20 26 34);

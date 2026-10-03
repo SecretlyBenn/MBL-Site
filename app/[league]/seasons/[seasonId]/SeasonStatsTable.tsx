@@ -91,7 +91,12 @@ export function SeasonStatsTable({ rows, kind, seasonId, teamIds, leagueSlug }: 
         <span className="text-xs text-slate-500">{sorted.length} players · Page {current} of {pages}</span>
       </div>
       <div className="data-table-shell">
-        <table className="data-table w-full table-fixed">
+        {/* The widths below are shares of the table, and `table-fixed` honours
+            them whatever the screen: across a phone the nine columns came to
+            24px each, which crushes a figure rather than showing it. A floor
+            on the whole table makes it scroll sideways in its shell instead,
+            and does nothing at any width that can hold it. */}
+        <table className="data-table w-full min-w-[40rem] table-fixed">
           <colgroup>
             <col style={{ width: "26%" }} /><col style={{ width: "24%" }} />
             {Array.from({ length: kind === "batting" ? 7 : 4 }, (_, index) => <col key={index} />)}

@@ -57,6 +57,19 @@ test("the box score scrolls rather than being cut off", () => {
   assert.equal(wrapped?.length, 2, "the batting and pitching tables are not both in a scroller");
 });
 
+test("every table shell scrolls rather than hiding what will not fit", () => {
+  // It was plain `overflow: hidden`, which is what rounds a table's corners
+  // off against its card, and the wide tables mostly had an overflow-x-auto
+  // added by hand on top. The ones that did not - the head umpire's review of
+  // a box score, a season's own stat tables - lost their last columns on a
+  // narrow screen with no scrollbar and no way to reach them.
+  const at = css.indexOf(".data-table-shell {");
+  assert.ok(at > 0, "the table shell is gone");
+  const rule = css.slice(at, css.indexOf("}", at));
+  assert.match(rule, /overflow-x: auto/);
+  assert.match(rule, /overflow-y: clip/, "hidden on one axis becomes auto when the other scrolls");
+});
+
 test("a bleeding banner matches the padding it is pulling against", () => {
   // The shell is px-4 on a phone and px-6 from sm. A -mx-6 against px-4 put
   // the banner 8px past the right edge, which gave the page a sideways scroll
