@@ -46,7 +46,17 @@ export async function POST(request: Request) {
 
     const [scorecard] = await db
       .insert(scorecards)
-      .values({ gameId, submittedByUserId: user.id, status: "IN_PROGRESS", homeScore: 0, awayScore: 0 })
+      // Both names start as the umpire who claimed it. Whoever finishes the
+      // game is written over submittedByUserId then, so a card that changes
+      // hands mid-game ends up credited to the person who actually sent it up.
+      .values({
+        gameId,
+        submittedByUserId: user.id,
+        startedByUserId: user.id,
+        status: "IN_PROGRESS",
+        homeScore: 0,
+        awayScore: 0,
+      })
       .returning();
 
     await db.update(games).set({ status: "IN_PROGRESS" }).where(eq(games.id, gameId));

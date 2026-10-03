@@ -32,9 +32,18 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     }
     const box = deriveBoxScore(appearances, { inningsPerGame });
 
+    // The card belongs to whoever sends it up, not whoever opened it. An
+    // umpire who claims a game and then cannot see it through is replaced at
+    // the plate, and the head umpire needs the name of the person who actually
+    // scored it - that is who they send it back to.
     await db
       .update(scorecards)
-      .set({ status: "PENDING", homeScore: box.homeScore, awayScore: box.awayScore })
+      .set({
+        status: "PENDING",
+        submittedByUserId: user.id,
+        homeScore: box.homeScore,
+        awayScore: box.awayScore,
+      })
       .where(eq(scorecards.id, scorecardId));
     await db
       .update(games)

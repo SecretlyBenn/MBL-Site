@@ -108,8 +108,15 @@ export default async function HeadUmpirePage() {
                       {box.awayScore} – {box.homeScore}
                     </span>
                   </h2>
+                  {/* Who opened the game is only worth saying when it is
+                      somebody else: a game that changed hands mid-way is a
+                      thing the reviewer may want to ask about, and otherwise
+                      it is the same name twice. */}
                   <p className="text-xs text-slate-500">
                     Submitted by {userNameById.get(scorecard.submittedByUserId) ?? "unknown"}
+                    {scorecard.startedByUserId !== null
+                      && scorecard.startedByUserId !== scorecard.submittedByUserId
+                      && ` · started by ${userNameById.get(scorecard.startedByUserId) ?? "unknown"}`}
                   </p>
                 </header>
 

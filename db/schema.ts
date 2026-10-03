@@ -166,9 +166,17 @@ export const scorecards = sqliteTable("scorecards", {
   gameId: integer("game_id")
     .notNull()
     .references(() => games.id),
+  /**
+   * Whoever sent the card up for review, which is not always whoever opened
+   * it: an umpire who has to drop out mid-game is replaced by another, and the
+   * card belongs to the one who finished it. Set again when the game is
+   * finished - see /api/scorecards/[id]/finish.
+   */
   submittedByUserId: integer("submitted_by_user_id")
     .notNull()
     .references(() => users.id),
+  /** Whoever claimed the game and started scoring it. */
+  startedByUserId: integer("started_by_user_id").references(() => users.id),
   status: text("status").notNull().default("PENDING"),
   homeScore: integer("home_score").notNull(),
   awayScore: integer("away_score").notNull(),
