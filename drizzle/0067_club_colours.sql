@@ -1,0 +1,20 @@
+-- Each club's colour, sampled from the crest the site shows it with.
+UPDATE teams SET color = '#01aaa9' WHERE id = 1;
+UPDATE teams SET color = '#c2112e' WHERE id = 2;
+UPDATE teams SET color = '#d10b0a' WHERE id = 3;
+UPDATE teams SET color = '#000a41' WHERE id = 4;
+UPDATE teams SET color = '#fc770f' WHERE id = 5;
+UPDATE teams SET color = '#8f86e8' WHERE id = 6;
+UPDATE teams SET color = '#ea721a' WHERE id = 7;
+UPDATE teams SET color = '#87fd12' WHERE id = 8;
+UPDATE teams SET color = '#f0bf3e' WHERE id = 9;
+UPDATE teams SET color = '#90d0fd' WHERE id = 10;
+UPDATE teams SET color = '#fe141d' WHERE id = 12;
+UPDATE teams SET color = '#003a8e' WHERE id = 13;
+UPDATE teams SET color = '#b93027' WHERE id = 14;
+UPDATE teams SET color = '#8cdb25' WHERE id = 15;
+UPDATE teams SET color = '#a3866b' WHERE id = 16;
+UPDATE teams SET color = '#000000' WHERE id = 17;
+UPDATE teams SET color = '#ff3131' WHERE id = 18;
+UPDATE teams SET color = '#001a33' WHERE id = 19;
+UPDATE teams SET color = '#012f4a' WHERE id = 20;
