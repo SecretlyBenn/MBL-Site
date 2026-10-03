@@ -527,8 +527,13 @@ export function ScoringBoard({
       {/* One row of panels, all the same shell, then the scorecards beneath at
           full width. Entry, the bases, the pitching lines and the bench are
           each their own box rather than one long column, so the umpire is not
-          scrolling to reach the thing they need next. */}
-      <div className="grid gap-3 xl:grid-cols-4">
+          scrolling to reach the thing they need next.
+
+          `items-start` matters: without it the grid stretches every panel to
+          the height of the tallest, so the three short ones were mostly empty
+          and the scorecard underneath - the thing being filled in - was pushed
+          off the bottom of the screen. */}
+      <div className="grid items-start gap-3 xl:grid-cols-4">
         <section className="panel">
           <div className="panel-head">
             <h3 className="panel-title">

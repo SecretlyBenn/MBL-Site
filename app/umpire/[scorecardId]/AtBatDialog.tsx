@@ -35,6 +35,37 @@ export const EMPTY_DRAFT: AtBatDraft = {
 };
 
 /**
+ * A colour per group, so the four kinds of result are told apart before they
+ * are read. Out is the one an umpire presses most and is the calmest; a hit is
+ * green because it is the thing that changes the score.
+ */
+const GROUP_ON: Record<string, string> = {
+  "Hit": "border-emerald-500 bg-emerald-600/25 text-emerald-100",
+  "On base": "border-sky-500 bg-sky-600/25 text-sky-100",
+  "Out": "border-slate-400 bg-slate-500/30 text-slate-100",
+  "Other": "border-amber-500 bg-amber-600/25 text-amber-100",
+};
+const GROUP_OFF: Record<string, string> = {
+  "Hit": "border-emerald-900/70 bg-emerald-950/30 text-emerald-300/80 hover:border-emerald-700",
+  "On base": "border-sky-900/70 bg-sky-950/30 text-sky-300/80 hover:border-sky-700",
+  "Out": "border-slate-700 bg-slate-900/40 text-slate-300 hover:border-slate-500",
+  "Other": "border-amber-900/70 bg-amber-950/30 text-amber-300/80 hover:border-amber-700",
+};
+
+/**
+ * Shorter wording for the buttons. The full label is the title, so hovering
+ * still spells it out - "Strikeout (swinging)" twice over at this size pushed
+ * the out group onto three rows and made the common calls harder to find.
+ */
+const SHORT: Record<string, string> = {
+  K: "Swinging", KL: "Looking", GO: "Ground", FO: "Fly", LO: "Line", PO: "Pop",
+  FC: "Fielder's ch.", DP: "Double play", TP: "Triple play",
+  SF: "Sac fly", SH: "Sac bunt", HR: "Home run", "1B": "Single", "2B": "Double",
+  "3B": "Triple", BB: "Walk", IBB: "Intentional", HBP: "Hit by pitch",
+  E: "On error", CI: "Interference", SKIP: "Not here", OTHER: "Describe",
+};
+
+/**
  * The follow-up questions for one at-bat, revealed by what happened rather than
  * shown all at once. Picking a result is the only thing asked up front; a
  * groundout then asks who fielded it, a hit asks about runs, an error asks who
@@ -121,24 +152,43 @@ export function AtBatDialog({
 
   return (
     <div className="space-y-3">
-      <label className="ui-field-label flex-col !items-start gap-1.5">
-        What happened?
-        <select
-          value={draft.result}
-          onChange={(event) => chooseResult(event.target.value as ResultCode | "")}
-          className="ui-select w-full"
-          autoFocus
-        >
-          <option value="">Choose a result…</option>
-          {(["Hit", "On base", "Out", "Other"] as const).map((group) => (
-            <optgroup key={group} label={group}>
-              {RESULTS.filter((row) => row.group === group).map((row) => (
-                <option key={row.code} value={row.code}>{row.label}</option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
+      {/* Buttons rather than a dropdown. This is the control the umpire reaches
+          for on every single plate appearance, and a select cost two clicks and
+          a read of a list that was mostly things they did not want. Laid out in
+          the four groups, each with its own colour, so the hand learns where a
+          strikeout is and stops reading at all. */}
+      <div className="space-y-2">
+        <span className="ui-field-label">What happened?</span>
+        {(["Hit", "On base", "Out", "Other"] as const).map((group) => (
+          <div key={group}>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              {group}
+            </span>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {RESULTS.filter((row) => row.group === group).map((row) => {
+                const picked = draft.result === row.code;
+                return (
+                  <button
+                    key={row.code}
+                    type="button"
+                    onClick={() => chooseResult(picked ? "" : row.code)}
+                    aria-pressed={picked}
+                    title={row.label}
+                    className={`min-w-[4.5rem] flex-1 rounded-md border px-2 py-1.5 text-left transition-colors ${
+                      picked ? GROUP_ON[group] : GROUP_OFF[group]
+                    }`}
+                  >
+                    <span className="block text-sm font-bold leading-none">{row.code}</span>
+                    <span className="mt-0.5 block text-[10px] leading-tight opacity-70">
+                      {SHORT[row.code] ?? row.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {/* Nothing below appears until a result is chosen. */}
       {definition && (

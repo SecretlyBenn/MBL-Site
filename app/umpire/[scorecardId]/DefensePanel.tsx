@@ -109,17 +109,20 @@ export function DefensePanel({
         </button>
       </div>
 
-      <div className="p-3">
-      <p className="mb-2 text-[11px] text-slate-500">
-        {teamName}
-        {inTheField ? " — in the field" : " — batting"}
+      <div className="p-2">
+      {/* The panel is already titled with the club, so only the half it is in
+          is said here - and only while changing does the hint about "Left"
+          earn its line. Said twice, it cost a row on a panel that sits beside
+          the scorecard and was pushing it off the screen. */}
+      <p className="mb-1.5 text-[11px] text-slate-500">
+        {inTheField ? "In the field" : "Batting"}
         {open && " — “Left” takes a player off the field"}
       </p>
 
       {notice && <p className="mb-2 text-[11px] text-emerald-400">{notice}</p>}
       {error && <p role="alert" className="mb-2 text-[11px] text-rose-400">{error}</p>}
 
-      <ul className="space-y-1 text-xs">
+      <ul className="space-y-0.5 text-xs">
         {fielders.map((fielder) => (
           <li key={fielder.playerId} className="flex items-center gap-2">
             {open ? (
