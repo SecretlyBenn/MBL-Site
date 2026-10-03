@@ -388,9 +388,8 @@ export function deriveBoxScore(
         if (definition.code === "HR") batter.homeRuns += 1;
       }
       if (definition.isWalk) batter.walks += 1;
-      if (definition.code === "HBP") batter.hitByPitch += 1;
       if (definition.code === "SF") batter.sacFlies += 1;
-      if (definition.code === "SH") batter.sacBunts += 1;
+      if (definition.code === "SAC") batter.sacBunts += 1;
       if (definition.isStrikeout) batter.strikeouts += 1;
 
       pitcher.battersFaced += 1;

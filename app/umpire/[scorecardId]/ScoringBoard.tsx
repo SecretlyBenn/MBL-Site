@@ -18,7 +18,7 @@ import { BaseDiamond } from "./BaseDiamond";
 import { LivePitching } from "./LivePitching";
 import { SubstitutionPanel } from "./SubstitutionPanel";
 import type { LoggedAtBat } from "./AtBatLog";
-import { nextInOrder, POSITION_NUMBER, type ResultCode } from "@/app/scoring";
+import { isUnawardedOut, nextInOrder, POSITION_NUMBER, type ResultCode } from "@/app/scoring";
 import { readJson } from "@/app/read-json";
 
 type LineupRow = {
@@ -119,7 +119,7 @@ export function ScoringBoard({
   // deleted at-bat, a skipped batter, or a player leaving the game all shift
   // it, and the highlighted cell then names someone who is not up.
   const lastForSide = atBats
-    .filter((atBat) => atBat.isHomeBatting === state.isHomeBatting)
+    .filter((atBat) => atBat.isHomeBatting === state.isHomeBatting && !isUnawardedOut(atBat.result))
     .sort((a, b) => b.sequence - a.sequence)[0];
   const batter = nextInOrder(battingOrder, lastForSide?.battingSlot ?? null);
 
@@ -687,7 +687,11 @@ export function ScoringBoard({
           />
         </section>
 
-        <div className="space-y-3">
+        {/* Substitution sits under the mound because the two go together: a
+            pitching change is a substitution, and the umpire making one is
+            already looking at this column. That leaves the last column to the
+            lineups, which are the thing most often read. */}
+        <div className="space-y-3 xl:col-start-3 xl:row-start-2">
           <SubstitutionPanel
             scorecardId={scorecardId}
             awayName={awayName}
@@ -696,7 +700,9 @@ export function ScoringBoard({
             bench={bench}
             busy={busy}
           />
+        </div>
 
+        <div className="space-y-3 xl:col-start-4 xl:row-start-1">
           {/* Both sides, not just the one in the field. A position change is
               agreed between innings as often as during one, and an umpire who
               can only touch the fielding team has to wait for the sides to

@@ -62,11 +62,27 @@ test("a sacrifice fly is a sacrifice fly and not an at-bat", () => {
   assert.equal(line.rbis, 1);
 });
 
-test("a hit batsman is counted, so on-base percentage can see him", () => {
+test("a sacrifice bunt is a plate appearance and not a time at bat", () => {
+  // SAC, not SH. The league calls it a sac and the scorecard is read by people
+  // who write it that way.
   sequence = 0;
-  const box = deriveBoxScore([pa({ result: "HBP" })]);
-  assert.equal(away(box, 1).hitByPitch, 1);
+  const box = deriveBoxScore([pa({ result: "SAC", outsRecorded: 1 })], { inningsPerGame: 6 });
+  assert.equal(away(box, 1).sacBunts, 1);
   assert.equal(away(box, 1).atBats, 0);
+  assert.equal(away(box, 1).plateAppearances, 1);
+});
+
+test("an out given by rule takes an out and credits no fielder", () => {
+  // Out of order, hitting the ball twice, leading off early. The batter is out
+  // and nobody fielded anything, so there is no putout to hand out.
+  sequence = 0;
+  const box = deriveBoxScore([pa({ result: "OUT", outsRecorded: 1 })], { inningsPerGame: 6 });
+  assert.equal(away(box, 1).atBats, 1);
+  assert.deepEqual(
+    box.homeBatting.flatMap((line) => Object.keys(line.positionOuts ?? {})),
+    [],
+    "an out by rule credited a fielder with a putout",
+  );
 });
 
 test("an error lands on the fielder who made it, not just the team", () => {

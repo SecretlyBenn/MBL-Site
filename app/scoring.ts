@@ -11,13 +11,15 @@
  */
 export type ResultCode =
   | "1B" | "2B" | "3B" | "HR"
-  | "BB" | "IBB" | "HBP"
-  | "K" | "KL"
+  | "BB" | "IBB"
+  | "K"
   | "GO" | "FO" | "LO" | "PO"
   | "FC" | "DP" | "TP"
-  | "SF" | "SH"
-  | "E" | "CI"
+  | "SF" | "SAC"
+  | "E"
+  | "OUT"
   | "SKIP"
+  | "UO"
   | "OTHER";
 
 export type ResultDefinition = {
@@ -52,12 +54,11 @@ export const RESULTS: ResultDefinition[] = [
 
   { code: "BB", label: "Walk", group: "On base", defaultOuts: 0, isAtBat: false, isHit: false, bases: 0, wantsFielders: false, isWalk: true },
   { code: "IBB", label: "Intentional walk", group: "On base", defaultOuts: 0, isAtBat: false, isHit: false, bases: 0, wantsFielders: false, isWalk: true },
-  { code: "HBP", label: "Hit by pitch", group: "On base", defaultOuts: 0, isAtBat: false, isHit: false, bases: 0, wantsFielders: false },
   { code: "E", label: "Reached on error", group: "On base", defaultOuts: 0, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
-  { code: "CI", label: "Catcher's interference", group: "On base", defaultOuts: 0, isAtBat: false, isHit: false, bases: 0, wantsFielders: false },
 
-  { code: "K", label: "Strikeout (swinging)", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: false, isStrikeout: true },
-  { code: "KL", label: "Strikeout (looking)", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: false, isStrikeout: true },
+  // Swinging and looking are not told apart here. Nothing the league records
+  // uses the difference, and two buttons for one call is two things to read.
+  { code: "K", label: "Strikeout", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: false, isStrikeout: true },
   { code: "GO", label: "Groundout", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
   { code: "FO", label: "Flyout", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
   { code: "LO", label: "Lineout", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: true },
@@ -66,12 +67,32 @@ export const RESULTS: ResultDefinition[] = [
   { code: "DP", label: "Double play", group: "Out", defaultOuts: 2, isAtBat: true, isHit: false, bases: 0, wantsFielders: true, retiresRunners: true },
   { code: "TP", label: "Triple play", group: "Out", defaultOuts: 3, isAtBat: true, isHit: false, bases: 0, wantsFielders: true, retiresRunners: true },
   { code: "SF", label: "Sacrifice fly", group: "Out", defaultOuts: 1, isAtBat: false, isHit: false, bases: 0, wantsFielders: true },
-  { code: "SH", label: "Sacrifice bunt", group: "Out", defaultOuts: 1, isAtBat: false, isHit: false, bases: 0, wantsFielders: true },
+  { code: "SAC", label: "Sacrifice bunt", group: "Out", defaultOuts: 1, isAtBat: false, isHit: false, bases: 0, wantsFielders: true },
+
+  /**
+   * An out with nobody to credit it to. Being out of order, hitting the ball
+   * twice, leading off early, bunting against too few fielders - the batter or
+   * a runner is out by rule and no fielder did anything, so there is no putout
+   * to record and no digits to ask for.
+   */
+  { code: "OUT", label: "Out by rule", group: "Out", defaultOuts: 1, isAtBat: true, isHit: false, bases: 0, wantsFielders: false, retiresRunners: true },
 
   // A batter who is not there yet. The order moves on with no out and no
   // plate appearance charged - being late is not a time at bat, and an umpire
   // who has to invent an out to get past them would corrupt the inning.
   { code: "SKIP", label: "Skip — batter not here", group: "Other", defaultOuts: 0, isAtBat: false, isHit: false, bases: 0, wantsFielders: false },
+
+  /**
+   * An out charged to the side rather than to anybody in it, for a rule
+   * infraction. It counts towards the three and nothing else: no batter is
+   * charged a time at bat, no fielder gets a putout, and - the part that makes
+   * it different from every other out here - the order does not move on. The
+   * man who was due up is still due up.
+   *
+   * `isUnawardedOut` is how that last part is kept true: a card is read back
+   * for the last slot that batted, and these are passed over when it is.
+   */
+  { code: "UO", label: "Unawarded out", group: "Other", defaultOuts: 1, isAtBat: false, isHit: false, bases: 0, wantsFielders: false },
 
   // The escape hatch. Anything the list above cannot express - a runner tagged
   // out between bases, an appeal, an interference call - is recorded here with
@@ -81,6 +102,16 @@ export const RESULTS: ResultDefinition[] = [
 
 /** A skipped batter is a placeholder, not a plate appearance. */
 export const isSkip = (result: string) => result === "SKIP";
+
+/**
+ * An out charged to the side, not to a batter.
+ *
+ * It is written against whoever was due up, because a play has to belong to
+ * somebody to be recorded at all, but it is not his time at bat and it does
+ * not use up his turn. Anything that asks "who batted last" has to pass over
+ * these or the order skips a man every time one is called.
+ */
+export const isUnawardedOut = (result: string) => result === "UO";
 
 export const RESULT_BY_CODE = new Map(RESULTS.map((result) => [result.code, result]));
 
@@ -112,7 +143,7 @@ export function positionNumbers(fielders: string) {
 /** "F7", "G4-3", "K" - the shorthand the league already writes on paper. */
 export function scoreNotation(result: ResultCode, fielders: string | null) {
   const prefix: Partial<Record<ResultCode, string>> = {
-    FO: "F", LO: "L", PO: "P", GO: "G", DP: "DP", TP: "TP", SF: "SF", SH: "SH", FC: "FC", E: "E",
+    FO: "F", LO: "L", PO: "P", GO: "G", DP: "DP", TP: "TP", SF: "SF", SAC: "SAC", FC: "FC", E: "E",
   };
   const head = prefix[result] ?? result;
   return fielders ? `${head}${positionNumbers(fielders)}` : head;
@@ -203,7 +234,9 @@ export function putoutPosition(
   result: ResultCode | RunnerOutKind,
   fielded: string | null,
 ): Position | null {
-  if (result === "K" || result === "KL") return null;
+  // A strikeout's putout is the catcher's and is credited there, and an out
+  // given by rule has no fielder behind it at all.
+  if (result === "K" || result === "OUT" || result === "UO") return null;
   if (result === "CAUGHT_STEALING") return "C";
   if (result === "PICKED_OFF") return "P";
   if (result === "TAGGED" || result === "FORCED") return normalisePosition(fielded);

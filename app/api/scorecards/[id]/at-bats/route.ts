@@ -15,6 +15,7 @@ import {
 import { resequenceInnings } from "@/db/resequence";
 import { attachCreated, recordAction } from "@/db/undo";
 import {
+  isUnawardedOut,
   nextInOrder,
   putoutPosition,
   RESULT_BY_CODE,
@@ -99,8 +100,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ error: "That side has no batting order." }, { status: 409 });
     }
 
+    // An unawarded out is charged to the side, not to a batter, so it does not
+    // use up the turn of whoever it was written against - he is still due up.
     const lastForSide = rows
-      .filter((row) => row.isHomeBatting === state.isHomeBatting)
+      .filter((row) => row.isHomeBatting === state.isHomeBatting && !isUnawardedOut(row.result))
       .sort((a, b) => b.sequence - a.sequence)[0];
 
     // By slot number rather than by position in the array: the man who batted

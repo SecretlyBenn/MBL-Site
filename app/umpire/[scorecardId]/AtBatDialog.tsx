@@ -58,11 +58,12 @@ const GROUP_OFF: Record<string, string> = {
  * the out group onto three rows and made the common calls harder to find.
  */
 const SHORT: Record<string, string> = {
-  K: "Swinging", KL: "Looking", GO: "Ground", FO: "Fly", LO: "Line", PO: "Pop",
+  K: "Strikeout", GO: "Ground", FO: "Fly", LO: "Line", PO: "Pop",
   FC: "Fielder's ch.", DP: "Double play", TP: "Triple play",
-  SF: "Sac fly", SH: "Sac bunt", HR: "Home run", "1B": "Single", "2B": "Double",
-  "3B": "Triple", BB: "Walk", IBB: "Intentional", HBP: "Hit by pitch",
-  E: "On error", CI: "Interference", SKIP: "Not here", OTHER: "Describe",
+  SF: "Sac fly", SAC: "Sac bunt", OUT: "By rule",
+  HR: "Home run", "1B": "Single", "2B": "Double", "3B": "Triple",
+  BB: "Walk", IBB: "Intentional", E: "On error",
+  SKIP: "Not here", UO: "Unawarded", OTHER: "Describe",
 };
 
 /**

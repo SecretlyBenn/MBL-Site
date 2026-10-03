@@ -33,7 +33,6 @@ export function SubstitutionPanel({
   busy?: boolean;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [side, setSide] = useState<"away" | "home">("away");
   const [outId, setOutId] = useState("");
   const [inId, setInId] = useState("");
@@ -89,20 +88,8 @@ export function SubstitutionPanel({
   return (
     <section className="panel">
       <div className="panel-head">
-        {/* Shut until it is wanted. A substitution happens a handful of times
-            a game, and open by default it held a quarter of the screen with
-            three empty pickers while the scorecard underneath was pushed off
-            the bottom. */}
-        <button
-          type="button"
-          onClick={() => setOpen((was) => !was)}
-          aria-expanded={open}
-          className="panel-title flex items-center gap-1.5 hover:text-sky-300"
-        >
-          <span className={`text-[10px] transition-transform ${open ? "rotate-90" : ""}`}>&#9654;</span>
-          Substitution
-        </button>
-        <div className={`flex gap-1 ${open ? "" : "hidden"}`}>
+        <h3 className="panel-title">Substitution</h3>
+        <div className="flex gap-1">
           {(["away", "home"] as const).map((option) => (
             <button
               key={option}
@@ -120,7 +107,7 @@ export function SubstitutionPanel({
         </div>
       </div>
 
-      {open && <div className="space-y-2 p-3">
+      <div className="space-y-2 p-3">
         <label className="ui-field-label flex-col !items-start gap-1">
           Coming out
           <select
@@ -182,7 +169,7 @@ export function SubstitutionPanel({
         >
           {working ? "Recording…" : "Make the substitution"}
         </button>
-      </div>}
+      </div>
     </section>
   );
 }

@@ -6,7 +6,7 @@ import { currentSeasonName } from "./settings";
 import { logoKey, teamLogoPath } from "@/app/logo-key";
 import { runnersOn, type BaseName } from "@/app/bases";
 import { currentBases, gameState } from "@/app/derive-box-score";
-import { earnedRunAverage, nextInOrder } from "@/app/scoring";
+import { earnedRunAverage, isUnawardedOut, nextInOrder } from "@/app/scoring";
 import {
   games,
   historicalPlayerStats,
@@ -455,8 +455,11 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
     const order = rows
       .filter((row) => row.battingOrder !== null && onField(row))
       .sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0));
+    // An unawarded out belongs to the side rather than to a batter, so the man
+    // it was written against has not had his turn and the board must still
+    // name him.
     const lastForSide = ordered
-      .filter((row) => row.isHomeBatting === isHome)
+      .filter((row) => row.isHomeBatting === isHome && !isUnawardedOut(row.result))
       .sort((a, b) => b.sequence - a.sequence)[0];
     const up = nextInOrder(order, lastForSide?.battingSlot ?? null);
 

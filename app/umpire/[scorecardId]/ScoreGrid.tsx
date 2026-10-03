@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { atBatSummary, type ResultCode } from "@/app/scoring";
+import { atBatSummary, isUnawardedOut, type ResultCode } from "@/app/scoring";
 import type { LoggedAtBat } from "./AtBatLog";
 
 /**
@@ -78,7 +78,13 @@ export function ScoreGrid({
       }
     };
 
-    const played = [...atBats].sort((a, b) => a.sequence - b.sequence);
+    // An unawarded out is not a plate appearance and has no cell of its own -
+    // it is written against whoever was due up without using his turn, so
+    // leaving it in would fill the cell his real at-bat still has to go in and
+    // make it look as though the order had been passed over.
+    const played = [...atBats]
+      .filter((atBat) => !isUnawardedOut(atBat.result))
+      .sort((a, b) => a.sequence - b.sequence);
     played.forEach((atBat, index) => {
       const previous = played[index - 1];
       if (previous && previous.inning === atBat.inning) {
@@ -98,7 +104,8 @@ export function ScoreGrid({
   // A slot can bat more than once in an inning; the grid shows them stacked in
   // the same cell rather than inventing a column.
   const cellFor = (slot: number, inning: number) =>
-    atBats.filter((atBat) => atBat.inning === inning && atBat.battingSlot === slot);
+    atBats.filter((atBat) =>
+      atBat.inning === inning && atBat.battingSlot === slot && !isUnawardedOut(atBat.result));
 
   return (
     <div className="data-table-shell overflow-x-auto">
