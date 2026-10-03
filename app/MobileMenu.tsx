@@ -29,7 +29,15 @@ export function MobileMenu({ groups }: { groups: readonly Group[] }) {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => event.key === "Escape" && setOpenOn(null);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // The panel scrolls on its own, and a phone that reaches the end of it
+    // carries on scrolling the page underneath, so putting the menu away left
+    // the visitor somewhere down a page they had just asked to leave.
+    const wasOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = wasOverflow;
+    };
   }, [open]);
 
   const linkClass = (href: string) =>
@@ -56,10 +64,17 @@ export function MobileMenu({ groups }: { groups: readonly Group[] }) {
         </svg>
       </button>
 
+      {/* Opaque, and nothing blurred behind it. This was a 98% slate over a
+          backdrop blur, which should have been as good as solid and was not -
+          the page showed through plainly enough to read, its headings running
+          into the links drawn on top of them. A navigation panel has no reason
+          to be see-through at all. It also fills the screen below the bar
+          rather than only as far as its links reach, so a short menu does not
+          leave a band of the old page showing under it. */}
       {open && (
         <div
           id={panelId}
-          className="absolute inset-x-0 top-full max-h-[calc(100dvh-4rem)] overflow-y-auto border-b border-slate-800 bg-slate-950/98 px-4 pb-6 pt-2 shadow-2xl backdrop-blur"
+          className="absolute inset-x-0 top-full h-[calc(100dvh-100%)] overflow-y-auto overscroll-contain border-b border-slate-800 bg-slate-950 px-4 pb-6 pt-2 shadow-2xl"
         >
           <Link href="/" className={linkClass("/")}>
             Home

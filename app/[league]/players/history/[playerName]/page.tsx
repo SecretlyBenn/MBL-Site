@@ -98,7 +98,12 @@ export default async function HistoricalPlayerPage({
     <PageShell
       wide
       header={
-        <div className="relative -mx-6 -mt-5 mb-6 overflow-hidden border-b border-slate-800/80 bg-slate-900/40 px-6 py-6">
+        // The banner bleeds to the edges of the page, so its negative margin
+        // has to match whatever padding the shell has at that width: px-4 on a
+        // phone and px-6 from sm upward. Pulling 6 against 4 put the banner
+        // 8px past the right edge and gave every player page a sideways
+        // scroll of its own.
+        <div className="relative -mx-4 -mt-5 mb-6 overflow-hidden border-b border-slate-800/80 bg-slate-900/40 px-4 py-6 sm:-mx-6 sm:px-6">
           {/* The club's crest, large and nearly invisible, so the header
               belongs to a team without competing with the player's own head. */}
           {latest?.teamName && (

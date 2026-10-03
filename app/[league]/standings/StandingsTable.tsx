@@ -24,7 +24,7 @@ function sorted(teams: StandingsRow[]) {
  */
 function Table({ teams, seasonId, leagueSlug, compact = false, label = "Team" }: { teams: StandingsRow[]; seasonId: number; leagueSlug: string; compact?: boolean; label?: string }) {
   return <div className="data-table-shell flex-1"><table className="data-table ranked h-full w-full table-fixed"><colgroup>
-    <col style={{ width: "2.75rem" }} /><col style={{ width: compact ? "50%" : "38%" }} />
+    <col style={{ width: "2.75rem" }} /><col style={{ width: compact ? "42%" : "38%" }} />
     {!compact && <col style={{ width: "12%" }} />}
     {Array.from({ length: compact ? 3 : 5 }, (_, index) => <col key={index} />)}
   </colgroup><thead><tr>
@@ -33,7 +33,7 @@ function Table({ teams, seasonId, leagueSlug, compact = false, label = "Team" }:
     {/* Record reads as one figure, the way a standings page is scanned. */}
     <th title="Wins and losses">W-L</th><th>PCT</th>
     {!compact && <><th>RS</th><th>RA</th></>}
-    <th title="Run differential">Run diff</th>
+    <th title="Run differential"><span className="sm:hidden">Diff</span><span className="hidden sm:inline">Run diff</span></th>
   </tr></thead><tbody>{sorted(teams).map((team, index) => {
     const wins = team.wins ?? 0, losses = team.losses ?? 0, games = wins + losses;
     const diff = team.runsScored === null || team.runsAllowed === null ? null : team.runsScored - team.runsAllowed;
@@ -48,6 +48,29 @@ function Table({ teams, seasonId, leagueSlug, compact = false, label = "Team" }:
       <td className={diff !== null && diff > 0 ? "text-emerald-400" : diff !== null && diff < 0 ? "text-rose-400" : ""}>{diff === null ? "-" : `${diff > 0 ? "+" : ""}${diff}`}</td>
     </tr>;
   })}</tbody></table></div>;
+}
+
+/**
+ * The table a phone gets, and the one everything wider does.
+ *
+ * Eight columns across a 343px screen leaves 25px each, which is not a figure
+ * anybody can read - and the table is `table-fixed`, so it crushes rather than
+ * scrolls. The abbreviation and the raw runs for and against are what a reader
+ * can do without, and `compact` already drops exactly those.
+ *
+ * Both are rendered and one is hidden, rather than the columns being hidden by
+ * CSS: a cell set to display:none drops out of its row but leaves its column
+ * behind in the colgroup, so every figure after it takes the width of the one
+ * before and the headings stop belonging to the numbers underneath them.
+ */
+function Standing(props: Parameters<typeof Table>[0]) {
+  if (props.compact) return <Table {...props} />;
+  return (
+    <>
+      <div className="sm:hidden"><Table {...props} compact /></div>
+      <div className="hidden sm:block"><Table {...props} /></div>
+    </>
+  );
 }
 
 /** The MBL's two are stored as codes; every other division is named as it is. */
@@ -78,11 +101,11 @@ export function StandingsTable({ teams, seasonId, leagueSlug, controls = true, c
   const width = compact ? "" : constrain ? "mx-auto w-full max-w-4xl" : "w-full";
   return <div className={compact ? "flex min-h-0 flex-1 flex-col" : undefined}>
     {controls && <div className={`mb-5 flex justify-end ${width}`}><label className="ui-field-label">View<select value={mode} onChange={(event) => setMode(event.target.value as "division" | "league")} className="ui-select"><option value="division">Division standings</option><option value="league">League standings</option></select></label></div>}
-    {mode === "league" || !divided ? <div className={width}><Table leagueSlug={leagueSlug} teams={teams} seasonId={seasonId} compact={compact} /></div> : <div className={`grid ${compact ? "gap-4" : "gap-6"} ${splitAt} ${width}`}>
+    {mode === "league" || !divided ? <div className={width}><Standing leagueSlug={leagueSlug} teams={teams} seasonId={seasonId} compact={compact} /></div> : <div className={`grid ${compact ? "gap-4" : "gap-6"} ${splitAt} ${width}`}>
       {/* The division name rides in the table header rather than a heading
           above it, so a standings card and a leaders card are the same object. */}
       {divisions.map((division) => (
-        <Table
+        <Standing
           key={division}
           leagueSlug={leagueSlug}
           teams={teams.filter((team) => team.league === division)}

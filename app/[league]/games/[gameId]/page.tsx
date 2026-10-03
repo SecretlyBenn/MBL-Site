@@ -29,71 +29,82 @@ function BoxScoreName({ name, uuid, leagueSlug }: { name: string; uuid?: string;
   );
 }
 
+/*
+ * The nine batting columns want about 430px and a phone has 340. The card they
+ * sit in is `overflow-hidden`, for its rounded corners, so what did not fit
+ * was simply cut off and could not be reached by any means - a reader on a
+ * phone could not see a run batted in. They scroll sideways inside the card
+ * instead.
+ */
 function BattingTable({ rows, avatars, leagueSlug }: { rows: Stat[]; avatars: Record<string, string>; leagueSlug: string }) {
   return (
-    <table className="data-table w-full table-auto">
-      <thead>
-        <tr>
-          <th>Batter</th>
-          <th>AB</th>
-          <th>R</th>
-          <th>H</th>
-          <th>2B</th>
-          <th>HR</th>
-          <th>RBI</th>
-          <th>BB</th>
-          <th>SO</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.id}>
-            <BoxScoreName leagueSlug={leagueSlug} name={row.playerName} uuid={avatars[row.playerName]} />
-            <td>{row.atBats ?? 0}</td>
-            <td>{row.runs ?? 0}</td>
-            <td>{row.hits ?? 0}</td>
-            <td>{row.doubles ?? 0}</td>
-            <td>{row.homeRuns ?? 0}</td>
-            <td>{row.rbis ?? 0}</td>
-            <td>{row.walks ?? 0}</td>
-            <td>{row.strikeouts ?? 0}</td>
+    <div className="overflow-x-auto">
+      <table className="data-table w-full table-auto">
+        <thead>
+          <tr>
+            <th>Batter</th>
+            <th>AB</th>
+            <th>R</th>
+            <th>H</th>
+            <th>2B</th>
+            <th>HR</th>
+            <th>RBI</th>
+            <th>BB</th>
+            <th>SO</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <BoxScoreName leagueSlug={leagueSlug} name={row.playerName} uuid={avatars[row.playerName]} />
+              <td>{row.atBats ?? 0}</td>
+              <td>{row.runs ?? 0}</td>
+              <td>{row.hits ?? 0}</td>
+              <td>{row.doubles ?? 0}</td>
+              <td>{row.homeRuns ?? 0}</td>
+              <td>{row.rbis ?? 0}</td>
+              <td>{row.walks ?? 0}</td>
+              <td>{row.strikeouts ?? 0}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 function PitchingTable({ rows, avatars, leagueSlug }: { rows: Stat[]; avatars: Record<string, string>; leagueSlug: string }) {
   return (
-    <table className="data-table w-full table-auto">
-      <thead>
-        <tr>
-          <th>Pitcher</th>
-          <th>IP</th>
-          <th>H</th>
-          <th>R</th>
-          <th>ER</th>
-          <th>BB</th>
-          <th>SO</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.id}>
-            <BoxScoreName leagueSlug={leagueSlug} name={row.playerName} uuid={avatars[row.playerName]} />
-            <td>
-              {formatInnings(row.inningsPitched)}
-            </td>
-            <td>{row.hitsAllowed ?? 0}</td>
-            <td>{row.runsAllowed ?? 0}</td>
-            <td>{row.earnedRuns ?? 0}</td>
-            <td>{row.walksAllowed ?? 0}</td>
-            <td>{row.strikeoutsPitched ?? 0}</td>
+    <div className="overflow-x-auto">
+      <table className="data-table w-full table-auto">
+        <thead>
+          <tr>
+            <th>Pitcher</th>
+            <th>IP</th>
+            <th>H</th>
+            <th>R</th>
+            <th>ER</th>
+            <th>BB</th>
+            <th>SO</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <BoxScoreName leagueSlug={leagueSlug} name={row.playerName} uuid={avatars[row.playerName]} />
+              <td>
+                {formatInnings(row.inningsPitched)}
+              </td>
+              <td>{row.hitsAllowed ?? 0}</td>
+              <td>{row.runsAllowed ?? 0}</td>
+              <td>{row.earnedRuns ?? 0}</td>
+              <td>{row.walksAllowed ?? 0}</td>
+              <td>{row.strikeoutsPitched ?? 0}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -158,13 +169,20 @@ export default async function GamePage({
       {/* Scoreboard banner: both crests facing each other across the result,
           with the status and date holding the centre. */}
       <div className="mb-6 overflow-hidden rounded-xl border border-slate-800 bg-gradient-to-r from-slate-900 via-slate-900/60 to-slate-900">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-6 sm:px-8">
+        {/* Three columns from `sm` upward, with the two clubs facing each
+            other across the result. A phone cannot hold that: the date in the
+            middle will not wrap, the two crests and the two scores take the
+            rest, and the club names - the only part that can give - were
+            squeezed to nothing, so the card read "AWA 1 FINAL 5 HOM". Below
+            `sm` it stacks instead, the way the schedule's cards do: the result
+            on top, then one line each for the away side and the home side. */}
+        <div className="grid gap-3 px-4 py-5 sm:grid-cols-[1fr_auto_1fr] sm:items-center sm:gap-4 sm:px-8 sm:py-6">
           {/* Away, status, home - in that DOM order, so the grid columns place
               the badge between the two clubs. */}
           {[{ name: game.awayName, score: game.awayScore, won: awayWon, home: false }].map((team) => (
             <div
               key={String(team.home)}
-              className={`flex min-w-0 items-center gap-4 ${team.home ? "flex-row-reverse text-right" : ""}`}
+              className={`flex min-w-0 items-center gap-3 sm:gap-4 ${team.home ? "sm:flex-row-reverse sm:text-right" : ""}`}
             >
               {team.name && <TeamLogo teamName={team.name} className="h-14 w-14 shrink-0 sm:h-16 sm:w-16" />}
               <div className="min-w-0">
@@ -172,7 +190,7 @@ export default async function GamePage({
                   {team.home ? "Home" : "Away"}
                 </p>
                 <p
-                  className={`truncate text-lg font-black uppercase leading-tight sm:text-2xl ${
+                  className={`text-lg font-black uppercase leading-tight sm:truncate sm:text-2xl ${
                     team.won ? "text-white" : "text-slate-400"
                   }`}
                 >
@@ -180,7 +198,7 @@ export default async function GamePage({
                 </p>
               </div>
               <p
-                className={`text-4xl leading-none tabular-nums sm:text-5xl ${
+                className={`ml-auto text-4xl leading-none tabular-nums sm:ml-0 sm:text-5xl ${
                   team.won ? "font-black text-white" : "font-bold text-slate-600"
                 }`}
               >
@@ -189,7 +207,7 @@ export default async function GamePage({
             </div>
           ))}
 
-          <div className="flex flex-col items-center gap-1.5 px-2">
+          <div className="order-first flex flex-wrap items-center gap-x-2 gap-y-1 sm:order-none sm:flex-col sm:gap-1.5 sm:px-2">
             <span
               className={`rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] ${
                 forfeit
@@ -216,13 +234,13 @@ export default async function GamePage({
           {[{ name: game.homeName, score: game.homeScore, won: homeWon, home: true }].map((team) => (
             <div
               key={String(team.home)}
-              className="flex min-w-0 flex-row-reverse items-center gap-4 text-right"
+              className="flex min-w-0 items-center gap-3 sm:flex-row-reverse sm:gap-4 sm:text-right"
             >
               {team.name && <TeamLogo teamName={team.name} className="h-14 w-14 shrink-0 sm:h-16 sm:w-16" />}
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Home</p>
                 <p
-                  className={`truncate text-lg font-black uppercase leading-tight sm:text-2xl ${
+                  className={`text-lg font-black uppercase leading-tight sm:truncate sm:text-2xl ${
                     team.won ? "text-white" : "text-slate-400"
                   }`}
                 >
@@ -230,7 +248,7 @@ export default async function GamePage({
                 </p>
               </div>
               <p
-                className={`text-4xl leading-none tabular-nums sm:text-5xl ${
+                className={`ml-auto text-4xl leading-none tabular-nums sm:ml-0 sm:text-5xl ${
                   team.won ? "font-black text-white" : "font-bold text-slate-600"
                 }`}
               >

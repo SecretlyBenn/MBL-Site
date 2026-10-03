@@ -248,7 +248,7 @@ export function StatsTable({ rows, kind, leagueSlug, inningsPerGame, team = fals
         table sit on the same line as each other rather than stacking. */}
     {(toolbar || !team) && <div className="mb-3 flex flex-wrap items-center gap-3">
       {toolbar}
-      {!team && <label className="ui-field-label ml-auto">{kind === "batting" ? "Min PA" : "Min IP"}<select value={minimum} onChange={(e) => { setMinimum(e.target.value); setPage(0); }} className="ui-select">{(kind === "batting" ? [0, 10, 25, 50, 100] : [0, 5, 10, 25, 50]).map((value) => <option key={value} value={value}>{value === 0 ? "All" : value + "+"}</option>)}</select></label>}
+      {!team && <label className="ui-field-label sm:ml-auto">{kind === "batting" ? "Min PA" : "Min IP"}<select value={minimum} onChange={(e) => { setMinimum(e.target.value); setPage(0); }} className="ui-select">{(kind === "batting" ? [0, 10, 25, 50, 100] : [0, 5, 10, 25, 50]).map((value) => <option key={value} value={value}>{value === 0 ? "All" : value + "+"}</option>)}</select></label>}
       {!team && <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder="Search player username…" className="ui-select w-full sm:w-56" />}
     </div>}
     <div className="data-table-shell is-sticky max-w-full">

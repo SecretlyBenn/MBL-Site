@@ -354,6 +354,69 @@ body {
     color: rgb(147 197 253);
   }
 
+  /* A stat table on a phone ---------------------------------------------- */
+
+  /* The two label columns are measured from the longest name in the table,
+     which is right on a laptop and impossible on a phone: the player and the
+     club came to 500px on a 343px screen, so the first thing a visitor saw was
+     a list of names with no figure beside any of them, and the only column
+     that holds its place while you scroll took two thirds of what there was.
+
+     Below the small breakpoint the player column is cut to a fixed width and
+     the club keeps its crest and loses its name. That leaves about two thirds
+     of the screen for the figures, which is what the page is for. The names
+     still truncate with an ellipsis, and tapping one opens the player.
+
+     The widths need "important" because they are set inline on the col
+     elements: they are measured from the data, which a stylesheet cannot
+     do. */
+  @media (width < 40rem) {
+    .data-table.stat-table {
+      /* Stated from the same measurements, and in the way of the columns
+         below shrinking. The table is as wide as its columns regardless. */
+      min-width: 0 !important;
+      font-size: 0.875rem;
+    }
+
+    .data-table.stat-table.has-two-labels col:first-child {
+      width: 9.5rem !important;
+    }
+
+    .data-table.stat-table.has-two-labels col:nth-child(2) {
+      width: 2.25rem !important;
+    }
+
+    /* A team table's one label column holds a club name, which is longer. */
+    .data-table.stat-table:not(.has-two-labels) col:first-child {
+      width: 10.5rem !important;
+    }
+
+    /* Its figures get more room than a player's: ten clubs make a short table
+       that ends in the league average, whose figures carry a decimal place and
+       were being cut to "27...". */
+    .data-table.stat-table:not(.has-two-labels) col:not(:first-child) {
+      width: 3.1rem !important;
+    }
+
+    /* The crest alone. The club is still named on the player's own page, and
+       on a season table everyone in it is in the same handful of clubs.
+
+       What is hidden is the contents of the cells, never the cells: a td or a
+       th set to display:none leaves its column behind but drops out of its
+       row, so every figure after it slid one column left and the headings
+       stopped belonging to the numbers under them. */
+    .data-table.stat-table.has-two-labels thead th:nth-child(2) > *,
+    .data-table.stat-table.has-two-labels tbody td:nth-child(2) .truncate {
+      display: none;
+    }
+
+    /* The rank is a column of its own at this width - two characters of the
+       name are worth more than the gap it was keeping. */
+    .data-table.stat-table .rank {
+      width: 1.1rem;
+    }
+  }
+
   /* The line score ------------------------------------------------------- */
 
   /* Innings are single digits, so their columns are sized for one. R, H and E
