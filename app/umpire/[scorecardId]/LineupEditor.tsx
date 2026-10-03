@@ -212,7 +212,7 @@ export function LineupEditor({
       <div className="mt-3 space-y-2">
         {useDh && (
           <div className="grid gap-2 sm:grid-cols-[1fr_7rem]">
-            <label className="ui-field-label flex-col !items-start gap-1.5">
+            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               The DH bats for
               <select
                 value={benchedId}
@@ -225,7 +225,7 @@ export function LineupEditor({
                 ))}
               </select>
             </label>
-            <label className="ui-field-label flex-col !items-start gap-1.5">
+            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               Their position
               <select
                 value={benchedPosition}
@@ -242,7 +242,7 @@ export function LineupEditor({
 
         {/* Asked whether or not a DH is in use, because the man who sits out
             is no longer necessarily the pitcher. */}
-        <label className="ui-field-label flex-col !items-start gap-1.5">
+        <label className="ui-field-label !flex flex-col !items-start gap-1.5">
           Starting pitcher
           <select
             value={starterId}

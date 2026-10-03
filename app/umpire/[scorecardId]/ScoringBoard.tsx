@@ -624,74 +624,77 @@ export function ScoringBoard({
           }
         />
 
-        {/* Who is pitching and what they have done are one subject, so they
-            are one card rather than two stacked on each other. */}
-        <section className="panel">
-          <div className="panel-head">
-            <h3 className="panel-title">On the mound</h3>
-          </div>
-          <div className="p-3">
-            {/* Bringing a reliever in is one of the biggest things an umpire
-                does - it decides the win, the loss, the save and every earned
-                run after it - so it is a deliberate act with a confirm, not a
-                dropdown that rewrites the game as a side effect of being
-                clicked. */}
-            <p className="mb-2 text-xs text-slate-400">
-              Pitching:{" "}
-              <span className="font-bold text-slate-100">
-                {activePitcher ? nameOf[activePitcher] ?? "Unknown" : "Nobody yet"}
-              </span>
-            </p>
-            <div className="flex gap-1.5">
-              <select
-                value={warmingUp}
-                onChange={(event) => setWarmingUp(event.target.value)}
-                className="ui-select w-full !py-1 text-xs"
-              >
-                <option value="">Bring in a reliever…</option>
-                {fieldingSide
-                  .filter((row) => row.playerId !== activePitcher)
-                  .map((row) => (
-                    <option key={row.playerId} value={row.playerId}>
-                      {row.name}
-                    </option>
-                  ))}
-              </select>
-              <button
-                type="button"
-                disabled={!warmingUp || busy}
-                onClick={async () => {
-                  const name = nameOf[Number(warmingUp)] ?? "that player";
-                  if (!confirm(`Bring ${name} in to pitch?`)) return;
-                  const done = await send(
-                    `/api/scorecards/${scorecardId}/pitching-change`,
-                    "POST",
-                    { playerId: Number(warmingUp) },
-                  );
-                  if (done) setWarmingUp("");
-                }}
-                className="shrink-0 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
-              >
-                Bring in
-              </button>
+        {/* The mound and the substitution below it are one column, stacked -
+            not two cells of the grid. Placed by row they waited on the tallest
+            thing in the row above, which is the lineups, and the substitution
+            card ended up level with the bottom of those with a screen of
+            nothing above it. */}
+        <div className="space-y-3">
+          {/* Who is pitching and what they have done are one subject, so they
+              are one card rather than two stacked on each other. */}
+          <section className="panel">
+            <div className="panel-head">
+              <h3 className="panel-title">On the mound</h3>
             </div>
-          </div>
+            <div className="p-3">
+              {/* Bringing a reliever in is one of the biggest things an umpire
+                  does - it decides the win, the loss, the save and every earned
+                  run after it - so it is a deliberate act with a confirm, not a
+                  dropdown that rewrites the game as a side effect of being
+                  clicked. */}
+              <p className="mb-2 text-xs text-slate-400">
+                Pitching:{" "}
+                <span className="font-bold text-slate-100">
+                  {activePitcher ? nameOf[activePitcher] ?? "Unknown" : "Nobody yet"}
+                </span>
+              </p>
+              <div className="flex gap-1.5">
+                <select
+                  value={warmingUp}
+                  onChange={(event) => setWarmingUp(event.target.value)}
+                  className="ui-select w-full !py-1 text-xs"
+                >
+                  <option value="">Bring in a reliever…</option>
+                  {fieldingSide
+                    .filter((row) => row.playerId !== activePitcher)
+                    .map((row) => (
+                      <option key={row.playerId} value={row.playerId}>
+                        {row.name}
+                      </option>
+                    ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!warmingUp || busy}
+                  onClick={async () => {
+                    const name = nameOf[Number(warmingUp)] ?? "that player";
+                    if (!confirm(`Bring ${name} in to pitch?`)) return;
+                    const done = await send(
+                      `/api/scorecards/${scorecardId}/pitching-change`,
+                      "POST",
+                      { playerId: Number(warmingUp) },
+                    );
+                    if (done) setWarmingUp("");
+                  }}
+                  className="shrink-0 rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
+                >
+                  Bring in
+                </button>
+              </div>
+            </div>
 
-          <LivePitching
-            awayName={awayName}
-            homeName={homeName}
-            away={state.awayPitching}
-            home={state.homePitching}
-            nameOf={nameOf}
-            activePitcherId={activePitcher}
-          />
-        </section>
+            <LivePitching
+              awayName={awayName}
+              homeName={homeName}
+              away={state.awayPitching}
+              home={state.homePitching}
+              nameOf={nameOf}
+              activePitcherId={activePitcher}
+            />
+          </section>
 
-        {/* Substitution sits under the mound because the two go together: a
-            pitching change is a substitution, and the umpire making one is
-            already looking at this column. That leaves the last column to the
-            lineups, which are the thing most often read. */}
-        <div className="space-y-3 xl:col-start-3 xl:row-start-2">
+          {/* A pitching change is a substitution, and the umpire making one is
+              already looking at this column. */}
           <SubstitutionPanel
             scorecardId={scorecardId}
             awayName={awayName}
@@ -702,7 +705,7 @@ export function ScoringBoard({
           />
         </div>
 
-        <div className="space-y-3 xl:col-start-4 xl:row-start-1">
+        <div className="space-y-3">
           {/* Both sides, not just the one in the field. A position change is
               agreed between innings as often as during one, and an umpire who
               can only touch the fielding team has to wait for the sides to

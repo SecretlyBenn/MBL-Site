@@ -140,7 +140,7 @@ export function AtBatLog({
                 <tr key={atBat.id} className="bg-slate-800/50">
                   <td colSpan={6} className="p-3">
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      <label className="ui-field-label flex-col !items-start gap-1">
+                      <label className="ui-field-label !flex flex-col !items-start gap-1">
                         Result
                         <select
                           value={draft.result ?? atBat.result}
@@ -152,7 +152,7 @@ export function AtBatLog({
                           ))}
                         </select>
                       </label>
-                      <label className="ui-field-label flex-col !items-start gap-1">
+                      <label className="ui-field-label !flex flex-col !items-start gap-1">
                         Fielders
                         <input
                           value={draft.fielders ?? atBat.fielders ?? ""}
@@ -160,7 +160,7 @@ export function AtBatLog({
                           className="ui-select w-full !py-1"
                         />
                       </label>
-                      <label className="ui-field-label flex-col !items-start gap-1">
+                      <label className="ui-field-label !flex flex-col !items-start gap-1">
                         RBI
                         <input
                           type="number" min={0} max={4}
@@ -169,7 +169,7 @@ export function AtBatLog({
                           className="ui-select w-full !py-1"
                         />
                       </label>
-                      <label className="ui-field-label flex-col !items-start gap-1">
+                      <label className="ui-field-label !flex flex-col !items-start gap-1">
                         Outs
                         <input
                           type="number" min={0} max={3}
@@ -178,7 +178,7 @@ export function AtBatLog({
                           className="ui-select w-full !py-1"
                         />
                       </label>
-                      <label className="ui-field-label flex-col !items-start gap-1">
+                      <label className="ui-field-label !flex flex-col !items-start gap-1">
                         Runs scored
                         <input
                           type="number" min={0} max={4}

@@ -194,8 +194,13 @@ export function AtBatDialog({
       {/* Nothing below appears until a result is chosen. */}
       {definition && (
         <>
-          {definition.wantsFielders && (
-            <label className="ui-field-label flex-col !items-start gap-1.5">
+          {/* Not on a play that retires runners. Those ask for a fielder
+              against each man put out, just below, and a second dropdown over
+              the top of them asking who "fielded it" reads like the one place
+              the putout goes - so a triple play looked as though it had one
+              putout to give out when it has three. */}
+          {definition.wantsFielders && !definition.retiresRunners && (
+            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               {draft.result === "E" ? "Error charged to" : "Fielded by"}
               <select
                 value={draft.fielders}
@@ -219,7 +224,7 @@ export function AtBatDialog({
           )}
 
           {isOut && (
-            <label className="ui-field-label flex-col !items-start gap-1.5">
+            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               How many outs on the play?
               <select
                 value={draft.outsRecorded}
@@ -369,7 +374,7 @@ export function AtBatDialog({
           )}
 
           {!isHomeRun && runsOnPlay > 0 && (
-            <label className="ui-field-label flex-col !items-start gap-1.5">
+            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               RBI credited
               <select
                 value={draft.rbis}
@@ -384,7 +389,7 @@ export function AtBatDialog({
           )}
 
           {wantsError && (
-            <label className="ui-field-label flex-col !items-start gap-1.5">
+            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               Error charged to
               <select
                 value={draft.errorPlayerId}
@@ -403,7 +408,7 @@ export function AtBatDialog({
 
           {/* Earned versus unearned only matters once someone scored. */}
           {runsOnPlay > 0 && (draft.errorPlayerId || showMore) && (
-            <label className="ui-field-label flex-col !items-start gap-1.5">
+            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               Of those {runsOnPlay} run{runsOnPlay === 1 ? "" : "s"}, how many were unearned?
               <select
                 value={draft.unearnedRuns}
@@ -418,7 +423,7 @@ export function AtBatDialog({
           )}
 
           {(draft.result === "OTHER" || showMore) && (
-            <label className="ui-field-label flex-col !items-start gap-1.5">
+            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               {draft.result === "OTHER" ? "Describe what happened" : "Note"}
               <input
                 value={draft.note}

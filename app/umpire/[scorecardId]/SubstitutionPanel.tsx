@@ -107,8 +107,14 @@ export function SubstitutionPanel({
         </div>
       </div>
 
+      {/* `ui-field-label` is an inline-flex, so three of these in a row flowed
+          side by side and wrapped wherever they happened to fit - the first
+          select came out two thirds the width of the card and the other two
+          shared the line under it. They are laid out on purpose now: who is
+          leaving across the top, then who replaces them and where, which is
+          also two rows shorter than stacking all three. */}
       <div className="space-y-2 p-3">
-        <label className="ui-field-label flex-col !items-start gap-1">
+        <label className="ui-field-label !flex flex-col !items-start gap-1">
           Coming out
           <select
             value={outId}
@@ -124,39 +130,41 @@ export function SubstitutionPanel({
           </select>
         </label>
 
-        <label className="ui-field-label flex-col !items-start gap-1">
-          Going in
-          <select
-            value={inId}
-            onChange={(event) => setInId(event.target.value)}
-            className="ui-select w-full"
-            disabled={sideBench.length === 0}
-          >
-            <option value="">
-              {sideBench.length === 0 ? "Nobody on the bench" : "Choose a player…"}
-            </option>
-            {sideBench.map((player) => (
-              <option key={player.id} value={player.id}>{player.name}</option>
-            ))}
-          </select>
-        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="ui-field-label !flex flex-col !items-start gap-1">
+            Going in
+            <select
+              value={inId}
+              onChange={(event) => setInId(event.target.value)}
+              className="ui-select w-full"
+              disabled={sideBench.length === 0}
+            >
+              <option value="">
+                {sideBench.length === 0 ? "Nobody on the bench" : "Choose a player…"}
+              </option>
+              {sideBench.map((player) => (
+                <option key={player.id} value={player.id}>{player.name}</option>
+              ))}
+            </select>
+          </label>
 
-        <label className="ui-field-label flex-col !items-start gap-1">
-          Position
-          <select
-            value={position}
-            onChange={(event) => setPosition(event.target.value as Position | "")}
-            className="ui-select w-full"
-          >
-            {/* Taking over the same position is the common case, so it leads. */}
-            <option value="">
-              {outgoing ? `Same as before (${outgoing.position})` : "Same as before"}
-            </option>
-            {POSITIONS.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
-        </label>
+          <label className="ui-field-label !flex flex-col !items-start gap-1">
+            Position
+            <select
+              value={position}
+              onChange={(event) => setPosition(event.target.value as Position | "")}
+              className="ui-select w-full"
+            >
+              {/* Taking over the same position is the common case, so it leads. */}
+              <option value="">
+                {outgoing ? `Same as before (${outgoing.position})` : "Same as before"}
+              </option>
+              {POSITIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {notice && <p className="text-[11px] text-emerald-400">{notice}</p>}
         {error && <p role="alert" className="text-[11px] text-rose-400">{error}</p>}
