@@ -135,7 +135,7 @@ export default async function UmpirePage() {
               <Link
                 key={row.id}
                 href={`/umpire/${row.id}`}
-                className="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 transition-colors hover:border-sky-600/50 hover:bg-slate-900"
+                className="flex items-center justify-between gap-3 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 transition-colors hover:border-sky-600/50 hover:bg-slate-900"
               >
                 <span className="min-w-0">
                   <span className="font-semibold">
@@ -151,7 +151,9 @@ export default async function UmpirePage() {
                     </span>
                   )}
                 </span>
-                <span className="flex items-center gap-4 text-sm">
+                {/* The score and the badge hold their size; the two club
+                    names are what wraps when there is not room for a line. */}
+                <span className="flex shrink-0 items-center gap-3 text-sm sm:gap-4">
                   <span className="tabular-nums text-slate-300">
                     {row.awayScore} – {row.homeScore}
                   </span>

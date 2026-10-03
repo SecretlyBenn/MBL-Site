@@ -12,21 +12,35 @@ import { readFileSync } from "node:fs";
  */
 
 const css = readFileSync("app/globals.css", "utf8");
+
+/** The phone-sized rules for stat tables, from their comment to the next one. */
+function phoneTableRules() {
+  const at = css.indexOf("A stat table on a phone");
+  assert.ok(at > 0, "the phone sizing for stat tables is gone");
+  const end = css.indexOf("/* The line score", at);
+  assert.ok(end > at, "the block after the phone sizing has moved");
+  return css.slice(at, end);
+}
 const menu = readFileSync("app/MobileMenu.tsx", "utf8");
 const game = readFileSync("app/[league]/games/[gameId]/page.tsx", "utf8");
 const player = readFileSync("app/[league]/players/history/[playerName]/page.tsx", "utf8");
 const standings = readFileSync("app/[league]/standings/StandingsTable.tsx", "utf8");
+const board = readFileSync("app/umpire/[scorecardId]/ScoringBoard.tsx", "utf8");
 
 test("a wide stat table keeps the figures reachable on a phone", () => {
   // The two label columns are measured from the longest name in the table.
   // On a laptop that is right; on a phone they came to 500px of a 343px
   // screen, so a reader saw a list of names and not one number beside them.
-  const at = css.indexOf("A stat table on a phone");
-  assert.ok(at > 0, "the phone sizing for stat tables is gone");
-  const block = css.slice(at, at + 2600);
+  const block = phoneTableRules();
   assert.match(block, /@media \(width < 40rem\)/);
   assert.match(block, /has-two-labels col:first-child/, "the player column is no longer capped");
   assert.match(block, /has-two-labels col:nth-child\(2\)/, "the club column is no longer narrowed");
+  // Only the tables that state every width from their data, never the ones
+  // that merely borrow `stat-table` - the head umpire's review does, and its
+  // second column is a figure, not a club.
+  for (const [rule] of block.matchAll(/^\s*\.data-table\.stat-table[^{\n]*(?:col|nth-child)[^{\n]*$/gm)) {
+    assert.match(rule, /\.is-measured/, `${rule.trim()} reaches tables it was not meant for`);
+  }
 });
 
 test("a table cell is never hidden, only what is inside it", () => {
@@ -34,8 +48,7 @@ test("a table cell is never hidden, only what is inside it", () => {
   // behind in the colgroup, so every figure after it slides one column left
   // and the headings stop belonging to the numbers under them. Hiding the
   // cell's contents keeps the column and empties it.
-  const at = css.indexOf("A stat table on a phone");
-  const block = css.slice(at, at + 2600);
+  const block = phoneTableRules();
   const rule = /^\s*(\.data-table[^\n{]*(?:th|td):nth-child\(\d+\)[^\n{,]*)\s*[,{]\s*$/gm;
   let found = 0;
   for (const [, raw] of block.matchAll(rule)) {
@@ -95,6 +108,29 @@ test("the menu over the page is opaque", () => {
 test("the menu stops the page scrolling underneath it", () => {
   assert.match(menu, /document\.body\.style\.overflow = "hidden"/);
   assert.match(menu, /document\.body\.style\.overflow = wasOverflow/, "the page never gets its scroll back");
+});
+
+test("the scoring board shows one part at a time until it fits", () => {
+  // Stacked into one column the board is about three thousand pixels: an
+  // umpire on a phone scrolled past the bases and both lineups to change a
+  // pitcher, and the scorecards were somewhere off the bottom.
+  assert.match(board, /const PARTS = \[/, "the board no longer has parts");
+  assert.match(board, /part === which \? "" : "hidden xl:block"/, "a part is no longer put away");
+  // Every one of them, or a tab leads to a blank screen.
+  for (const key of ["bat", "bases", "mound", "field", "cards"]) {
+    assert.ok(board.includes(`only("${key}")`), `the ${key} tab shows nothing`);
+  }
+  // The tabs and the four-column board must never both be on screen.
+  assert.match(board, /role="tablist"[\s\S]{0,400}?xl:hidden/);
+  assert.match(board, /grid items-start gap-3 xl:grid-cols-4/);
+});
+
+test("picking a cell on the scorecard opens the panel that edits it", () => {
+  // The cell is tapped on one tab and answered on another, so without this
+  // tapping it looks as though it did nothing at all.
+  const at = board.indexOf("function pick(");
+  assert.ok(at > 0, "the board no longer opens an earlier at-bat");
+  assert.match(board.slice(at, at + 600), /setPart\("bat"\)/);
 });
 
 test("the standings drop columns on a phone rather than crushing them", () => {

@@ -382,29 +382,32 @@ body {
      do. */
   @media (width < 40rem) {
     .data-table.stat-table {
-      /* Stated from the same measurements, and in the way of the columns
-         below shrinking. The table is as wide as its columns regardless. */
-      min-width: 0 !important;
       font-size: 0.875rem;
     }
 
-    .data-table.stat-table.has-two-labels col:first-child {
+    .data-table.stat-table.is-measured {
+      /* Stated from the same measurements, and in the way of the columns
+         below shrinking. The table is as wide as its columns regardless. */
+      min-width: 0 !important;
+    }
+
+    .data-table.stat-table.is-measured.has-two-labels col:first-child {
       width: 9.5rem !important;
     }
 
-    .data-table.stat-table.has-two-labels col:nth-child(2) {
+    .data-table.stat-table.is-measured.has-two-labels col:nth-child(2) {
       width: 2.25rem !important;
     }
 
     /* A team table's one label column holds a club name, which is longer. */
-    .data-table.stat-table:not(.has-two-labels) col:first-child {
+    .data-table.stat-table.is-measured:not(.has-two-labels) col:first-child {
       width: 10.5rem !important;
     }
 
     /* Its figures get more room than a player's: ten clubs make a short table
        that ends in the league average, whose figures carry a decimal place and
        were being cut to "27...". */
-    .data-table.stat-table:not(.has-two-labels) col:not(:first-child) {
+    .data-table.stat-table.is-measured:not(.has-two-labels) col:not(:first-child) {
       width: 3.1rem !important;
     }
 
@@ -415,8 +418,8 @@ body {
        th set to display:none leaves its column behind but drops out of its
        row, so every figure after it slid one column left and the headings
        stopped belonging to the numbers under them. */
-    .data-table.stat-table.has-two-labels thead th:nth-child(2) > *,
-    .data-table.stat-table.has-two-labels tbody td:nth-child(2) .truncate {
+    .data-table.stat-table.is-measured.has-two-labels thead th:nth-child(2) > *,
+    .data-table.stat-table.is-measured.has-two-labels tbody td:nth-child(2) .truncate {
       display: none;
     }
 
@@ -769,6 +772,50 @@ body {
   .ui-button-danger:disabled {
     opacity: 0.35;
     cursor: not-allowed;
+  }
+
+  /* Controls under a finger ---------------------------------------------
+   *
+   * Two things, both only on a small screen whose pointer is a finger - so a
+   * laptop is untouched, and so is a touchscreen one wide enough to be shown
+   * the dense layouts.
+   *
+   * The first is the type size. Safari on an iPhone zooms the whole page in
+   * when a field smaller than 16px takes focus, and leaves it zoomed: every
+   * search box and every dropdown on this site did that, and the way back out
+   * is to pinch. 16px is the threshold, not a preference.
+   *
+   * The second is height. A button here is 28px tall, which is comfortable
+   * with a mouse and small for a thumb - and the umpire's buttons are pressed
+   * a hundred times in a game.
+   */
+  @media (pointer: coarse) and (width < 64rem) {
+    select,
+    textarea,
+    input:not([type="checkbox"]):not([type="radio"]) {
+      /* Important because the dense panels set their own smaller size - and
+         on a phone they are a column of their own, so there is room. */
+      font-size: 1rem !important;
+    }
+
+    .ui-select,
+    .ui-input {
+      padding-block: 0.6rem;
+    }
+
+    .ui-button {
+      padding-block: 0.5rem;
+    }
+
+    /* A floor rather than more padding, because the dense panels set their
+       own and this has to hold whatever they set it to. */
+    .ui-select,
+    .ui-input,
+    .ui-button,
+    .ui-button-primary,
+    .ui-button-danger {
+      min-height: 2.25rem;
+    }
   }
 
   /* Numeric emphasis inside tables. */

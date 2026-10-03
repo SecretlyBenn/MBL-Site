@@ -24,7 +24,7 @@ export function AdminTabs() {
             key={tab.href}
             href={tab.href}
             aria-current={active ? "page" : undefined}
-            className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${
+            className={`rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
               active ? "bg-sky-600/20 text-sky-300" : "text-slate-400 hover:bg-slate-800/70 hover:text-white"
             }`}
           >

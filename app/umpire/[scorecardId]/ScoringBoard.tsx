@@ -21,6 +21,26 @@ import type { LoggedAtBat } from "./AtBatLog";
 import { isUnawardedOut, nextInOrder, POSITION_NUMBER, type ResultCode } from "@/app/scoring";
 import { readJson } from "@/app/read-json";
 
+/**
+ * The parts of the board, in the order a plate appearance uses them.
+ *
+ * At `xl` they sit side by side with the scorecards underneath, which is the
+ * board this was designed as and what an umpire at a desk sees. Narrower than
+ * that they stack, and on a phone that is about three thousand pixels of one
+ * column: bringing in a reliever meant scrolling past the bases and both
+ * lineups, and the scorecards were somewhere off the bottom. Below `xl` one
+ * part is shown at a time and these are its tabs.
+ */
+const PARTS = [
+  { key: "bat", label: "Bat" },
+  { key: "bases", label: "Bases" },
+  { key: "mound", label: "Mound" },
+  { key: "field", label: "Field" },
+  { key: "cards", label: "Cards" },
+] as const;
+
+type Part = (typeof PARTS)[number]["key"];
+
 type LineupRow = {
   playerId: number;
   isHome: boolean;
@@ -93,6 +113,14 @@ export function ScoringBoard({
   const [editing, setEditing] = useState<LoggedAtBat | null>(null);
   /** Who the umpire is about to bring in, before they confirm it. */
   const [warmingUp, setWarmingUp] = useState<string>("");
+  const [part, setPart] = useState<Part>("bat");
+
+  /**
+   * Below `xl` the board shows one part at a time, and this is the class that
+   * puts the others away. At `xl` nothing is hidden, so the board is exactly
+   * what it was.
+   */
+  const only = (which: Part) => (part === which ? "" : "hidden xl:block");
 
   const state = useMemo(() => gameState(appearances, inningsPerGame), [appearances, inningsPerGame]);
   const bases = useMemo(() => currentBases(appearances, inningsPerGame), [appearances, inningsPerGame]);
@@ -272,6 +300,10 @@ export function ScoringBoard({
   function pick(atBat: LoggedAtBat | null) {
     if (!atBat) return;
     setEditing(atBat);
+    // The cell is tapped on the scorecard and the correction is made in the
+    // entry panel, which below `xl` is a different tab - so tapping a cell
+    // used to look as though it had done nothing at all.
+    setPart("bat");
     setDraft({
       result: atBat.result as ResultCode,
       fielders: atBat.fielders ?? "",
@@ -471,14 +503,14 @@ export function ScoringBoard({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-6 rounded-lg border border-slate-800/80 bg-slate-900/40 px-5 py-4">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 xl:gap-6 xl:px-5 xl:py-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3 xl:flex-none xl:gap-4">
           <Score label={awayName} runs={state.awayScore} active={!state.isHomeBatting} />
           <span className="text-slate-600">–</span>
           <Score label={homeName} runs={state.homeScore} active={state.isHomeBatting} />
         </div>
-        <div className="ml-auto flex items-center gap-5 text-sm">
-          <span className="font-bold uppercase tracking-wider text-sky-400">
+        <div className="flex w-full items-center gap-4 text-sm sm:w-auto sm:gap-5 xl:ml-auto">
+          <span className="whitespace-nowrap font-bold uppercase tracking-wider text-sky-400">
             {state.isHomeBatting ? "Bot" : "Top"} {state.inning}
           </span>
           <span className="flex items-center gap-1.5">
@@ -506,7 +538,7 @@ export function ScoringBoard({
             onClick={undo}
             disabled={busy || !undoable}
             title={undoable ?? "Nothing to undo"}
-            className="rounded-md border border-amber-700/70 px-3 py-1.5 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-950/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600"
+            className="ml-auto max-w-[11rem] truncate rounded-md border border-amber-700/70 px-3 py-2 text-xs font-semibold text-amber-300 transition-colors hover:bg-amber-950/40 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-600 sm:max-w-none sm:py-1.5 xl:ml-0"
           >
             {undoable ? `Undo: ${undoable}` : "Nothing to undo"}
           </button>
@@ -514,11 +546,35 @@ export function ScoringBoard({
             type="button"
             onClick={finish}
             disabled={busy || appearances.length === 0}
-            className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:border-slate-600 hover:text-white disabled:opacity-40"
+            className="shrink-0 rounded-md border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-300 transition-colors hover:border-slate-600 hover:text-white disabled:opacity-40 sm:py-1.5"
           >
-            Finish game
+            Finish<span className="hidden sm:inline"> game</span>
           </button>
         </div>
+      </div>
+
+      {/* One part of the board at a time until there is room for all of it -
+          see PARTS. Held against the top of the screen, because the part that
+          scrolls is the part you want to be able to leave: the scorecards and
+          the two lineups are both longer than a phone. The offset is the site
+          bar's own height, measured at every width this is shown at - the
+          `--site-nav` variable reads 2px short of it, which would leave a
+          sliver of the page running between the two. */}
+      <div role="tablist" aria-label="Part of the board" className="sticky top-14 z-30 -mx-4 flex gap-1 border-b border-slate-800/80 bg-slate-950/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 xl:hidden">
+        {PARTS.map((option) => (
+          <button
+            key={option.key}
+            type="button"
+            role="tab"
+            aria-selected={part === option.key}
+            onClick={() => setPart(option.key)}
+            className={`flex-1 rounded-md py-2 text-xs font-bold uppercase tracking-wide transition-colors ${
+              part === option.key ? "bg-sky-600 text-white" : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
 
       {notice && <p className="text-xs text-amber-400">{notice}</p>}
@@ -534,7 +590,7 @@ export function ScoringBoard({
           and the scorecard underneath - the thing being filled in - was pushed
           off the bottom of the screen. */}
       <div className="grid items-start gap-3 xl:grid-cols-4">
-        <section className="panel">
+        <section className={`panel ${only("bat")}`}>
           <div className="panel-head">
             <h3 className="panel-title">
               {editing ? "Editing an earlier at-bat" : "Now batting"}
@@ -591,45 +647,47 @@ export function ScoringBoard({
 
             Moves are shut off there: a drag would be sent against the live
             half-inning, which is not the one on screen. */}
-        <BaseDiamond
-          bases={entryBases}
-          asOf={editing ? `inning ${editing.inning}, before this play` : null}
-          nameOf={nameOf}
-          busy={busy || Boolean(editing)}
-          fielders={fielderList}
-          onMove={(playerId, to, reason, note, errorPlayerId) =>
-            send(`/api/scorecards/${scorecardId}/runners`, "POST", {
-              playerId,
-              to,
-              reason,
-              note,
-              errorPlayerId,
-            })
-          }
-          recordedOuts={runnerOuts
-            .filter(
-              (out) => out.inning === state.inning && out.isHomeBatting === state.isHomeBatting,
-            )
-            .map((out) => ({
-              id: out.id,
-              runnerName: nameOf[out.runnerPlayerId] ?? "Runner",
-              kind: out.kind,
-              base: out.base,
-            }))}
-          onUndoOut={(outId) =>
-            send(`/api/scorecards/${scorecardId}/runner-outs?outId=${outId}`, "DELETE")
-          }
-          onOut={(playerId, kind, fielded) =>
-            send(`/api/scorecards/${scorecardId}/runner-outs`, "POST", { playerId, kind, fielded })
-          }
-        />
+        <div className={only("bases")}>
+          <BaseDiamond
+            bases={entryBases}
+            asOf={editing ? `inning ${editing.inning}, before this play` : null}
+            nameOf={nameOf}
+            busy={busy || Boolean(editing)}
+            fielders={fielderList}
+            onMove={(playerId, to, reason, note, errorPlayerId) =>
+              send(`/api/scorecards/${scorecardId}/runners`, "POST", {
+                playerId,
+                to,
+                reason,
+                note,
+                errorPlayerId,
+              })
+            }
+            recordedOuts={runnerOuts
+              .filter(
+                (out) => out.inning === state.inning && out.isHomeBatting === state.isHomeBatting,
+              )
+              .map((out) => ({
+                id: out.id,
+                runnerName: nameOf[out.runnerPlayerId] ?? "Runner",
+                kind: out.kind,
+                base: out.base,
+              }))}
+            onUndoOut={(outId) =>
+              send(`/api/scorecards/${scorecardId}/runner-outs?outId=${outId}`, "DELETE")
+            }
+            onOut={(playerId, kind, fielded) =>
+              send(`/api/scorecards/${scorecardId}/runner-outs`, "POST", { playerId, kind, fielded })
+            }
+          />
+        </div>
 
         {/* The mound and the substitution below it are one column, stacked -
             not two cells of the grid. Placed by row they waited on the tallest
             thing in the row above, which is the lineups, and the substitution
             card ended up level with the bottom of those with a screen of
             nothing above it. */}
-        <div className="space-y-3">
+        <div className={`space-y-3 ${only("mound")}`}>
           {/* Who is pitching and what they have done are one subject, so they
               are one card rather than two stacked on each other. */}
           <section className="panel">
@@ -705,7 +763,7 @@ export function ScoringBoard({
           />
         </div>
 
-        <div className="space-y-3">
+        <div className={`space-y-3 ${only("field")}`}>
           {/* Both sides, not just the one in the field. A position change is
               agreed between innings as often as during one, and an umpire who
               can only touch the fielding team has to wait for the sides to
@@ -756,50 +814,54 @@ export function ScoringBoard({
           is dimmed, so the game reads as one card rather than two. Each grid
           gets the full width and scrolls sideways once the innings run past
           it. */}
-      {[false, true].map((isHome) => (
-        <section key={String(isHome)}>
-          <h3 className="mb-1.5 flex items-baseline gap-2 text-xs font-bold uppercase tracking-wider">
-            <span className={isHome === state.isHomeBatting ? "text-sky-400" : "text-slate-500"}>
-              {isHome ? homeName : awayName}
-            </span>
-            {isHome === state.isHomeBatting && (
-              <span className="text-[10px] font-medium normal-case text-slate-500">
-                batting — the highlighted cell is next
+      <div className={`space-y-4 ${only("cards")}`}>
+        {[false, true].map((isHome) => (
+          <section key={String(isHome)}>
+            <h3 className="mb-1.5 flex items-baseline gap-2 text-xs font-bold uppercase tracking-wider">
+              <span className={isHome === state.isHomeBatting ? "text-sky-400" : "text-slate-500"}>
+                {isHome ? homeName : awayName}
               </span>
-            )}
-          </h3>
-          <div className={isHome === state.isHomeBatting ? "" : "opacity-50"}>
-            <ScoreGrid
-              // An away player still has his slot, so the card shows a dash
-              // where his position would be - the umpire skips his turn rather
-              // than wondering why nobody is out there.
-              order={orderFor(isHome).map((row) => ({
-                ...row,
-                position: onField(row) ? row.position : "—",
-              }))}
-              atBats={atBats.filter((atBat) => atBat.isHomeBatting === isHome)}
-              placedRunners={placedRunners}
-              reliefAt={reliefAt}
-              isHomeSide={isHome}
-              innings={innings}
-              activeSlot={batter?.battingOrder ?? null}
-              activeInning={state.inning}
-              isActive={isHome === state.isHomeBatting}
-              selectedId={editing?.id ?? null}
-              onPick={(atBat) => pick(atBat)}
-            />
-          </div>
-        </section>
-      ))}
+              {isHome === state.isHomeBatting && (
+                <span className="text-[10px] font-medium normal-case text-slate-500">
+                  batting — the highlighted cell is next
+                </span>
+              )}
+            </h3>
+            <div className={isHome === state.isHomeBatting ? "" : "opacity-50"}>
+              <ScoreGrid
+                // An away player still has his slot, so the card shows a dash
+                // where his position would be - the umpire skips his turn rather
+                // than wondering why nobody is out there.
+                order={orderFor(isHome).map((row) => ({
+                  ...row,
+                  position: onField(row) ? row.position : "—",
+                }))}
+                atBats={atBats.filter((atBat) => atBat.isHomeBatting === isHome)}
+                placedRunners={placedRunners}
+                reliefAt={reliefAt}
+                isHomeSide={isHome}
+                innings={innings}
+                activeSlot={batter?.battingOrder ?? null}
+                activeInning={state.inning}
+                isActive={isHome === state.isHomeBatting}
+                selectedId={editing?.id ?? null}
+                onPick={(atBat) => pick(atBat)}
+              />
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }
 
 function Score({ label, runs, active }: { label: string; runs: number; active: boolean }) {
   return (
-    <span className="flex items-center gap-2">
-      <span className={`text-sm ${active ? "font-bold text-white" : "text-slate-400"}`}>{label}</span>
-      <span className="text-2xl font-black tabular-nums">{runs}</span>
+    <span className="flex min-w-0 items-center gap-2">
+      <span className={`truncate text-sm ${active ? "font-bold text-white" : "text-slate-400"}`}>
+        {label}
+      </span>
+      <span className="shrink-0 text-2xl font-black tabular-nums">{runs}</span>
     </span>
   );
 }

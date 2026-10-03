@@ -255,7 +255,10 @@ export function StatsTable({ rows, kind, leagueSlug, inningsPerGame, team = fals
       {/* Team tables have a single label column, so they must not pick up the
           two-label alignment - it would left-align their first figure. */}
       <table
-        className={`data-table stat-table ${team ? "" : "has-two-labels"} w-full table-fixed`}
+        // `is-measured` says the colgroup below states every width from the
+        // data. It is what the phone sizing in globals.css keys off, so that
+        // it never touches the other tables that borrow `stat-table`.
+        className={`data-table stat-table is-measured ${team ? "" : "has-two-labels"} w-full table-fixed`}
         style={{ minWidth: `${minimumWidth}rem` }}
       >
         {/* Figures get only the width their digits need. The label columns are
