@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getDb } from "@/db";
-import { historicalPlayerStats, historicalSeasons, leagues, teams } from "@/db/schema";
+import { historicalPlayerStats, historicalSeasons, leagues } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { SITE } from "./site";
 
@@ -44,10 +44,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   try {
     const db = getDb();
-    const [allLeagues, seasons, liveTeams, players] = await Promise.all([
+    const [allLeagues, seasons, players] = await Promise.all([
       db.select({ id: leagues.id, slug: leagues.slug }).from(leagues),
       db.select({ id: historicalSeasons.id, leagueId: historicalSeasons.leagueId }).from(historicalSeasons),
-      db.select({ id: teams.id }).from(teams),
       db
         .selectDistinct({ name: historicalPlayerStats.playerName, leagueId: historicalSeasons.leagueId })
         .from(historicalPlayerStats)
@@ -69,11 +68,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const season of seasons) {
       const slug = slugOf.get(season.leagueId ?? -1) ?? fallback;
       pages.push({ url: `${SITE.url}/${slug}/seasons/${season.id}`, changeFrequency: "weekly", priority: 0.5 });
-    }
-    // Clubs on the live side are not told apart by league yet, so they sit
-    // under the league the site opens on.
-    for (const team of liveTeams) {
-      pages.push({ url: `${SITE.url}/${fallback}/teams/${team.id}`, changeFrequency: "weekly", priority: 0.6 });
     }
     for (const player of players) {
       const slug = slugOf.get(player.leagueId ?? -1) ?? fallback;
