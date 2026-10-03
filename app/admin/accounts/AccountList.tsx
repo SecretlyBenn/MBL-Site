@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import type { Role } from "@/db/schema";
-import { EmptyState } from "@/app/SiteNav";
 import { UserRoleRow } from "../UserRoleRow";
 
 type Account = {
@@ -67,7 +66,13 @@ export function AccountList({
       />
 
       {shown.length === 0 ? (
-        <EmptyState>Nobody matches that.</EmptyState>
+        // EmptyState's markup rather than EmptyState itself: it is exported
+        // from SiteNav, which reaches the session and so the database, and
+        // importing it from a client component drags `cloudflare:workers` into
+        // the browser bundle and fails the build.
+        <p className="rounded-lg border border-slate-800/80 bg-slate-900/40 p-6 text-center text-sm text-slate-500">
+          Nobody matches that.
+        </p>
       ) : (
         <ul className="flex flex-col gap-2">
           {shown.map((account) => (
