@@ -7,6 +7,10 @@ import { ROLES, type Role } from "@/db/schema";
 /** The roles narrowed to one competition; the others cover both. */
 const SCOPED: Role[] = ["UMPIRE", "HEAD_UMPIRE", "WRITER"];
 
+function roleLabel(role: Role) {
+  return role.replace("_", " ").toLowerCase();
+}
+
 /**
  * One league account: its name, the roles it holds and - for a GM - the club it
  * manages. Changes are staged and saved together, so making someone a GM and
@@ -17,6 +21,14 @@ const SCOPED: Role[] = ["UMPIRE", "HEAD_UMPIRE", "WRITER"];
  *
  * Roles are checkboxes rather than a dropdown because people here hold more
  * than one - a GM who umpires other clubs' games is the ordinary case.
+ *
+ * At rest the row only says who someone is and what they hold, and the editor
+ * opens on a click. Every account showing its full editor at once meant ten
+ * people put about a hundred controls on screen - five role chips each, mostly
+ * unticked and grey, two pickers and two buttons - and the rows wrapped to
+ * different heights depending on what was in them, so there was no column to
+ * read down. Who is a GM is the question this page is usually open to answer,
+ * and that now reads straight down the page.
  */
 export function UserRoleRow({
   user,
@@ -35,6 +47,7 @@ export function UserRoleRow({
   leagues: { id: number; name: string }[];
 }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(user.displayName);
   const [roles, setRoles] = useState<Role[]>(user.roles);
   const [teamId, setTeamId] = useState<number | "">(user.teamId ?? "");
@@ -69,6 +82,16 @@ export function UserRoleRow({
       held.includes(role) ? held.filter((other) => other !== role) : [...held, role],
     );
 
+  /** Throws away whatever was staged and closes, so Cancel really does cancel. */
+  function close() {
+    setDisplayName(user.displayName);
+    setRoles(user.roles);
+    setTeamId(user.teamId ?? "");
+    setLeagueId(user.leagueId ?? "");
+    setError("");
+    setOpen(false);
+  }
+
   async function save() {
     setBusy(true);
     setError("");
@@ -80,6 +103,7 @@ export function UserRoleRow({
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
+      setOpen(false);
       router.refresh();
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : "Unexpected error");
@@ -92,6 +116,10 @@ export function UserRoleRow({
    * Ends every session this account has open. Worth doing when their Discord
    * account or a device is out of their hands - changing the role here does
    * not close a tab someone else is already signed in on.
+   *
+   * Kept inside the editor rather than on the resting row: it is rare, it
+   * cannot be undone from here, and sitting next to Save on every row it was
+   * one slip away on a page an admin opens to do something else.
    */
   async function signOutEverywhere() {
     if (!confirm(`Sign ${user.displayName} out of every browser? They can sign back in.`)) return;
@@ -116,92 +144,153 @@ export function UserRoleRow({
     }
   }
 
+  const club = teams.find((team) => team.id === user.teamId)?.name;
+  const scope = leagues.find((option) => option.id === user.leagueId)?.name;
+
+  if (!open) {
+    return (
+      <li className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-2.5">
+        <span className="min-w-[10rem] flex-1 text-sm font-semibold text-slate-100">
+          {user.displayName}
+        </span>
+
+        {/* Only what they actually hold. The unticked three were noise on every
+            row and made the held ones harder to pick out. */}
+        <span className="flex flex-wrap items-center gap-1.5">
+          {user.roles.length === 0 ? (
+            <span className="text-xs text-rose-400">no access</span>
+          ) : (
+            ROLES.filter((role) => user.roles.includes(role)).map((role) => (
+              <span
+                key={role}
+                className="rounded-md border border-sky-500/50 bg-sky-600/15 px-2 py-0.5 text-xs font-semibold text-sky-200"
+              >
+                {roleLabel(role)}
+              </span>
+            ))
+          )}
+        </span>
+
+        {/* The club a GM runs is the thing this page is most often opened to
+            check, so it reads down the right-hand side rather than hiding in
+            a closed picker. */}
+        <span className="min-w-[9rem] text-right text-xs text-slate-400">
+          {club ?? (scope ? scope : user.roles.some((held) => SCOPED.includes(held)) ? "Both leagues" : "")}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-expanded={false}
+          className="ui-button !px-3 !py-1 text-xs"
+        >
+          Edit
+        </button>
+      </li>
+    );
+  }
+
   return (
-    <li className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3">
-      {/* A floor under the name, or a row carrying several role chips and a
-          league picker squeezes it down to a couple of characters and the
-          admin cannot read who they are editing. */}
-      <span className="flex min-w-[15rem] flex-1 items-center gap-2">
-        <input
-          value={displayName}
-          onChange={(event) => setDisplayName(event.target.value)}
-          aria-label={`Name for ${user.displayName}`}
-          className="ui-input min-w-0 flex-1 !py-1 text-sm font-semibold"
-        />
-        <span className="shrink-0 text-xs text-slate-500">{user.discordId}</span>
-      </span>
+    <li className="flex flex-col gap-3 rounded-lg border border-sky-800/70 bg-slate-900/70 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="flex min-w-[15rem] flex-1 items-center gap-2">
+          <input
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            aria-label={`Name for ${user.displayName}`}
+            className="ui-input min-w-0 flex-1 !py-1 text-sm font-semibold"
+          />
+          <span className="shrink-0 text-xs text-slate-500">{user.discordId}</span>
+        </span>
 
-      <span className="flex flex-wrap items-center gap-1.5">
-        {ROLES.map((option) => (
-          <label
-            key={option}
-            className={`cursor-pointer select-none rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
-              roles.includes(option)
-                ? "border-sky-500 bg-sky-600/20 text-sky-200"
-                : "border-slate-700 text-slate-500 hover:border-slate-600"
-            }`}
-          >
-            <input
-              type="checkbox"
-              checked={roles.includes(option)}
-              onChange={() => toggle(option)}
-              className="sr-only"
-            />
-            {option.replace("_", " ").toLowerCase()}
+        <span className="flex flex-wrap items-center gap-1.5">
+          {ROLES.map((option) => (
+            <label
+              key={option}
+              className={`cursor-pointer select-none rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                roles.includes(option)
+                  ? "border-sky-500 bg-sky-600/20 text-sky-200"
+                  : "border-slate-700 text-slate-500 hover:border-slate-600"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={roles.includes(option)}
+                onChange={() => toggle(option)}
+                className="sr-only"
+              />
+              {roleLabel(option)}
+            </label>
+          ))}
+        </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Blank is both, which is what most officials are: the same people
+            call and review games in either competition. */}
+        {scopedByLeague && (
+          <label className="flex items-center gap-2 text-xs text-slate-400">
+            Covers
+            <select
+              value={leagueId}
+              onChange={(event) => setLeagueId(Number(event.target.value) || "")}
+              aria-label={`League for ${user.displayName}`}
+              className="ui-select !py-1 text-xs"
+            >
+              <option value="">Both leagues</option>
+              {leagues.map((option) => (
+                <option key={option.id} value={option.id}>{option.name}</option>
+              ))}
+            </select>
           </label>
-        ))}
-      </span>
+        )}
 
-      {/* Blank is both, which is what most officials are: the same people
-          call and review games in either competition. */}
-      {scopedByLeague && (
-        <select
-          value={leagueId}
-          onChange={(event) => setLeagueId(Number(event.target.value) || "")}
-          aria-label={`League for ${user.displayName}`}
-          className="ui-select !py-1 text-xs"
-        >
-          <option value="">Both leagues</option>
-          {leagues.map((option) => (
-            <option key={option.id} value={option.id}>{option.name}</option>
-          ))}
-        </select>
-      )}
+        {/* Only a GM has a club, so the picker appears only when that is held. */}
+        {isGm && (
+          <label className="flex items-center gap-2 text-xs text-slate-400">
+            Manages
+            <select
+              value={teamId}
+              onChange={(event) => setTeamId(Number(event.target.value) || "")}
+              className="ui-select !py-1 text-xs"
+            >
+              <option value="">Pick a team…</option>
+              {teams.map((team) => (
+                <option key={team.id} value={team.id}>{team.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
-      {/* Only a GM has a club, so the picker appears only when that is held. */}
-      {isGm && (
-        <select
-          value={teamId}
-          onChange={(event) => setTeamId(Number(event.target.value) || "")}
-          className="ui-select !py-1 text-xs"
-        >
-          <option value="">Pick a team…</option>
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>{team.name}</option>
-          ))}
-        </select>
-      )}
+        <span className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            onClick={signOutEverywhere}
+            disabled={busy}
+            title="Ends every session this account has open"
+            className="ui-button-danger !px-3 !py-1 text-xs"
+          >
+            {signedOut ? "Signed out" : "Sign out everywhere"}
+          </button>
+          <button type="button" onClick={close} disabled={busy} className="ui-button !px-3 !py-1 text-xs">
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={busy || !changed || needsTeam || needsRole || name === ""}
+            className="ui-button-primary !px-3 !py-1 text-xs"
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+        </span>
+      </div>
 
-      <button
-        type="button"
-        onClick={save}
-        disabled={busy || !changed || needsTeam || needsRole || name === ""}
-        className="rounded-md bg-sky-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
-      >
-        {busy ? "Saving…" : "Save"}
-      </button>
-
-      <button
-        type="button"
-        onClick={signOutEverywhere}
-        disabled={busy}
-        title="Ends every session this account has open"
-        className="rounded-md border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:border-rose-500/60 hover:text-rose-300 disabled:opacity-40"
-      >
-        {signedOut ? "Signed out" : "Sign out everywhere"}
-      </button>
-
-      {error && <span role="alert" className="w-full text-xs text-rose-400">{error}</span>}
+      {/* Said rather than left to a greyed-out button, which does not explain
+          itself. */}
+      {needsRole && <span className="text-xs text-amber-400">Tick at least one role, or remove the account.</span>}
+      {needsTeam && <span className="text-xs text-amber-400">A general manager needs a club.</span>}
+      {error && <span role="alert" className="text-xs text-rose-400">{error}</span>}
     </li>
   );
 }

@@ -6,7 +6,7 @@ import { getLeagues } from "@/db/queries";
 import { requireRole } from "@/app/roles";
 import { EmptyState, SectionHeader } from "@/app/SiteNav";
 import { CreateUserForm } from "../AdminForms";
-import { UserRoleRow } from "../UserRoleRow";
+import { AccountList } from "./AccountList";
 
 export const metadata: Metadata = { title: "Accounts" };
 export const dynamic = "force-dynamic";
@@ -35,16 +35,11 @@ export default async function AdminAccountsPage() {
         {allUsers.length === 0 ? (
           <EmptyState>No accounts yet.</EmptyState>
         ) : (
-          <ul className="flex flex-col gap-2">
-            {allUsers.map((user) => (
-              <UserRoleRow
-                key={user.id}
-                user={{ ...user, roles: rolesOf(user.id) }}
-                teams={allTeams}
-                leagues={allLeagues}
-              />
-            ))}
-          </ul>
+          <AccountList
+            accounts={allUsers.map((user) => ({ ...user, roles: rolesOf(user.id) }))}
+            teams={allTeams}
+            leagues={allLeagues}
+          />
         )}
       </section>
       <aside>
