@@ -7,6 +7,7 @@ import { describeRoles, requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { ScheduledGames, type Fixture } from "./ScheduledGames";
 import { seriesFor } from "@/app/season-series";
+import { getLeagues } from "@/db/queries";
 import { currentSeasonName } from "@/db/settings";
 
 export const metadata: Metadata = {
@@ -73,19 +74,41 @@ export default async function UmpirePage() {
   // A game's series comes from where it sits in the season's order, so the
   // archive's ordering is what decides it - not the placeholder date the live
   // row carries.
-  const seasonGames = await db
-    .select({ sourceGameId: historicalGames.sourceGameId })
-    .from(historicalGames)
-    .innerJoin(historicalSeasons, eq(historicalGames.seasonId, historicalSeasons.id))
-    .where(eq(historicalSeasons.name, await currentSeasonName()))
-    .orderBy(asc(historicalGames.sortOrder));
-
-  const positionOf = new Map(
-    seasonGames.flatMap((row, index) => (row.sourceGameId ? [[row.sourceGameId, index + 1]] : [])),
+  //
+  // Read per competition, because each has its own current season and an
+  // umpire usually covers both. Numbering an MCBA fixture against the MBL's
+  // schedule would hand it whatever series happened to sit at that position.
+  const allLeagues = await getLeagues();
+  const positionOf = new Map<number, Map<string, number>>();
+  await Promise.all(
+    allLeagues.map(async (league) => {
+      const name = await currentSeasonName(league.slug);
+      if (!name) return;
+      const seasonGames = await db
+        .select({ sourceGameId: historicalGames.sourceGameId })
+        .from(historicalGames)
+        .innerJoin(historicalSeasons, eq(historicalGames.seasonId, historicalSeasons.id))
+        .where(eq(historicalSeasons.name, name))
+        .orderBy(asc(historicalGames.sortOrder));
+      positionOf.set(
+        league.id,
+        new Map(
+          seasonGames.flatMap((row, index) => (row.sourceGameId ? [[row.sourceGameId, index + 1] as const] : [])),
+        ),
+      );
+    }),
   );
 
+  /** Where a fixture sits in its own competition's schedule. */
+  const positionFor = (game: { sourceGameId: string | null; homeTeamId: number; awayTeamId: number }) => {
+    if (!game.sourceGameId) return undefined;
+    const leagueId = teamById.get(game.homeTeamId)?.leagueId ?? teamById.get(game.awayTeamId)?.leagueId;
+    if (!leagueId) return undefined;
+    return positionOf.get(leagueId)?.get(game.sourceGameId);
+  };
+
   const fixtures: Fixture[] = scheduled.filter((game) => mine(game.awayTeamId, game.homeTeamId)).map((game) => {
-    const position = game.sourceGameId ? positionOf.get(game.sourceGameId) : undefined;
+    const position = positionFor(game);
     const series = position ? seriesFor(position) : null;
     return {
       id: game.id,

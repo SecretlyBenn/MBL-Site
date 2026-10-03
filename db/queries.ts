@@ -318,7 +318,31 @@ export async function getLeagues() {
  * worth of players, and a round trip each is a round trip too many.
  */
 const LEAGUE_LENGTHS_HELD_MS = 5 * 60 * 1000;
-let leagueLengths: { at: number; byId: Map<number, number> } | null = null;
+let leagueLengths: { at: number; byId: Map<number, { innings: number; slug: string }> } | null = null;
+
+/** Reads the two league rows, or hands back what was read a moment ago. */
+async function leagueRows() {
+  const held = leagueLengths;
+  if (!held || Date.now() - held.at > LEAGUE_LENGTHS_HELD_MS) {
+    const rows = await getDb()
+      .select({ id: leagues.id, innings: leagues.inningsPerGame, slug: leagues.slug })
+      .from(leagues);
+    leagueLengths = {
+      at: Date.now(),
+      byId: new Map(rows.map((row) => [row.id, { innings: row.innings, slug: row.slug }])),
+    };
+  }
+  return leagueLengths!.byId;
+}
+
+/**
+ * A competition's slug from its id, for the things recorded against the slug
+ * rather than the number - the current-season setting, and addresses.
+ */
+export async function leagueSlugFor(leagueId: number | null | undefined): Promise<string | null> {
+  if (!leagueId) return null;
+  return (await leagueRows()).get(leagueId)?.slug ?? null;
+}
 
 /**
  * The length of a game on a scorecard, taken from the clubs playing it.
@@ -350,14 +374,7 @@ export async function inningsPerGameFor(leagueId: number | null | undefined): Pr
   // A row with no competition behind it - an unfiled club, a player nobody has
   // placed - is read as the usual six rather than left without a rate at all.
   if (!leagueId) return ERA_INNINGS;
-  const held = leagueLengths;
-  if (!held || Date.now() - held.at > LEAGUE_LENGTHS_HELD_MS) {
-    const rows = await getDb()
-      .select({ id: leagues.id, innings: leagues.inningsPerGame })
-      .from(leagues);
-    leagueLengths = { at: Date.now(), byId: new Map(rows.map((row) => [row.id, row.innings])) };
-  }
-  return leagueLengths!.byId.get(leagueId) ?? ERA_INNINGS;
+  return (await leagueRows()).get(leagueId)?.innings ?? ERA_INNINGS;
 }
 
 /** One league from the slug in the address, or null if there is no such league. */

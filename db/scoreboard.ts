@@ -1,11 +1,11 @@
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { getDb } from "./index";
 import { getLogoOverrides } from "./logos";
-import { getAvatarsFor, inningsPerGameFor } from "./queries";
+import { getAvatarsFor, inningsPerGameFor, leagueSlugFor } from "./queries";
 import { currentSeasonName } from "./settings";
 import { logoKey, teamLogoPath } from "@/app/logo-key";
 import { runnersOn, type BaseName } from "@/app/bases";
-import { REGULATION_INNINGS, currentBases, gameState } from "@/app/derive-box-score";
+import { currentBases, gameState } from "@/app/derive-box-score";
 import { earnedRunAverage, nextInOrder } from "@/app/scoring";
 import {
   games,
@@ -244,19 +244,26 @@ async function seasonLines(names: string[], leagueId: number | null) {
   const wanted = [...new Set(names)].sort();
   if (wanted.length === 0) return {};
 
-  const seasonName = await currentSeasonName();
-  const key = `${seasonName}|${leagueId ?? "none"}|${wanted.join(",")}`;
+  // This club's own competition decides the season, so an MCBA board shows
+  // MCBA figures. A club filed under no competition has no season to read.
+  const slug = await leagueSlugFor(leagueId);
+  const seasonName = slug ? await currentSeasonName(slug) : null;
+  const key = `${seasonName ?? "none"}|${leagueId ?? "none"}|${wanted.join(",")}`;
   const held = seasonCache;
   if (held && held.key === key && Date.now() - held.at < SEASON_HELD_MS) return held.lines;
+
+  if (!seasonName) {
+    seasonCache = { key, at: Date.now(), lines: {} };
+    return {};
+  }
 
   const db = getDb();
   const season = await db.query.historicalSeasons.findFirst({
     where: eq(historicalSeasons.name, seasonName),
   });
-  // The current-season setting names one season for the whole site, and the
-  // MCBA's seasons are not the MBL's. Rather than put one competition's
-  // averages on the other's board, a club whose league the season does not
-  // belong to simply gets none.
+  // Still checked even though the season is now looked up per competition: an
+  // admin can point a competition at a season filed under the other one, and
+  // one league's averages on the other's board is worse than none.
   if (!season || (leagueId !== null && season.leagueId !== null && season.leagueId !== leagueId)) {
     seasonCache = { key, at: Date.now(), lines: {} };
     return {};

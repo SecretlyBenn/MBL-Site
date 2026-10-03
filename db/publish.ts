@@ -17,7 +17,7 @@ import {
   scorecards,
   teams,
 } from "@/db/schema";
-import { inningsPerGameForScorecard, inningsPerGameForSeason } from "@/db/queries";
+import { inningsPerGameForScorecard, inningsPerGameForSeason, leagueSlugFor } from "@/db/queries";
 import { currentSeasonName } from "@/db/settings";
 import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/derive-box-score";
 import { fieldingHistory } from "@/app/fielding-history";
@@ -42,13 +42,35 @@ import { earnedRunAverage, perGame } from "@/app/scoring";
  * The season a game the archive has never seen is published into - the season
  * the league is playing, which an admin sets on the Seasons page.
  */
-async function currentSeasonId() {
+async function currentSeasonId(leagueId: number | null | undefined) {
   const db = getDb();
-  const name = await currentSeasonName();
+
+  // Which competition this game belongs to decides which season is current,
+  // because both run at once. A club with no competition cannot be filed at
+  // all: the only season to guess with would be the other league's, and a run
+  // scored in one competition counting towards the other is the thing the
+  // archive's league_id exists to prevent.
+  const slug = await leagueSlugFor(leagueId);
+  if (!slug) {
+    throw new Error("This club is not in a competition, so there is no season to publish into.");
+  }
+
+  const name = await currentSeasonName(slug);
+  if (!name) {
+    throw new Error(
+      `No current season is set for ${slug.toUpperCase()}. Set one on Admin -> Seasons before publishing.`,
+    );
+  }
+
   const existing = await db.query.historicalSeasons.findFirst({
     where: eq(historicalSeasons.name, name),
   });
-  if (existing) return existing.id;
+  if (existing) {
+    if (existing.leagueId !== null && existing.leagueId !== leagueId) {
+      throw new Error(`${name} belongs to another competition, so this game cannot be published into it.`);
+    }
+    return existing.id;
+  }
 
   const all = await db.select().from(historicalSeasons);
   const nextSort = Math.max(0, ...all.map((row) => row.sortOrder ?? 0)) + 1;
@@ -56,7 +78,10 @@ async function currentSeasonId() {
     .insert(historicalSeasons)
     // Live seasons have no upstream export, so the source ids are synthetic -
     // they exist only so a re-import can still match rows by them.
-    .values({ name, sortOrder: nextSort, sourceSeasonId: "live" })
+    // The competition is written now rather than left null: a season belonging
+    // to neither shows up in neither league's archive, so it would be created
+    // and then be invisible.
+    .values({ name, leagueId, sortOrder: nextSort, sourceSeasonId: "live" })
     .returning();
   return created.id;
 }
@@ -131,7 +156,11 @@ export async function publishScorecard(scorecardId: number) {
   // publishing a playoff game into the regular season would add its lines to
   // the wrong totals and leave the playoffs with none. Only a game the archive
   // has never heard of falls back to the current season.
-  const seasonId = existingGame?.seasonId ?? (await currentSeasonId());
+  // A fixture's competition comes from the clubs playing it, and both have to
+  // be in the same one - see fixtureClubs. The home club is asked because a
+  // club's own ground is where its league is beyond doubt.
+  const homeClub = await db.query.teams.findFirst({ where: eq(teams.id, game.homeTeamId) });
+  const seasonId = existingGame?.seasonId ?? (await currentSeasonId(homeClub?.leagueId));
   const awayTeamId = await seasonTeamId(seasonId, game.awayTeamId);
   const homeTeamId = await seasonTeamId(seasonId, game.homeTeamId);
   if (existingGame) {

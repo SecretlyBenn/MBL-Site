@@ -660,25 +660,61 @@ export function MarkForfeitForm({ games }: { games: { id: number; label: string;
 
 /* ---------------------------------------------------------------- Seasons */
 
-export function CreateSeasonForm() {
+export function CreateSeasonForm({ leagues }: { leagues: Option[] }) {
   const { send, busy, error } = useRequest();
   const [name, setName] = useState("");
+  const [leagueId, setLeagueId] = useState(String(leagues[0]?.id ?? ""));
+  // Named seasons have always ended in "Playoffs" and the archive was imported
+  // that way, so the name still decides it - the box only shows what the name
+  // already said, and lets it be overridden for one named differently.
+  const [playoffs, setPlayoffs] = useState<boolean | null>(null);
   const [done, setDone] = useState("");
+
+  const namedPlayoffs = /playoffs?$/i.test(name.trim());
+  const isPlayoffs = playoffs ?? namedPlayoffs;
 
   return (
     <FormCard
       title="Start a season"
-      help="Creates the season after every existing one, so the schedule, standings and stats pages open on it. Every current club is entered at 0-0. Add its games from the Games tab."
+      help="Creates the season after every existing one, so that competition's schedule, standings and stats pages open on it. Its own clubs are entered at 0-0. Add its games from the Games tab."
       onSubmit={async () => {
         setDone("");
-        const data = await send<{ teams: number }>("POST", "/api/seasons", { name });
+        const data = await send<{ teams: number }>("POST", "/api/seasons", {
+          name,
+          leagueId: Number(leagueId),
+          isPlayoffs,
+        });
         if (data) {
           setDone(`${name} created with ${data.teams} teams.`);
           setName("");
+          setPlayoffs(null);
         }
       }}
     >
+      <select className="ui-select" value={leagueId} onChange={(event) => setLeagueId(event.target.value)} required>
+        {leagues.map((league) => (
+          <option key={league.id} value={league.id}>{league.name}</option>
+        ))}
+      </select>
       <input className="ui-input" placeholder="e.g. MBL Season XIII, or MBL Season XIII Playoffs" value={name} onChange={(event) => setName(event.target.value)} required />
+
+      <label className="flex items-start gap-2 text-sm text-slate-300">
+        <input
+          type="checkbox"
+          checked={isPlayoffs}
+          onChange={(event) => setPlayoffs(event.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          Postseason
+          <span className="block text-xs text-slate-500">
+            Shows a bracket instead of a table. The bracket is worked out from the games
+            themselves - who played whom, and when - so there is nothing to seed by hand; just add
+            the games.
+          </span>
+        </span>
+      </label>
+
       <button type="submit" disabled={busy} className="ui-button-primary self-start">
         {busy ? "Creating…" : "Create season"}
       </button>
@@ -728,43 +764,82 @@ export function RecomputeSeasonForm({ seasons }: { seasons: Option[] }) {
   );
 }
 
-export function CurrentSeasonForm({ seasons, current }: { seasons: Option[]; current: string }) {
+/**
+ * Which season each competition is playing, one picker per competition.
+ *
+ * It was a single picker when the site held only the MBL. The two run at the
+ * same time, so one answer could not describe both, and the MCBA's first
+ * published game would have been filed into whatever the MBL was playing.
+ */
+export function CurrentSeasonForm({
+  leagues,
+}: {
+  leagues: { id: number; name: string; current: string | null; seasons: Option[] }[];
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      {leagues.map((league) => (
+        <CurrentSeasonPicker key={league.id} league={league} />
+      ))}
+    </div>
+  );
+}
+
+function CurrentSeasonPicker({
+  league,
+}: {
+  league: { id: number; name: string; current: string | null; seasons: Option[] };
+}) {
   const { send, busy, error } = useRequest();
   const [seasonId, setSeasonId] = useState(
-    String(seasons.find((season) => season.name === current)?.id ?? ""),
+    String(league.seasons.find((season) => season.name === league.current)?.id ?? ""),
   );
   const [done, setDone] = useState("");
 
   return (
     <FormCard
-      title="Season being played"
+      title={`${league.name}: season being played`}
       help={
         <>
-          Currently <strong className="text-slate-200">{current}</strong>. A game already on a
-          published schedule keeps its own season; this is where a game added here goes, and the
-          schedule the umpire page numbers series from. Change it when a new season or its playoffs
-          begin.
+          {league.current ? (
+            <>
+              Currently <strong className="text-slate-200">{league.current}</strong>.
+            </>
+          ) : (
+            <strong className="text-amber-300">
+              Not set. Games in this competition cannot be published until it is.
+            </strong>
+          )}{" "}
+          A game already on a published schedule keeps its own season; this is where a game added
+          here goes, and the schedule the umpire page numbers series from. Change it when a new
+          season or its playoffs begin.
         </>
       }
       onSubmit={async () => {
         setDone("");
-        const name = seasons.find((season) => String(season.id) === seasonId)?.name ?? "season";
+        const name = league.seasons.find((season) => String(season.id) === seasonId)?.name ?? "season";
         if (await send("PATCH", "/api/seasons", { seasonId: Number(seasonId) })) {
           setDone(`Now playing ${name}.`);
         }
       }}
     >
-      <select className="ui-select w-full" value={seasonId} onChange={(event) => setSeasonId(event.target.value)} required>
-        <option value="">Choose a season</option>
-        {seasons.map((season) => (
-          <option key={season.id} value={season.id}>
-            {season.name}
-          </option>
-        ))}
-      </select>
-      <button type="submit" disabled={busy || !seasonId} className="ui-button-primary self-start">
-        {busy ? "Saving…" : "Set season"}
-      </button>
+      {league.seasons.length === 0 ? (
+        <p className="text-sm text-slate-500">No seasons yet for this competition. Start one below.</p>
+      ) : (
+        <>
+          <select className="ui-select w-full" value={seasonId} onChange={(event) => setSeasonId(event.target.value)} required>
+            <option value="">Choose a season</option>
+            {league.seasons.map((season) => (
+              <option key={season.id} value={season.id}>
+                {season.name}
+              </option>
+            ))}
+          </select>
+          <button type="submit" disabled={busy || !seasonId} className="ui-button-primary self-start">
+            {busy ? "Saving…" : "Set season"}
+          </button>
+        </>
+      )}
       <DoneText>{done}</DoneText>
       <ErrorText>{error}</ErrorText>
     </FormCard>

@@ -2,8 +2,9 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { seasonTeamId } from "@/db/publish";
-import { historicalSeasons, teams } from "@/db/schema";
-import { CURRENT_SEASON, setSetting } from "@/db/settings";
+import { leagueSlugFor } from "@/db/queries";
+import { historicalSeasons, leagues, teams } from "@/db/schema";
+import { setCurrentSeasonName } from "@/db/settings";
 import { apiError } from "@/app/api-errors";
 import { requireRoleForApi } from "@/app/roles";
 
@@ -18,12 +19,28 @@ import { requireRoleForApi } from "@/app/roles";
 export async function POST(request: Request) {
   try {
     const leagueUser = await requireRoleForApi(["ADMIN"]);
-    const payload = (await request.json()) as { name: string; isPlayoffs?: boolean; includeTeams?: boolean };
+    const payload = (await request.json()) as {
+      name: string;
+      leagueId?: number;
+      isPlayoffs?: boolean;
+      includeTeams?: boolean;
+    };
 
     const name = payload.name?.trim().replace(/\s+/g, " ");
     if (!name) return Response.json({ error: "Name the season, e.g. MBL Season XIII." }, { status: 400 });
 
     const db = getDb();
+
+    // Which competition a season belongs to is how the archive tells the two
+    // apart, and every page reads its seasons by it. A season created without
+    // one is not merely unfiled - it appears in neither league's archive, so
+    // it would be made and then be invisible.
+    if (!Number.isInteger(payload.leagueId)) {
+      return Response.json({ error: "Which competition is this season for?" }, { status: 400 });
+    }
+    const league = await db.query.leagues.findFirst({ where: eq(leagues.id, payload.leagueId!) });
+    if (!league) return Response.json({ error: "No such competition." }, { status: 400 });
+
     const [{ last }] = await db
       .select({ last: sql<number>`coalesce(max(${historicalSeasons.sortOrder}), 0)` })
       .from(historicalSeasons);
@@ -32,6 +49,10 @@ export async function POST(request: Request) {
       .insert(historicalSeasons)
       .values({
         name,
+        leagueId: league.id,
+        // The name still decides it when nothing is said, because that is how
+        // every season imported from the old site was named and the archive
+        // reads the same way either side of this.
         isPlayoffs: Boolean(payload.isPlayoffs ?? /playoffs?$/i.test(name)),
         sortOrder: Number(last) + 1,
         // No upstream export behind a season run on this site; the id only has
@@ -40,9 +61,12 @@ export async function POST(request: Request) {
       })
       .returning();
 
+    // Only this competition's clubs. Entering all nineteen would put the MCBA
+    // in the MBL's standings at 0-0 and vice versa.
     let entered = 0;
     if (payload.includeTeams ?? true) {
-      for (const team of await db.select({ id: teams.id }).from(teams)) {
+      const clubs = await db.select({ id: teams.id }).from(teams).where(eq(teams.leagueId, league.id));
+      for (const team of clubs) {
         await seasonTeamId(season.id, team.id);
         entered += 1;
       }
@@ -83,7 +107,16 @@ export async function PATCH(request: Request) {
     });
     if (!season) return Response.json({ error: "No such season." }, { status: 404 });
 
-    await setSetting(CURRENT_SEASON, season.name);
+    // The season says which competition it is current for, so an admin cannot
+    // set the MBL's season as the MCBA's by picking the wrong list.
+    const slug = await leagueSlugFor(season.leagueId);
+    if (!slug) {
+      return Response.json(
+        { error: "That season is not filed under a competition, so it cannot be the current one." },
+        { status: 400 },
+      );
+    }
+    await setCurrentSeasonName(slug, season.name);
     await logAudit({
       actingUserId: leagueUser.id,
       action: "season.set_current",
