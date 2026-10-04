@@ -17,12 +17,14 @@ type WithdrawPayload = {
 };
 
 /**
- * Takes a player off the field, and puts them back on when they return.
+ * Puts a player back on the field, and takes them off.
  *
- * Neither of the existing routes covers this. A substitution needs someone
- * coming in off the bench, and a position change leaves the player standing
- * somewhere - so a player who had walked away was still occupying his
- * position and blocking anyone else from being moved there.
+ * The scoring board only uses the first of those now. Going off is a position
+ * change to the bench, made in the same panels as every other move, so that a
+ * rearrangement which benches one man and shifts two others is one moment on
+ * the card and one thing to undo - see the fielding route. This half stays
+ * because it is the same write, and because it is still the only way back on:
+ * coming back has to say where, which a list of assignments does not.
  *
  * They keep their lineup row and their batting slot throughout. Players in
  * this league wander off and come back, and dropping them out of the order

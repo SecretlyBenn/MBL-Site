@@ -785,9 +785,6 @@ export function ScoringBoard({
                   errors: fieldingTally.get(row.playerId)?.errors ?? 0,
                 }))}
               changeLog={changeLogFor(isHome)}
-              onWithdraw={(playerId) =>
-                send(`/api/scorecards/${scorecardId}/withdraw`, "POST", { playerId })
-              }
               away={lineups
                 .filter((row) => row.isHome === isHome && !onField(row))
                 .map((row) => ({

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { POSITIONS } from "@/app/scoring";
+import { BENCH } from "@/app/fielding-history";
 import { readJson } from "@/app/read-json";
 
 type Fielder = {
@@ -27,7 +28,6 @@ export function DefensePanel({
   inTheField,
   fielders,
   changeLog,
-  onWithdraw,
   away,
   onReturn,
   busy: sending,
@@ -42,8 +42,6 @@ export function DefensePanel({
   fielders: Fielder[];
   /** Substitutions and moves already made by this side, oldest first. */
   changeLog: { key: string; text: string }[];
-  /** Takes a player off the field; they keep their place in the order. */
-  onWithdraw: (playerId: number) => void;
   /** Players in the lineup who are away from the field right now. */
   away: { playerId: number; name: string; position: string }[];
   /** Puts one of them back on, at whatever spot is free. */
@@ -64,7 +62,9 @@ export function DefensePanel({
   const positionOf = (fielder: Fielder) => draft[fielder.playerId] ?? fielder.position;
   const changed = fielders.filter((fielder) => positionOf(fielder) !== fielder.position);
 
-  const used = fielders.map(positionOf);
+  // The bench is not a position, so a side can put several men on it at once
+  // without that being the mistake this is looking for.
+  const used = fielders.map(positionOf).filter((position) => position !== BENCH);
   const duplicate = used.filter((position, index) => used.indexOf(position) !== index);
 
   async function confirm() {
@@ -111,12 +111,12 @@ export function DefensePanel({
 
       <div className="p-2">
       {/* The panel is already titled with the club, so only the half it is in
-          is said here - and only while changing does the hint about "Left"
+          is said here - and only while changing does the hint about the bench
           earn its line. Said twice, it cost a row on a panel that sits beside
           the scorecard and was pushing it off the screen. */}
       <p className="mb-1.5 text-[11px] text-slate-500">
         {inTheField ? "In the field" : "Batting"}
-        {open && " — “Left” takes a player off the field"}
+        {open && " — set a man to Bench to take him off the field"}
       </p>
 
       {notice && <p className="mb-2 text-[11px] text-emerald-400">{notice}</p>}
@@ -137,22 +137,15 @@ export function DefensePanel({
                   {POSITIONS.map((position) => (
                     <option key={position} value={position}>{position}</option>
                   ))}
+                  {/* Last, because it is the one choice that is not somewhere
+                      on the field. Someone can walk out of a game with nobody
+                      to replace them, and a substitution needs an incoming
+                      player, so this is how they stop blocking a position:
+                      they keep their spot in the order, their turn is skipped
+                      while they are gone, and they come back on above. */}
+                  <option value={BENCH}>Bench</option>
                 </select>
                 <span className="truncate text-slate-300">{fielder.name}</span>
-                {/* Someone can walk out of a game with nobody to replace
-                    them. A substitution needs an incoming player and a
-                    position change leaves them on the field, so without this
-                    they stay standing where they were - blocking the position
-                    for anyone else. */}
-                <button
-                  type="button"
-                  disabled={sending}
-                  onClick={() => onWithdraw(fielder.playerId)}
-                  className="ml-auto shrink-0 text-[11px] font-semibold text-slate-500 hover:text-amber-400"
-                  title="Takes them off the field. They keep their spot in the order and can come back."
-                >
-                  Left
-                </button>
               </>
             ) : (
               <>
