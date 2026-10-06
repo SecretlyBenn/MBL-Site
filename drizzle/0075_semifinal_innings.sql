@@ -1,7 +1,7 @@
 -- The same innings-pitched correction, for the semifinals.
 --
--- NOT YET APPLIED - this changes figures already published, so it is the
--- league's call rather than a repair of something written this week.
+-- Applied once the league confirmed it wanted the figures corrected. It changes
+-- numbers that had already been published, which is why it waited to be asked.
 --
 -- Sixteen pitching lines across the Season XII semifinals were entered in
 -- baseball notation by hand, the way 0072 was before 0074 corrected it. The
