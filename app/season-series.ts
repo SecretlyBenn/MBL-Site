@@ -32,6 +32,12 @@ export const ALL_STAR_BREAK_AFTER_SERIES = 5;
 export const SEASON_XII_PLAYOFF_SERIES = [
   { label: "Divisional Round", window: "September 4 – September 14", games: 10 },
   { label: "Championship Round", window: "September 15 – September 28", games: 10 },
+  // Seven games whether or not seven are played, the way the rounds above
+  // carry the games a series never reached. Without a block here they fall
+  // past the published schedule and the World Series is headed "Additional
+  // games". The window is the league's own: it announced a start of the 29th
+  // and gave the clubs until the 13th to finish.
+  { label: "World Series", window: "September 29 – October 13", games: 7 },
 ] as const;
 
 /** A published block of games: the shape both schedules above share. */
