@@ -47,10 +47,19 @@ export type SeriesBlock = {
   readonly games: number;
 };
 
-/** The published blocks for a season, by name, or null if it had none. */
+/**
+ * The published blocks for a season, by name, or null if it had none.
+ *
+ * Anchored on the MBL's own prefix, because these windows are the MBL's. This
+ * used to match any name ending "Season XII" - which was safe only while the
+ * MCBA's seasons were called "MCBA XII". Once they were renamed to read like
+ * the MBL's, "MCBA Season XII" matched too and the Collegiate Association's
+ * schedule would have been cut into the MBL's series and headed with the MBL's
+ * dates.
+ */
 export function seriesScheduleFor(seasonName: string): readonly SeriesBlock[] | null {
-  if (/Season XII Playoffs$/.test(seasonName)) return SEASON_XII_PLAYOFF_SERIES;
-  if (/Season XII$/.test(seasonName)) return SEASON_XII_SERIES;
+  if (/^MBL Season XII Playoffs$/.test(seasonName)) return SEASON_XII_PLAYOFF_SERIES;
+  if (/^MBL Season XII$/.test(seasonName)) return SEASON_XII_SERIES;
   return null;
 }
 
