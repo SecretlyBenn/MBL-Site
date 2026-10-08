@@ -28,8 +28,6 @@ const COLUMNS = [
     heading: "About",
     links: [
       { href: "/contact", label: "Contact" },
-      { href: "/privacy", label: "Privacy Policy" },
-      { href: "/terms", label: "Terms of Use" },
     ],
   },
 ];

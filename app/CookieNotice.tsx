@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSyncExternalStore } from "react";
 
@@ -64,10 +63,7 @@ export function CookieNotice() {
     >
       <p>
         We use cookies only to sign league staff in, and cookieless analytics to count visits.
-        No advertising or tracking cookies.{" "}
-        <Link href="/privacy" className="font-medium text-sky-400 hover:text-sky-300">
-          Privacy policy
-        </Link>
+        No advertising or tracking cookies.
       </p>
       <button
         type="button"

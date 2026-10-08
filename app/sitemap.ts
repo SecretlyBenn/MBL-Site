@@ -23,8 +23,6 @@ const LEAGUE_PAGES: { path: string; priority: number; changeFrequency: "daily" |
 /** Pages that belong to the site rather than to either league. */
 const SITE_PAGES: { path: string; priority: number; changeFrequency: "yearly" }[] = [
   { path: "/contact", priority: 0.3, changeFrequency: "yearly" },
-  { path: "/privacy", priority: 0.2, changeFrequency: "yearly" },
-  { path: "/terms", priority: 0.2, changeFrequency: "yearly" },
 ];
 
 /**

@@ -4,14 +4,12 @@ import { SITE } from "../site";
 
 export const metadata: Metadata = {
   title: "Contact",
-  description: `How to reach the ${SITE.name}: join the Discord, report a stats correction, or ask about your data.`,
+  description: `How to reach the ${SITE.name}: join the Discord.`,
   alternates: { canonical: "/contact" },
 };
 
 const REASONS = [
   { title: "Join the league", body: "Sign-ups, drafts and announcements all happen in the Discord." },
-  { title: "Report a stats mistake", body: "Tell us the game, the player and what looks wrong, and we'll check the scorecard." },
-  { title: "Privacy or data requests", body: "Ask to have a staff account removed, or your username anonymised in the records." },
 ];
 
 export default function ContactPage() {

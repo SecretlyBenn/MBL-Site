@@ -34,6 +34,4 @@ export const SITE = {
    * here rather than in a secret.
    */
   analyticsToken: "",
-  /** Where the privacy policy and terms were last revised. */
-  policiesUpdated: "September 25, 2026",
 } as const;
