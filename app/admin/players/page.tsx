@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { historicalPlayerStats, minecraftProfiles, players, teams } from "@/db/schema";
 import { requireRole } from "@/app/roles";
 import { EmptyState, SectionHeader } from "@/app/SiteNav";
+import { getLinkedNames } from "@/db/queries";
 import { AddPlayersForm, LinkAccountForm, PlayerRow, QuickLinkRow, RenamePlayerForm } from "../AdminForms";
 import { QueryPicker } from "../QueryPicker";
 
@@ -22,11 +23,7 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
   const db = getDb();
   const { show: requested } = await searchParams;
 
-  const [allTeams, linked] = await Promise.all([
-    db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.name)),
-    db.select({ name: minecraftProfiles.playerName }).from(minecraftProfiles),
-  ]);
-  const linkedNames = new Set(linked.map((row) => row.name));
+  const allTeams = await db.select({ id: teams.id, name: teams.name }).from(teams).orderBy(asc(teams.name));
 
   const show = requested ?? (allTeams[0] ? String(allTeams[0].id) : "free");
   const options = [
@@ -42,7 +39,14 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
   if (show === "unlinked") {
     heading = "Missing a Minecraft account";
     const [poolRows, archived] = await Promise.all([
-      db.select({ name: players.displayName }).from(players),
+      // Left joined and filtered here rather than read in full and sieved in
+      // JavaScript, so the unlinked names come back already unlinked. It is
+      // the same join the archived half below has always used.
+      db
+        .select({ name: players.displayName })
+        .from(players)
+        .leftJoin(minecraftProfiles, eq(minecraftProfiles.playerName, players.displayName))
+        .where(isNull(minecraftProfiles.uuid)),
       // Played is how many games the archive has them for, so the list can put
       // the people a reader will actually meet first. Two hundred names went
       // unlinked when the Collegiate Association arrived, most of them accounts
@@ -57,7 +61,6 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
     ]);
     const gamesFor = new Map(archived.map((row) => [row.name, Number(row.played)]));
     unlinkedNames = [...new Set([...poolRows.map((row) => row.name), ...archived.map((row) => row.name)])]
-      .filter((name) => !linkedNames.has(name))
       .sort((a, b) => (gamesFor.get(b) ?? 0) - (gamesFor.get(a) ?? 0) || a.localeCompare(b));
   } else if (show === "free") {
     heading = "Free agents & released";
@@ -70,6 +73,9 @@ export default async function AdminPlayersPage({ searchParams }: { searchParams:
   // Sorted here rather than in SQL, which puts every capitalised name ahead of
   // every lowercase one.
   pool.sort((a, b) => a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" }));
+  // Only the names on screen. Reading every profile to tick a twenty-man
+  // roster was the second heaviest query on the site.
+  const linkedNames = await getLinkedNames(pool.map((player) => player.displayName));
 
   // Suggestions for the rename and link forms: every name the site knows.
   const archivedNames = await db.selectDistinct({ name: historicalPlayerStats.playerName }).from(historicalPlayerStats);

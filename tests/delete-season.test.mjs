@@ -76,11 +76,34 @@ test("the button is only offered for a season that holds nothing", () => {
   // The server decides either way, but an admin should not be shown a control
   // that was always going to refuse.
   assert.match(page, /holdsNothing\(season\) && \(\s*<DeleteButton/, "the delete button is not gated");
+  // All four things that make a season undeletable have to reach the gate.
+  // Named by what they are rather than by the variables that hold them, so
+  // rearranging the page does not fail this while the meaning is intact.
   const gate = bodyOf(page, "AdminSeasonsPage");
-  for (const source of ["tallyFor", "totalsFor", "rostersFor", "isCurrent"]) {
+  const required = [
+    ["the season being played", /isCurrent\(season\)/],
+    ["its games", /historicalGames\.seasonId/],
+    ["its player totals", /historicalPlayerStats\.seasonId/],
+    ["its roster entries", /historicalRosterEntries\.seasonId/],
+  ];
+  for (const [what, pattern] of required) {
+    assert.match(gate, pattern, `the delete gate ignores ${what}`);
+  }
+});
+
+test("emptiness is asked only of the seasons that could qualify", () => {
+  // Counting every season's player totals and roster entries read both tables
+  // end to end on every load - 4,444 roster rows to answer a yes or no about
+  // one empty season - and a GROUP BY over a whole table visits every row
+  // whatever indexes exist. Both lookups must stay restricted to a list of
+  // candidate ids so they go through the season indexes instead.
+  const gate = bodyOf(page, "AdminSeasonsPage");
+  for (const table of ["historicalPlayerStats", "historicalRosterEntries"]) {
+    const at = gate.indexOf(`.from(${table})`);
+    assert.ok(at >= 0, `${table} is no longer queried on this page`);
     assert.ok(
-      new RegExp(`holdsNothing[\\s\\S]{0,400}${source}`).test(gate),
-      `holdsNothing ignores ${source}`,
+      gate.slice(at, at + 160).includes(`inArray(${table}.seasonId`),
+      `the ${table} lookup reads the whole table instead of the candidate seasons`,
     );
   }
 });

@@ -1151,6 +1151,37 @@ export async function getProfilesFor(names: string[]): Promise<Record<string, Li
 }
 
 /**
+ * Which of these names have a Minecraft account linked.
+ *
+ * The admin player list used to read the whole of `minecraft_profiles` - all
+ * 1,280 rows - to tick the ones on a twenty-man roster. It only ever asks
+ * whether a name it is already showing is linked, so it asks about those names
+ * and no others. Batched for the same reason `getProfilesFor` is: D1 refuses a
+ * statement with more than 100 bound parameters.
+ */
+export async function getLinkedNames(names: string[]): Promise<Set<string>> {
+  const wanted = [...new Set(names)];
+  if (wanted.length === 0) return new Set();
+
+  const db = getDb();
+  const batches: string[][] = [];
+  for (let start = 0; start < wanted.length; start += PROFILE_BATCH) {
+    batches.push(wanted.slice(start, start + PROFILE_BATCH));
+  }
+
+  const found = await Promise.all(
+    batches.map((batch) =>
+      db
+        .select({ playerName: minecraftProfiles.playerName })
+        .from(minecraftProfiles)
+        .where(inArray(minecraftProfiles.playerName, batch)),
+    ),
+  );
+  return new Set(found.flat().map((row) => row.playerName));
+}
+
+
+/**
  * Every game a player appears in, newest first, with the opponent and whether
  * their side won. Feeds the game log on a player's profile.
  *

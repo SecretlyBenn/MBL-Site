@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { desc, sql } from "drizzle-orm";
+import { desc, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   historicalGames,
@@ -22,7 +22,7 @@ export default async function AdminSeasonsPage() {
   const db = getDb();
 
   const allLeagues = await getLeagues();
-  const [currents, seasons, tallies, playerTotals, rosterEntries] = await Promise.all([
+  const [currents, seasons, tallies] = await Promise.all([
     // One per competition: the MBL and the MCBA run at the same time, so there
     // is no single season the site is playing.
     Promise.all(allLeagues.map((league) => currentSeasonName(league.slug))),
@@ -35,32 +35,49 @@ export default async function AdminSeasonsPage() {
       })
       .from(historicalGames)
       .groupBy(historicalGames.seasonId),
-    // What else a season holds, so the page only offers to delete one that
-    // holds nothing. The server decides either way; this is so an admin is not
-    // shown a button that will refuse.
-    db
-      .select({ seasonId: historicalPlayerStats.seasonId, total: sql<number>`count(*)` })
-      .from(historicalPlayerStats)
-      .groupBy(historicalPlayerStats.seasonId),
-    db
-      .select({ seasonId: historicalRosterEntries.seasonId, total: sql<number>`count(*)` })
-      .from(historicalRosterEntries)
-      .groupBy(historicalRosterEntries.seasonId),
   ]);
   const tallyFor = new Map(tallies.map((row) => [row.seasonId, row]));
-  const totalsFor = new Map(playerTotals.map((row) => [row.seasonId, Number(row.total)]));
-  const rostersFor = new Map(rosterEntries.map((row) => [row.seasonId, Number(row.total)]));
   const leagueNameOf = new Map(allLeagues.map((league) => [league.id, league.name]));
   const currentOf = new Map(allLeagues.map((league, at) => [league.id, currents[at]]));
   const isCurrent = (season: { id: number; name: string; leagueId: number | null }) =>
     season.leagueId !== null && currentOf.get(season.leagueId) === season.name;
+
+  // Which seasons still hold nothing, so the page only offers to delete one of
+  // those. The server decides either way; this is so an admin is not shown a
+  // button that will refuse.
+  //
+  // Asked only of the seasons that could possibly qualify - the ones with no
+  // games, which the tally above already names - rather than of the archive as
+  // a whole. Counting every season's roster entries meant reading all 4,444 of
+  // them on every load of this page to answer what is really a yes or no about
+  // one empty season, and a GROUP BY over the whole table visits every row
+  // whatever indexes exist. Restricted to a handful of ids it goes through
+  // historical_roster_entries_season_idx instead, and in the ordinary case
+  // where nothing is deletable it is not asked at all.
+  const candidates = seasons
+    .filter((season) => !isCurrent(season) && Number(tallyFor.get(season.id)?.total ?? 0) === 0)
+    .map((season) => season.id);
+  const [withTotals, withRosters] = candidates.length
+    ? await Promise.all([
+        db
+          .selectDistinct({ seasonId: historicalPlayerStats.seasonId })
+          .from(historicalPlayerStats)
+          .where(inArray(historicalPlayerStats.seasonId, candidates)),
+        db
+          .selectDistinct({ seasonId: historicalRosterEntries.seasonId })
+          .from(historicalRosterEntries)
+          .where(inArray(historicalRosterEntries.seasonId, candidates)),
+      ])
+    : [[], []];
   // A season is only removable while it is still empty. The clubs entered when
   // it was created do not count - they are standings for games nobody played.
-  const holdsNothing = (season: { id: number; name: string; leagueId: number | null }) =>
-    !isCurrent(season) &&
-    Number(tallyFor.get(season.id)?.total ?? 0) === 0 &&
-    (totalsFor.get(season.id) ?? 0) === 0 &&
-    (rostersFor.get(season.id) ?? 0) === 0;
+  const occupied = new Set([
+    ...withTotals.map((row) => row.seasonId),
+    ...withRosters.map((row) => row.seasonId),
+  ]);
+  const candidateIds = new Set(candidates);
+  const holdsNothing = (season: { id: number }) =>
+    candidateIds.has(season.id) && !occupied.has(season.id);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
