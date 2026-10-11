@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { POSITIONS, type Position } from "@/app/scoring";
-import { BENCH } from "@/app/fielding-history";
 import { readJson } from "@/app/read-json";
 
 type LineupMember = { playerId: number; name: string; position: string; battingOrder: number | null };
@@ -44,7 +43,7 @@ export function SubstitutionPanel({
   const [side, setSide] = useState<"away" | "home">("away");
   const [outId, setOutId] = useState("");
   const [inId, setInId] = useState("");
-  const [position, setPosition] = useState<Position | typeof BENCH | "">("");
+  const [position, setPosition] = useState<Position | "">("");
   const [working, setWorking] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -56,25 +55,6 @@ export function SubstitutionPanel({
   const sideBench = isHome ? bench.home : bench.away;
 
   const outgoing = sideLineup.find((row) => String(row.playerId) === outId);
-  const toTheBench = position === BENCH;
-
-  async function benchHim() {
-    const response = await fetch(`/api/scorecards/${scorecardId}/fielding`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        isHome,
-        assignments: [{ playerId: Number(outId), position: BENCH }],
-      }),
-    });
-    const body = await readJson<{ inning?: number }>(
-      response,
-      "Could not take that player off the field.",
-    );
-    setNotice(
-      `Off the field in inning ${body.inning}. His turn is skipped until he comes back on.`,
-    );
-  }
 
   async function substitute() {
     const response = await fetch(`/api/scorecards/${scorecardId}/substitute`, {
@@ -104,7 +84,7 @@ export function SubstitutionPanel({
     setError("");
     setNotice("");
     try {
-      await (toTheBench ? benchHim() : substitute());
+      await substitute();
       setOutId("");
       setInId("");
       setPosition("");
@@ -168,14 +148,10 @@ export function SubstitutionPanel({
               value={inId}
               onChange={(event) => setInId(event.target.value)}
               className="ui-select w-full"
-              disabled={toTheBench || sideBench.length === 0}
+              disabled={sideBench.length === 0}
             >
               <option value="">
-                {toTheBench
-                  ? "Nobody"
-                  : sideBench.length === 0
-                    ? "Nobody on the bench"
-                    : "Choose a player…"}
+                {sideBench.length === 0 ? "Nobody on the bench" : "Choose a player…"}
               </option>
               {sideBench.map((player) => (
                 <option key={player.id} value={player.id}>{player.name}</option>
@@ -187,14 +163,7 @@ export function SubstitutionPanel({
             Position
             <select
               value={position}
-              onChange={(event) => {
-                const chosen = event.target.value as Position | typeof BENCH | "";
-                setPosition(chosen);
-                // Nobody comes in off the bench when the move is onto it, and
-                // leaving a name sitting in the field above would make it look
-                // as though somebody did.
-                if (chosen === BENCH) setInId("");
-              }}
+              onChange={(event) => setPosition(event.target.value as Position | "")}
               className="ui-select w-full"
             >
               {/* Taking over the same position is the common case, so it leads. */}
@@ -204,9 +173,6 @@ export function SubstitutionPanel({
               {POSITIONS.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
-              {/* Not a position, and not a substitution either - see the note
-                  on this panel. It is last because it is the odd one out. */}
-              <option value={BENCH}>Bench (nobody in)</option>
             </select>
           </label>
         </div>
@@ -217,10 +183,10 @@ export function SubstitutionPanel({
         <button
           type="button"
           onClick={submit}
-          disabled={busy || working || !outId || (!inId && !toTheBench)}
+          disabled={busy || working || !outId || !inId}
           className="w-full rounded-md bg-sky-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
         >
-          {working ? "Recording…" : toTheBench ? "Take him off the field" : "Make the substitution"}
+          {working ? "Recording…" : "Make the substitution"}
         </button>
       </div>
     </section>

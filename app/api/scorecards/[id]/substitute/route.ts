@@ -70,6 +70,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return Response.json({ error: "That player is already in the game." }, { status: 409 });
     }
 
+    // And a player who has already been replaced is out of the game for good.
+    // He holds no lineup row - the one he had changed hands - so nothing else
+    // here would have stopped him being sent back on. His move to the bench is
+    // the only thing left that says he was ever in it.
+    const takenOut = await db.query.fieldingChanges.findFirst({
+      where: and(
+        eq(fieldingChanges.scorecardId, scorecardId),
+        eq(fieldingChanges.playerId, payload.inPlayerId),
+        eq(fieldingChanges.position, BENCH),
+      ),
+    });
+    if (takenOut) {
+      return Response.json(
+        { error: "That player has already been taken out of this game." },
+        { status: 409 },
+      );
+    }
+
     const incoming = await db.query.players.findFirst({
       where: eq(players.id, payload.inPlayerId),
     });

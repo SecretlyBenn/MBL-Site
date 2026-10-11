@@ -91,13 +91,12 @@ test("publishing reads the history, not the lineup's current positions", () => {
   assert.ok(!publish.includes("fromSequence: row.appliedAtSequence,"));
 });
 
-test("substituting, leaving and coming back are all written down as moves", () => {
+test("a substitution is written down as two moves", () => {
+  // The man going off and the man coming on. Without them the box score gave
+  // the substitute every out the starter had already served.
   const substitute = read("../app/api/scorecards/[id]/substitute/route.ts");
   assert.ok(substitute.includes("position: BENCH"));
   assert.ok(substitute.includes("deleteFieldingChangeIds"));
-  const withdraw = read("../app/api/scorecards/[id]/withdraw/route.ts");
-  assert.ok(withdraw.includes("await recordMove(left.id, BENCH)"));
-  assert.ok(withdraw.includes("await recordMove(returning.id"));
   const lineup = read("../app/api/scorecards/[id]/lineup/route.ts");
   assert.ok(lineup.includes("startingPosition: scored ? (previous?.startingPosition ?? null) : row.position"));
 });

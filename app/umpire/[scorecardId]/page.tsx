@@ -15,6 +15,7 @@ import {
   teams,
 } from "@/db/schema";
 import { inningAt } from "@/app/derive-box-score";
+import { BENCH } from "@/app/fielding-history";
 import { requireRole } from "@/app/roles";
 import { latestAction } from "@/db/undo";
 import { PageShell } from "@/app/SiteNav";
@@ -112,9 +113,22 @@ export default async function ScorecardPage({
 
   const slotOf = new Map(lineups.filter((row) => row.battingOrder !== null).map((row) => [row.playerId, row.battingOrder ?? 0]));
   const inLineup = new Set(lineups.map((row) => row.playerId));
+  // Anybody a substitution has taken out. Once replaced a player is out of the
+  // game and cannot come back, which nothing enforced: the lineup row changes
+  // hands, so the man coming off leaves no row behind and reappeared in the
+  // list of players available to come on. What marks him is the move to the
+  // bench with nothing of his own left on the card - somebody who merely
+  // stepped away kept his row, which is how the two are told apart on the
+  // older cards that have both.
+  const replaced = new Set(
+    moves.filter((move) => move.position === BENCH && !inLineup.has(move.playerId)).map((move) => move.playerId),
+  );
   const benchFor = (teamId: number | undefined) =>
     roster
-      .filter((player) => player.teamId === teamId && !inLineup.has(player.id))
+      .filter(
+        (player) =>
+          player.teamId === teamId && !inLineup.has(player.id) && !replaced.has(player.id),
+      )
       .map((player) => ({ id: player.id, name: player.displayName }));
 
   // What the undo button will take back, named so the umpire can see what

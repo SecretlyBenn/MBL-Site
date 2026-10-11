@@ -19,7 +19,6 @@ const ROUTES = {
   substitutions: "../app/api/scorecards/[id]/substitute/route.ts",
   "position changes": "../app/api/scorecards/[id]/fielding/route.ts",
   "pitching changes": "../app/api/scorecards/[id]/pitching-change/route.ts",
-  "leaving the field": "../app/api/scorecards/[id]/withdraw/route.ts",
 };
 
 for (const [what, path] of Object.entries(ROUTES)) {

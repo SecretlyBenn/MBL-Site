@@ -22,54 +22,56 @@ test("the lineup row updated is the one for that player on this scorecard", () =
 });
 
 /**
- * The bench as a destination.
+ * Away from the field, which no longer exists.
  *
- * Somebody walks out of a game with nobody to replace them, which happens here
- * constantly. A substitution needs an incoming player and a position change
- * used to leave the man standing where he was, so there was a separate "Left"
- * button doing a third thing. Now the bench is just another place to send him,
- * which is both what an umpire reaches for and one thing to undo.
+ * The bench used to be a destination for a position change: a man sent there
+ * kept his place in the batting order, had his turn skipped while he was gone,
+ * and came back on from a separate list. That is a third state between playing
+ * and being out of the game, and the league has no use for it - somebody who
+ * steps away is covered by moving a fielder into his position and moving them
+ * back, and somebody who is replaced is out of the game for good.
+ *
+ * leftAtSequence stays in the schema and in fielding-history: two approved
+ * cards carry it, and their box scores are built from it.
  */
 
 const panel = readFileSync("app/umpire/[scorecardId]/DefensePanel.tsx", "utf8");
 const substitution = readFileSync("app/umpire/[scorecardId]/SubstitutionPanel.tsx", "utf8");
 const board = readFileSync("app/umpire/[scorecardId]/ScoringBoard.tsx", "utf8");
+const substitute = readFileSync("app/api/scorecards/[id]/substitute/route.ts", "utf8");
+const page = readFileSync("app/umpire/[scorecardId]/page.tsx", "utf8");
 
-test("the bench is an allowed destination and is offered in both panels", () => {
-  assert.match(route, /new Set<string>\(\[\.\.\.POSITIONS, BENCH\]\)/, "the route rejects the bench");
-  assert.match(panel, /<option value=\{BENCH\}>/, "a fielder cannot be sent to the bench");
-  assert.match(substitution, /<option value=\{BENCH\}>/, "the substitution panel cannot bench anybody");
-});
-
-test("several men may sit on the bench at once", () => {
-  // It is not a position, so the check for two players in one place has to let
-  // it through - otherwise the second man off is refused.
-  for (const [name, source] of [["the route", route], ["the panel", panel]]) {
-    const at = source.indexOf("position !== BENCH");
-    assert.ok(at > 0, `${name} treats a second man on the bench as a duplicate position`);
-  }
-});
-
-test("benching marks him gone without moving him off his position", () => {
-  // The position is where he is put back, and what "Back on" reads. The
-  // sequence is what makes his turn skipped and frees the spot he was in.
-  assert.match(route, /benched \? \{ leftAtSequence: sequence \}/);
-  assert.match(
-    route,
-    /\{ position: assignment\.position, leftAtSequence: null \}/,
-    "being given a position no longer brings a benched man back",
+test("the bench is not somewhere a player can be sent", () => {
+  assert.match(route, /new Set<string>\(POSITIONS\)/, "the route still accepts the bench");
+  assert.doesNotMatch(panel, /<option value=\{BENCH\}>/, "a fielder can still be sent to the bench");
+  assert.doesNotMatch(
+    substitution,
+    /<option value=\{BENCH\}>/,
+    "the substitution panel can still bench somebody with nobody coming in",
   );
 });
 
-test("nobody comes in off the bench on a move onto it", () => {
-  assert.match(substitution, /if \(chosen === BENCH\) setInId\(""\)/);
-  assert.match(substitution, /!outId \|\| \(!inId && !toTheBench\)/, "the bench still demands a replacement");
+test("nothing marks a player as away from the field any more", () => {
+  assert.doesNotMatch(route, /leftAtSequence: sequence/, "a position change still writes somebody off");
+  assert.doesNotMatch(panel, /Back on/, "there is still a way back onto the field");
+  assert.doesNotMatch(board, /undo: true/, "the board still has a way back onto the field");
 });
 
-test("the separate button for leaving is gone", () => {
-  assert.doesNotMatch(panel, /onWithdraw/, "the panel still takes its own way off the field");
-  assert.doesNotMatch(board, /withdraw`, "POST", \{ playerId \}/, "the board still has a second way off");
-  // The way back on is not a list of assignments - it has to say where - so
-  // that half of the route is still used.
-  assert.match(board, /withdraw`, "POST", \{\n\s+playerId,\n\s+undo: true/);
+test("a substitution still records the man going off, so his outs stop there", () => {
+  // The move to the bench is what stops the box score crediting the substitute
+  // with every out the man he replaced had already served - it is the one place
+  // BENCH is still written.
+  assert.ok(substitute.includes("position: BENCH"));
+});
+
+test("a player who has been replaced cannot come back in", () => {
+  assert.ok(
+    substitute.includes("That player has already been taken out of this game."),
+    "the route lets a replaced player be sent back on",
+  );
+  assert.match(
+    page,
+    /!replaced\.has\(player\.id\)/,
+    "the list of players available to come on still offers somebody already taken out",
+  );
 });

@@ -7,7 +7,6 @@ import { RoleError, requireRoleForApi } from "@/app/roles";
 import { attachCreated, recordAction } from "@/db/undo";
 import { gameState } from "@/app/derive-box-score";
 import { POSITIONS } from "@/app/scoring";
-import { BENCH } from "@/app/fielding-history";
 
 type Assignment = { playerId: number; position: string };
 
@@ -16,13 +15,12 @@ type Assignment = { playerId: number; position: string };
  * next at-bat. Only the positions that actually changed are stored, so the log
  * reads as a list of moves rather than a repeated full alignment.
  *
- * The bench is one of the destinations. Somebody can walk out of a game with
- * nobody to replace them, and a substitution needs an incoming player, so
- * without this they stayed standing where they were and blocked the position
- * for anyone else. Sending a man to the bench is the same kind of move as
- * sending him to right field, and it is recorded in the same breath - a
- * rearrangement that benches one player and shifts two others is one moment on
- * the card and one thing to undo.
+ * Every destination is somewhere on the field. A player who has to step away
+ * is covered by moving somebody into his position and moving them back when he
+ * returns; a player who is replaced is out of the game, and that is a
+ * substitution. The bench used to be a destination here, which kept a man in
+ * the batting order with his turn skipped and let him come back on - a third
+ * state the league has no use for.
  */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -42,17 +40,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       assignments: Assignment[];
     };
 
-    const valid = new Set<string>([...POSITIONS, BENCH]);
+    // The bench is not one of them. A player either stays on the card with
+    // somebody else covering his position, or he is replaced - and being
+    // replaced means he is out of the game, which is the substitution panel's
+    // job. Sending a man to the bench here kept him in the batting order with
+    // his turn skipped and let him come back on, which is not a thing the
+    // league needs: the position can simply be changed and changed back.
+    const valid = new Set<string>(POSITIONS);
     for (const assignment of assignments) {
       if (!valid.has(assignment.position)) {
         return Response.json({ error: `Unknown position ${assignment.position}.` }, { status: 400 });
       }
     }
-    // The bench is left out of this: it is not a position, and a whole side can
-    // be sitting on it at once. Two men at shortstop is still a mistake.
-    const filled = assignments
-      .map((assignment) => assignment.position)
-      .filter((position) => position !== BENCH);
+    const filled = assignments.map((assignment) => assignment.position);
     if (new Set(filled).size !== filled.length) {
       return Response.json({ error: "Two players are assigned the same position." }, { status: 400 });
     }
@@ -108,9 +108,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const summary = assignments
       .map(
         (assignment) =>
-          `${nameOf.get(assignment.playerId) ?? "Player"} to ${
-            assignment.position === BENCH ? "the bench" : assignment.position
-          }`,
+          `${nameOf.get(assignment.playerId) ?? "Player"} to ${assignment.position}`,
       )
       .join(", ");
     const action = await recordAction(scorecardId, "POSITION_CHANGE", summary, {
@@ -155,18 +153,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     for (const assignment of assignments) {
       const arriving = assignment.position === "P" && !alreadyPitching;
-      const benched = assignment.position === BENCH;
       await db
         .update(scorecardLineups)
         .set({
-          // A benched man keeps the position he was standing in, because that
-          // is where he is put back if he comes out again, and his row is what
-          // "Back on" reads. What marks him as gone is the sequence: from the
-          // next play his turn in the order is skipped and his position is
-          // free for somebody else. Being given a position is the other
-          // direction, so it clears that - otherwise a man moved back onto the
-          // field would be standing there and still being skipped.
-          ...(benched ? { leftAtSequence: sequence } : { position: assignment.position, leftAtSequence: null }),
+          // leftAtSequence is cleared rather than ignored. No new card can set
+          // it - the bench is no longer a destination - but an older one may
+          // carry it, and a man given a position is standing in it, so leaving
+          // it set would have him on the field and still skipped in the order.
+          position: assignment.position,
+          leftAtSequence: null,
           ...(arriving ? { pitchingOrder: highest + 1 } : {}),
         })
         .where(

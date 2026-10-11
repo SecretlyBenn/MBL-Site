@@ -469,7 +469,7 @@ export function ScoringBoard({
       .map((change) => ({
         key: `move-${change.id}`,
         text: `${nameOf[change.playerId] ?? "Player"} ${
-          change.position === "BENCH" ? "came off the field" : `moved to ${change.position}`
+          change.position === "BENCH" ? "came out of the game" : `moved to ${change.position}`
         } in inning ${Math.min(inningOf(change.appliedAtSequence), state.inning)}`,
       }));
     const gone = lineups
@@ -793,21 +793,6 @@ export function ScoringBoard({
                   errors: fieldingTally.get(row.playerId)?.errors ?? 0,
                 }))}
               changeLog={changeLogFor(isHome)}
-              away={lineups
-                .filter((row) => row.isHome === isHome && !onField(row))
-                .map((row) => ({
-                  playerId: row.playerId,
-                  name: row.name,
-                  position: row.position,
-                }))}
-              onReturn={(playerId, position) =>
-                send(`/api/scorecards/${scorecardId}/withdraw`, "POST", {
-                  playerId,
-                  undo: true,
-                  position,
-                })
-              }
-              busy={busy}
               bench={isHome ? bench.home : bench.away}
               inning={state.inning}
             />

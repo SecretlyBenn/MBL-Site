@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { POSITIONS } from "@/app/scoring";
-import { BENCH } from "@/app/fielding-history";
 import { readJson } from "@/app/read-json";
 
 type Fielder = {
@@ -28,9 +27,6 @@ export function DefensePanel({
   inTheField,
   fielders,
   changeLog,
-  away,
-  onReturn,
-  busy: sending,
   bench,
   inning,
 }: {
@@ -42,11 +38,6 @@ export function DefensePanel({
   fielders: Fielder[];
   /** Substitutions and moves already made by this side, oldest first. */
   changeLog: { key: string; text: string }[];
-  /** Players in the lineup who are away from the field right now. */
-  away: { playerId: number; name: string; position: string }[];
-  /** Puts one of them back on, at whatever spot is free. */
-  onReturn: (playerId: number, position: string) => void;
-  busy?: boolean;
   bench: { id: number; name: string }[];
   inning: number;
 }) {
@@ -56,15 +47,11 @@ export function DefensePanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  /** Where a returning player is being put back, keyed by player. */
-  const [returningTo, setReturningTo] = useState<Record<number, string>>({});
 
   const positionOf = (fielder: Fielder) => draft[fielder.playerId] ?? fielder.position;
   const changed = fielders.filter((fielder) => positionOf(fielder) !== fielder.position);
 
-  // The bench is not a position, so a side can put several men on it at once
-  // without that being the mistake this is looking for.
-  const used = fielders.map(positionOf).filter((position) => position !== BENCH);
+  const used = fielders.map(positionOf);
   const duplicate = used.filter((position, index) => used.indexOf(position) !== index);
 
   async function confirm() {
@@ -137,13 +124,6 @@ export function DefensePanel({
                   {POSITIONS.map((position) => (
                     <option key={position} value={position}>{position}</option>
                   ))}
-                  {/* Last, because it is the one choice that is not somewhere
-                      on the field. Someone can walk out of a game with nobody
-                      to replace them, and a substitution needs an incoming
-                      player, so this is how they stop blocking a position:
-                      they keep their spot in the order, their turn is skipped
-                      while they are gone, and they come back on above. */}
-                  <option value={BENCH}>Bench</option>
                 </select>
                 <span className="truncate text-slate-300">{fielder.name}</span>
               </>
@@ -170,46 +150,6 @@ export function DefensePanel({
         ))}
       </ul>
 
-      {away.length > 0 && (
-        <div className="mt-3 rounded-md border border-amber-900/60 bg-amber-950/20 p-2">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-400">
-            Away from the field
-          </p>
-          {/* Still batting: their turn is skipped while they are gone, and the
-              order is waiting for them rather than closed up behind them. */}
-          <ul className="space-y-1.5 text-xs">
-            {away.map((player) => {
-              const spot = returningTo[player.playerId] ?? player.position;
-              const held = fielders.some((fielder) => fielder.position === spot);
-              return (
-                <li key={player.playerId} className="flex items-center gap-1.5">
-                  <span className="truncate text-slate-300">{player.name}</span>
-                  <select
-                    value={spot}
-                    onChange={(event) =>
-                      setReturningTo({ ...returningTo, [player.playerId]: event.target.value })
-                    }
-                    className="ui-select ml-auto !py-0.5 !text-xs"
-                  >
-                    {POSITIONS.map((position) => (
-                      <option key={position} value={position}>{position}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    disabled={sending || held}
-                    onClick={() => onReturn(player.playerId, spot)}
-                    title={held ? `Somebody is already at ${spot}.` : undefined}
-                    className="shrink-0 rounded-md border border-emerald-700 px-2 py-0.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-950/40 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Back on
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
 
       {!open && changeLog.length > 0 && (
         <div className="mt-3 border-t border-slate-800 pt-2">
