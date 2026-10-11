@@ -22,6 +22,44 @@
 -- been renamed, which Mojang cannot resolve backwards since it dropped the
 -- name-history API in 2022.
 
+-- First, eight names that 0091 had already retired and 0092 brought back.
+--
+-- 0091 moved every player onto the name their account carries now. 0092 then
+-- stripped the jersey numbers off box score lines - and `AbusiveStepdad66 #3`
+-- is not a string 0091 had ever seen, so taking the number off recreated a
+-- name that had been renamed hours earlier. It should have put the stripped
+-- name through 0091's map; it did not.
+--
+-- This is also why five of them came back unresolved from Mojang: the account
+-- was renamed, so the old name answers to nobody. The site already knew the
+-- new one.
+
+CREATE TABLE regressed (old TEXT PRIMARY KEY, new TEXT NOT NULL);
+
+INSERT INTO regressed (old, new) VALUES
+  ('AbusiveStepdad66', 'LostAzy'),
+  ('Centex64', 'Centex_'),
+  ('IcedNerd', 'IcedBurg'),
+  ('Perno_', 'camperno'),
+  ('Petro131', 'TickleTips10'),
+  ('Timbr_', 'timbr_'),
+  ('jawaq', 'Jawaq'),
+  ('theunabomber', 'TheUnabomber');
+
+UPDATE historical_game_stats
+SET player_name = (SELECT new FROM regressed WHERE old = historical_game_stats.player_name)
+WHERE player_name IN (SELECT old FROM regressed);
+
+UPDATE historical_player_stats
+SET player_name = (SELECT new FROM regressed WHERE old = historical_player_stats.player_name)
+WHERE player_name IN (SELECT old FROM regressed);
+
+UPDATE historical_roster_entries
+SET player_name = (SELECT new FROM regressed WHERE old = historical_roster_entries.player_name)
+WHERE player_name IN (SELECT old FROM regressed);
+
+DROP TABLE regressed;
+
 CREATE TABLE account_fix (asked TEXT PRIMARY KEY, canonical TEXT NOT NULL, uuid TEXT NOT NULL);
 
 INSERT INTO account_fix (asked, canonical, uuid) VALUES
