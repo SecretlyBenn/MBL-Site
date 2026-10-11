@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { BaseName, Bases } from "@/app/bases";
+import type { RunnerOutKind } from "@/app/scoring";
 
 type Runner = { playerId: number; name: string; base: BaseName };
 
@@ -47,8 +48,17 @@ export function BaseDiamond({
     /** Who booted it, when the reason is an error. */
     errorPlayerId?: number | null,
   ) => void;
-  /** Retiring a runner away from the plate. */
-  onOut: (playerId: number, kind: "TAGGED" | "PICKED_OFF", fielded: string | null) => void;
+  /**
+   * Retiring a runner away from the plate. `to` is where he was going when he
+   * was retired, for a man thrown out trying rather than tagged where he
+   * stood.
+   */
+  onOut: (
+    playerId: number,
+    kind: RunnerOutKind,
+    fielded: string | null,
+    to?: BaseName | "home" | null,
+  ) => void;
   /** The side in the field, for choosing who made the tag. */
   fielders: { playerId: number; name: string; position: string }[];
   /**
@@ -56,7 +66,13 @@ export function BaseDiamond({
    * back. Without them the only way out was deleting the plate appearance the
    * out hung from, which threw away the batter's line with it.
    */
-  recordedOuts: { id: number; runnerName: string; kind: string; base: string }[];
+  recordedOuts: {
+    id: number;
+    runnerName: string;
+    kind: string;
+    base: string;
+    outAt?: string | null;
+  }[];
   onUndoOut: (outId: number) => void;
   busy?: boolean;
 }) {
@@ -141,13 +157,13 @@ export function BaseDiamond({
     onMove(playerId, to, reason, note, errorPlayerId);
   }
 
-  function sendOut(playerId: number, kind: "TAGGED" | "PICKED_OFF" | "CAUGHT_STEALING") {
+  function sendOut(playerId: number, kind: RunnerOutKind, to?: BaseName | "home" | null) {
     if (inFlight.current) return;
     inFlight.current = true;
     setTimeout(() => { inFlight.current = false; }, 400);
     setRetiring(null);
     setPicked(null);
-    onOut(playerId, kind as "TAGGED" | "PICKED_OFF", tagger || null);
+    onOut(playerId, kind, tagger || null, to ?? null);
   }
 
   const baseStyle = (base: BaseName | "home") => {
@@ -283,7 +299,9 @@ export function BaseDiamond({
                 {out.runnerName}{" "}
                 <span className="text-slate-500">
                   {out.kind === "TAGGED"
-                    ? `tagged at ${out.base}`
+                    ? out.outAt
+                      ? `out at ${out.outAt}`
+                      : `tagged at ${out.base}`
                     : out.kind === "PICKED_OFF"
                       ? `picked off ${out.base}`
                       : "caught stealing"}
@@ -411,6 +429,42 @@ export function BaseDiamond({
                 On an error
               </button>
             </div>
+            {/* He was sent on the play, or tagged up, and the throw beat
+                him. This is not a caught stealing: a man going on a batted
+                ball or tagging up is entitled to go, and nobody is credited
+                with holding him. Only the steal was offered here, so a runner
+                thrown out at the plate on a tag-up had to go in as one - see
+                drizzle/0086. The tag goes to whoever took the throw, which is
+                the same question the retire menu asks, so it is asked here
+                rather than guessed. */}
+            <div className="flex gap-1.5">
+              <select
+                value={tagger}
+                onChange={(event) => setTagger(event.target.value)}
+                className="ui-select w-full !py-1 text-xs"
+              >
+                <option value="">Who made the tag?</option>
+                {fielders.map((fielder) => (
+                  <option key={fielder.playerId} value={fielder.position}>
+                    {fielder.position} — {fielder.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!tagger}
+                title={tagger ? undefined : "Choose who made the tag first"}
+                onClick={() => {
+                  sendOut(asking.playerId, "TAGGED", asking.to);
+                  setAsking(null);
+                }}
+                className="shrink-0 rounded-md border border-rose-800 px-3 py-1.5 text-xs font-semibold text-rose-300 transition-colors hover:bg-rose-950/40 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Thrown out trying
+              </button>
+            </div>
+            {/* A steal he was caught on. The catcher takes the putout by
+                convention, so this one asks nothing. */}
             <button
               type="button"
               onClick={() => {
@@ -419,7 +473,7 @@ export function BaseDiamond({
               }}
               className="rounded-md border border-rose-800 px-3 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-950/40"
             >
-              Caught stealing — he never got there
+              Caught stealing — he was going on his own
             </button>
             <div className="flex gap-1.5">
               <input

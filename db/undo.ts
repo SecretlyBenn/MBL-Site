@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   fieldingChanges,
@@ -89,6 +89,40 @@ export async function latestAction(scorecardId: number) {
     .where(eq(scorecardActions.scorecardId, scorecardId))
     .orderBy(desc(scorecardActions.id));
   return rows.find((row) => row.undoneAt === null) ?? null;
+}
+
+/**
+ * Takes actions out of undo's reach without reversing them.
+ *
+ * Used when the rows an action created have been thrown away by some other
+ * route: a lineup saved before the first play replaces a position change that
+ * was only ever a correction to that lineup. The entry still holds a snapshot
+ * of the card as it stood before the change, and undo walks backwards one
+ * action at a time, so left live it would eventually put the discarded card
+ * back. The trail stays; only the undo stops.
+ */
+export async function retireActionsCreating(scorecardId: number, fieldingChangeIds: number[]) {
+  if (fieldingChangeIds.length === 0) return;
+  const db = getDb();
+  const discarded = new Set(fieldingChangeIds);
+  const live = await db
+    .select()
+    .from(scorecardActions)
+    .where(and(eq(scorecardActions.scorecardId, scorecardId), isNull(scorecardActions.undoneAt)));
+  const retiring = live.filter((action) => {
+    const payload = JSON.parse(action.payload) as UndoPayload;
+    return payload.deleteFieldingChangeIds?.some((id) => discarded.has(id)) ?? false;
+  });
+  if (retiring.length === 0) return;
+  await db
+    .update(scorecardActions)
+    .set({ undoneAt: new Date().toISOString() })
+    .where(
+      inArray(
+        scorecardActions.id,
+        retiring.map((action) => action.id),
+      ),
+    );
 }
 
 /**

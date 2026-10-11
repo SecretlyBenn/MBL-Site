@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { insertInChunks } from "@/db/chunk";
 import { logAudit } from "@/db/audit";
+import { retireActionsCreating } from "@/db/undo";
 import { fieldingChanges, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { apiError } from "@/app/api-errors";
@@ -59,6 +60,17 @@ export async function PUT(
     // holds the mound and two claims to it cannot both be honoured.
     if (starters.length > 1) {
       return Response.json({ error: "Only one player can be the starting pitcher." }, { status: 400 });
+    }
+
+    // Two men cannot be standing in the same place. Nothing checked it, and
+    // because the starting pitcher is chosen separately from the position
+    // dropdowns a card went in for a World Series game with two players at P
+    // and nobody at first base - see drizzle/0085. This card is what every
+    // later position change is measured against, so a mistake in it outlives
+    // the moment it was made.
+    const standing = rows.map((row) => row.position);
+    if (new Set(standing).size !== standing.length) {
+      return Response.json({ error: "Two players are given the same position." }, { status: 400 });
     }
 
     // A designated hitter bats for somebody, and that somebody has to be on
@@ -137,6 +149,24 @@ export async function PUT(
       }),
     );
 
+
+    // Before the first play a lineup is still only a lineup, so anything the
+    // defence panel recorded was somebody correcting it rather than moving
+    // people during a game. Those rows take effect from the first play, so
+    // left behind they would quietly overrule the card that has just replaced
+    // them. The panel refuses them now; this clears the ones a card already
+    // carries, and retires the undo entry that would otherwise restore the
+    // card they were correcting.
+    if (!scored) {
+      const discarded = await db
+        .delete(fieldingChanges)
+        .where(and(eq(fieldingChanges.scorecardId, scorecardId), eq(fieldingChanges.isHome, isHome)))
+        .returning();
+      await retireActionsCreating(
+        scorecardId,
+        discarded.map((row) => row.id),
+      );
+    }
 
     if (scored) {
       const appearances = await db

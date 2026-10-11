@@ -65,6 +65,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .select()
       .from(plateAppearances)
       .where(eq(plateAppearances.scorecardId, scorecardId));
+    // Nothing has been played, so there is nothing for a move to be relative
+    // to: it would be stored against sequence 0, take effect from the first
+    // play and read as a rearrangement in the first inning. That is how Game 4
+    // of the World Series came to show two position changes that never
+    // happened - the lineups had simply been changed before the game, and this
+    // panel was the only way left to do it (drizzle/0085). It is not any more.
+    if (appearances.length === 0) {
+      return Response.json(
+        {
+          error:
+            "Nothing has been scored yet, so change the lineup instead - a move recorded now would read as a position change in the first inning.",
+        },
+        { status: 409 },
+      );
+    }
     const state = gameState(appearances, inningsPerGame);
     // The sequence of the last play, not how many plays there are. Those are
     // the same number only until an at-bat is deleted, and everything that

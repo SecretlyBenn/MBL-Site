@@ -8,7 +8,42 @@ import { readJson } from "@/app/read-json";
 type Player = { id: number; name: string };
 type Slot = { playerId: string; position: string };
 
+/** A lineup already saved for this side, as the card holds it. */
+type Saved = {
+  playerId: number;
+  battingOrder: number | null;
+  position: string;
+  dhForPlayerId: number | null;
+  pitchingOrder: number | null;
+};
+
 const EMPTY: Slot = { playerId: "", position: "" };
+
+/**
+ * The saved card in this editor's own terms.
+ *
+ * A lineup that is already in is reopened to be corrected, not retyped, so it
+ * comes back as it stands. Opening blank meant moving one man cost all ten
+ * names again, which is the sort of thing nobody does twice - and the reason
+ * one card was fixed from the defence panel instead.
+ */
+function asSlots(saved: Saved[]) {
+  const order = [...saved]
+    .filter((row) => row.battingOrder !== null)
+    .sort((a, b) => (a.battingOrder ?? 0) - (b.battingOrder ?? 0));
+  const dh = saved.find((row) => row.position === "DH");
+  // Who the designated hitter bats for is named on the DH's own row, and that
+  // man is on the card without a turn in the order.
+  const fielding = dh ? saved.find((row) => row.playerId === dh.dhForPlayerId) : undefined;
+  const starter = saved.find((row) => row.pitchingOrder === 1);
+  return {
+    slots: order.map((row) => ({ playerId: String(row.playerId), position: row.position })),
+    useDh: Boolean(dh),
+    benchedId: fielding ? String(fielding.playerId) : "",
+    benchedPosition: fielding?.position ?? "P",
+    starterId: starter ? String(starter.playerId) : "",
+  };
+}
 
 /**
  * One team's batting order.
@@ -28,21 +63,30 @@ export function LineupEditor({
   isHome,
   teamName,
   roster,
+  existing = [],
 }: {
   scorecardId: number;
   isHome: boolean;
   teamName: string;
   roster: Player[];
+  /** The lineup this side already has, if it is being changed rather than set. */
+  existing?: Saved[];
 }) {
   const router = useRouter();
+  // Read once, when the editor opens. After that the screen is the truth: a
+  // refresh behind a save must not pull a half-finished change back to what
+  // the database says.
+  const [opened] = useState(() => asSlots(existing));
   const [slots, setSlots] = useState<Slot[]>(
-    Array.from({ length: FULL_LINEUP }, () => ({ ...EMPTY })),
+    opened.slots.length > 0
+      ? opened.slots
+      : Array.from({ length: FULL_LINEUP }, () => ({ ...EMPTY })),
   );
-  const [useDh, setUseDh] = useState(false);
+  const [useDh, setUseDh] = useState(opened.useDh);
   /** The fielder the DH bats for: they take the field and never come to the plate. */
-  const [benchedId, setBenchedId] = useState("");
-  const [benchedPosition, setBenchedPosition] = useState("P");
-  const [starterId, setStarterId] = useState("");
+  const [benchedId, setBenchedId] = useState(opened.benchedId);
+  const [benchedPosition, setBenchedPosition] = useState(opened.benchedPosition);
+  const [starterId, setStarterId] = useState(opened.starterId);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -62,6 +106,16 @@ export function LineupEditor({
   const chosen = [...filled.map((slot) => slot.playerId), ...(useDh && benchedId ? [benchedId] : [])];
   const duplicate = new Set(chosen).size !== chosen.length;
 
+  // Nor can two of them be standing in the same place, DH included - only one
+  // man bats for somebody. Nothing checked this, and because the starting
+  // pitcher is asked for separately from the dropdowns a World Series card
+  // went in with two players at P and nobody at first base.
+  const places = [
+    ...filled.map((slot) => slot.position).filter(Boolean),
+    ...(useDh && benchedId ? [benchedPosition] : []),
+  ];
+  const shared = new Set(places).size !== places.length;
+
   /** Everyone on the card, batting or not - the pitcher is one of them. */
   const onCard = [
     ...filled
@@ -74,6 +128,7 @@ export function LineupEditor({
     filled.length >= MINIMUM_LINEUP &&
     filled.every((slot) => slot.position) &&
     !duplicate &&
+    !shared &&
     // Whoever is on the mound has to be on the card, which he stops being the
     // moment the lineup is rearranged around him.
     Boolean(starterId) &&
@@ -263,6 +318,7 @@ export function LineupEditor({
         )}
 
         {duplicate && <p className="text-xs text-amber-400">The same player appears twice.</p>}
+        {shared && <p className="text-xs text-amber-400">Two players are in the same position.</p>}
         {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
 
         <button
@@ -271,7 +327,11 @@ export function LineupEditor({
           disabled={!complete || busy}
           className="w-full rounded-md bg-sky-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-sky-500 disabled:opacity-40"
         >
-          {busy ? "Saving…" : saved ? "Saved — update lineup" : `Save ${teamName} lineup`}
+          {busy
+            ? "Saving…"
+            : saved
+              ? "Saved — update lineup"
+              : `${existing.length > 0 ? "Update" : "Save"} ${teamName} lineup`}
         </button>
       </div>
     </section>

@@ -87,6 +87,8 @@ export function ScoringBoard({
     runnerPlayerId: number;
     kind: string;
     base: string;
+    /** Where he was retired, when that is not the base he set off from. */
+    outAt?: string | null;
     putoutPlayerId?: number | null;
     inning: number;
     isHomeBatting: boolean;
@@ -672,12 +674,18 @@ export function ScoringBoard({
                 runnerName: nameOf[out.runnerPlayerId] ?? "Runner",
                 kind: out.kind,
                 base: out.base,
+                outAt: out.outAt,
               }))}
             onUndoOut={(outId) =>
               send(`/api/scorecards/${scorecardId}/runner-outs?outId=${outId}`, "DELETE")
             }
-            onOut={(playerId, kind, fielded) =>
-              send(`/api/scorecards/${scorecardId}/runner-outs`, "POST", { playerId, kind, fielded })
+            onOut={(playerId, kind, fielded, to) =>
+              send(`/api/scorecards/${scorecardId}/runner-outs`, "POST", {
+                playerId,
+                kind,
+                fielded,
+                to,
+              })
             }
           />
         </div>

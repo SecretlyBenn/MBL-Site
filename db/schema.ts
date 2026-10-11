@@ -701,8 +701,16 @@ export const runnerOuts = sqliteTable("runner_outs", {
     .references(() => players.id),
   /** TAGGED, PICKED_OFF, CAUGHT_STEALING. */
   kind: text("kind").notNull(),
-  /** The base they were on, or heading for on a caught stealing. */
+  /** The base they were standing on. Undo puts them back here. */
   base: text("base").notNull(),
+  /**
+   * The base they were retired at, when that is not the one they were
+   * standing on - a man thrown out going home was out at home, not tagged at
+   * third, and the card said the latter because this was not recorded. Null
+   * for a pickoff or a tag on the bag, where the two are the same, and for
+   * every out from before this was kept.
+   */
+  outAt: text("out_at"),
   putoutPlayerId: integer("putout_player_id").references(() => players.id),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

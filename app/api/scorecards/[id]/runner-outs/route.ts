@@ -20,6 +20,12 @@ type OutPayload = {
   kind: RunnerOutKind;
   /** Who applied the tag. Ignored where the convention decides the putout. */
   fielded?: string | null;
+  /**
+   * The base he was going for when he was retired, when he was retired going
+   * somewhere. Recorded so the card can say he was out at home rather than
+   * tagged at the base he set off from.
+   */
+  to?: BaseName | "home" | null;
 };
 
 /**
@@ -110,6 +116,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       runnerPlayerId: payload.playerId,
       kind: payload.kind,
       base: from,
+      // Only when he was retired somewhere other than where he stood, so a
+      // tag on the bag and a pickoff stay as they were.
+      outAt: payload.to && payload.to !== from ? payload.to : null,
       putoutPlayerId: fielder?.playerId ?? null,
     }).returning();
 
