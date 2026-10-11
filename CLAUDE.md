@@ -181,10 +181,31 @@ D1 limits below are the real constraints.
   from the Worker; several migrations were written that way.
 - **Renames and new skins reach the site on their own.** `/api/head/[uuid]`
   refreshes a skin every six hours, and when it finds the account renamed it
-  writes the new name into `minecraft_profiles.current_name`. Nothing needs a
-  cron or an admin. The player pages lead with that name and keep the archived
-  one underneath; the stat tables keep the name used at the time, because that
-  is what the box scores and the season's own screenshots say.
+  writes the new name into `minecraft_profiles.current_name` and then moves the
+  player onto it everywhere, through `adoptCurrentName` in `db/adopt-name.ts`.
+  Nothing needs a cron or an admin.
+- **A player appears under the name they go by today, in every season.** This
+  reversed an earlier rule that the stat tables keep the name used at the time
+  because that is what the season's own screenshots say. That rule was never
+  actually kept: the archive is keyed by name, so a player who renamed was
+  already split in two - old seasons under one name, recent games under
+  another, neither page showing the whole career, and the half with no profile
+  row showing a blank head. `drizzle/0091` moved 349 names onto their account's
+  current name and `adoptCurrentName` keeps it that way.
+- **Moving a name onto a name that already exists is a merge, not a rename**,
+  and the automatic path refuses it for the same reason `/api/players/rename`
+  does: nothing records which rows came from where, so no later edit can
+  separate them. Refusing leaves a player under a stale name, which is wrong
+  but recoverable.
+- **Umpires and owners type nicknames into lineups.** The MCBA's seasons were
+  entered by hand on MyStatsOnline, and whoever typed them often put in what
+  somebody is called rather than their username - `Zeke` for `Z3K3__`, `CJ` for
+  `cj0s`. Twenty-seven of the thirty-six men in the MCBA XIV playoffs were
+  filed that way (`drizzle/0090`). A game scored on this site cannot pick one
+  up, because the lineup editor chooses players by id and `publish` writes
+  `players.display_name`; only imported seasons carry it. The symptom is a
+  blank head, so **a cluster of blank heads in one season means names, not
+  missing accounts**.
 - **One account often holds two site names**, because each competition filed a
   player under whatever they used there - `Purpeyy` and `_purp__` are one man.
   The account id is the only thing tying them together, which is what

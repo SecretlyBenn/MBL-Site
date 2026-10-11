@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
+import { adoptCurrentName } from "@/db/adopt-name";
 import { type AccountProfile, lookupProfile } from "@/db/minecraft";
 import { minecraftProfiles, minecraftSkins } from "@/db/schema";
 
@@ -53,12 +54,24 @@ async function resolveSkin(uuid: string): Promise<Resolved | null> {
       set: { name: answer.name, skinUrl: answer.skinUrl, checkedAt },
     });
 
-  // A renamed account keeps its UUID, so the name on file can follow it.
+  // A renamed account keeps its UUID, so the name on file can follow it - and
+  // then so does the name the league shows. This refresh is the only thing
+  // that ever notices a rename, so if the new name stopped here the player
+  // would keep appearing under the old one everywhere but their profile row.
+  //
+  // Wrapped because none of it is worth a missing head: the skin has already
+  // been fetched and cached by this point, and a name that fails to move is
+  // put right by the next refresh six hours later.
   if (answer.name && answer.name !== cached?.name) {
-    await db
-      .update(minecraftProfiles)
-      .set({ currentName: answer.name })
-      .where(eq(minecraftProfiles.uuid, uuid));
+    try {
+      await db
+        .update(minecraftProfiles)
+        .set({ currentName: answer.name })
+        .where(eq(minecraftProfiles.uuid, uuid));
+      await adoptCurrentName(uuid, answer.name);
+    } catch (error) {
+      console.error("could not move", uuid, "to", answer.name, error);
+    }
   }
   return answer;
 }
