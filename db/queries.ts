@@ -318,18 +318,30 @@ export async function getLeagues() {
  * worth of players, and a round trip each is a round trip too many.
  */
 const LEAGUE_LENGTHS_HELD_MS = 5 * 60 * 1000;
-let leagueLengths: { at: number; byId: Map<number, { innings: number; slug: string }> } | null = null;
+let leagueLengths:
+  | { at: number; byId: Map<number, { innings: number; slug: string; benchLimit: number | null }> }
+  | null = null;
 
 /** Reads the two league rows, or hands back what was read a moment ago. */
 async function leagueRows() {
   const held = leagueLengths;
   if (!held || Date.now() - held.at > LEAGUE_LENGTHS_HELD_MS) {
     const rows = await getDb()
-      .select({ id: leagues.id, innings: leagues.inningsPerGame, slug: leagues.slug })
+      .select({
+        id: leagues.id,
+        innings: leagues.inningsPerGame,
+        slug: leagues.slug,
+        benchLimit: leagues.benchLimit,
+      })
       .from(leagues);
     leagueLengths = {
       at: Date.now(),
-      byId: new Map(rows.map((row) => [row.id, { innings: row.innings, slug: row.slug }])),
+      byId: new Map(
+        rows.map((row) => [
+          row.id,
+          { innings: row.innings, slug: row.slug, benchLimit: row.benchLimit },
+        ]),
+      ),
     };
   }
   return leagueLengths!.byId;
@@ -375,6 +387,31 @@ export async function inningsPerGameFor(leagueId: number | null | undefined): Pr
   // placed - is read as the usual six rather than left without a rate at all.
   if (!leagueId) return ERA_INNINGS;
   return (await leagueRows()).get(leagueId)?.innings ?? ERA_INNINGS;
+}
+
+/**
+ * How many players this competition's clubs name on the bench, or null where a
+ * bench is not declared and anyone on the roster may come into a game.
+ */
+export async function benchLimitFor(leagueId: number | null | undefined): Promise<number | null> {
+  if (!leagueId) return null;
+  return (await leagueRows()).get(leagueId)?.benchLimit ?? null;
+}
+
+/**
+ * The bench rule for a card, taken from the clubs playing it the same way the
+ * length of the game is. Both sides of a fixture are in the same competition,
+ * so either one answers.
+ */
+export async function benchLimitForScorecard(scorecardId: number): Promise<number | null> {
+  const [row] = await getDb()
+    .select({ leagueId: teams.leagueId })
+    .from(scorecards)
+    .innerJoin(games, eq(games.id, scorecards.gameId))
+    .innerJoin(teams, eq(teams.id, games.homeTeamId))
+    .where(eq(scorecards.id, scorecardId))
+    .limit(1);
+  return benchLimitFor(row?.leagueId);
 }
 
 /** One league from the slug in the address, or null if there is no such league. */

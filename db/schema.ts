@@ -245,6 +245,19 @@ export const leagues = sqliteTable("leagues", {
    * code, which recomputed every MCBA pitcher's ERA a fifth too high.
    */
   inningsPerGame: integer("innings_per_game").notNull().default(6),
+  /**
+   * How many players a side may name on its bench before the game, and the
+   * only players who may then come into it.
+   *
+   * The MBL names up to five with the lineup. The college clubs name none -
+   * their rosters turn up as they turn up - so null means no bench is declared
+   * and a substitution can bring in anybody on the roster. That is also what
+   * every card saved before this keeps.
+   *
+   * On the league row rather than in the code for the same reason as
+   * innings_per_game above: it is a rule the league can change about itself.
+   */
+  benchLimit: integer("bench_limit"),
 });
 
 export const historicalSeasons = sqliteTable("historical_seasons", {
@@ -533,6 +546,30 @@ export const minecraftSkins = sqliteTable("minecraft_skins", {
  * DH's row carries dhForPlayerId pointing at them, which is the extra entry the
  * scoresheet asks for.
  */
+/**
+ * The players a side named on its bench before the game.
+ *
+ * Deliberately not part of scorecard_lineups: a man on the bench holds no
+ * place in the batting order and is standing nowhere, so he has neither a
+ * batting order nor a position, and every check that reads a lineup - the
+ * shortest order that can play, one starting pitcher, no two men in one
+ * position - would have to know to skip him.
+ *
+ * Where the league declares a limit (`leagues.bench_limit`), these are the
+ * only players who may enter the game. Where it does not, no rows are written
+ * and a substitution may bring in anybody on the roster.
+ */
+export const scorecardBench = sqliteTable("scorecard_bench", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  scorecardId: integer("scorecard_id")
+    .notNull()
+    .references(() => scorecards.id),
+  isHome: integer("is_home", { mode: "boolean" }).notNull(),
+  playerId: integer("player_id")
+    .notNull()
+    .references(() => players.id),
+});
+
 export const scorecardLineups = sqliteTable("scorecard_lineups", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   scorecardId: integer("scorecard_id")

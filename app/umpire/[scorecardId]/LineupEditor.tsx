@@ -64,6 +64,8 @@ export function LineupEditor({
   teamName,
   roster,
   existing = [],
+  benchLimit = null,
+  existingBench = [],
 }: {
   scorecardId: number;
   isHome: boolean;
@@ -71,6 +73,14 @@ export function LineupEditor({
   roster: Player[];
   /** The lineup this side already has, if it is being changed rather than set. */
   existing?: Saved[];
+  /**
+   * How many this side may name on the bench, or null where its competition
+   * does not declare one and a substitution may bring in anybody on the
+   * roster. The MBL names up to five; the MCBA names none.
+   */
+  benchLimit?: number | null;
+  /** Who is already named there, when the lineup is being changed. */
+  existingBench?: number[];
 }) {
   const router = useRouter();
   // Read once, when the editor opens. After that the screen is the truth: a
@@ -87,6 +97,17 @@ export function LineupEditor({
   const [benchedId, setBenchedId] = useState(opened.benchedId);
   const [benchedPosition, setBenchedPosition] = useState(opened.benchedPosition);
   const [starterId, setStarterId] = useState(opened.starterId);
+  /**
+   * The bench, where this competition has one: the only players who may come
+   * into the game once it starts. Up to the limit rather than exactly it - a
+   * club that can only find three substitutes still has a game to play - so
+   * the empty rows are left empty and dropped on the way out.
+   */
+  const [reserves, setReserves] = useState<string[]>(() =>
+    Array.from({ length: benchLimit ?? 0 }, (_, at) =>
+      existingBench[at] === undefined ? "" : String(existingBench[at]),
+    ),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -103,7 +124,13 @@ export function LineupEditor({
   // The man the DH bats for counts as chosen too. He is on the card and on the
   // field, so naming him in the order as well would be one player in two
   // places - and the order would come round to somebody who is not batting.
-  const chosen = [...filled.map((slot) => slot.playerId), ...(useDh && benchedId ? [benchedId] : [])];
+  const chosen = [
+    ...filled.map((slot) => slot.playerId),
+    ...(useDh && benchedId ? [benchedId] : []),
+    // A man on the bench is not in the game, so naming him in the order as
+    // well would offer him as a substitute for a position he is standing in.
+    ...reserves.filter(Boolean),
+  ];
   const duplicate = new Set(chosen).size !== chosen.length;
 
   // Nor can two of them be standing in the same place, DH included - only one
@@ -156,6 +183,7 @@ export function LineupEditor({
         // by name rather than assumed from whether a DH is in use.
         pitchingOrder: Number(slot.playerId) === Number(starterId) ? 1 : null,
       }));
+      const bench = reserves.filter(Boolean).map(Number);
 
       if (useDh) {
         rows.push({
@@ -170,7 +198,7 @@ export function LineupEditor({
       const response = await fetch(`/api/scorecards/${scorecardId}/lineup`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isHome, rows }),
+        body: JSON.stringify({ isHome, rows, bench }),
       });
       const body = await readJson<{ error?: string }>(response, "Could not save the lineup.");
       setSaved(true);
@@ -310,6 +338,42 @@ export function LineupEditor({
             ))}
           </select>
         </label>
+
+        {/* Only where the competition names one. Everything above decides who
+            starts; this decides who is allowed to come on afterwards, and
+            after the first pitch it cannot be changed - which is the point of
+            asking for it here. */}
+        {benchLimit !== null && (
+          <div>
+            <p className="ui-field-label mb-1.5">
+              Bench — up to {benchLimit}, and only these can come into the game
+            </p>
+            <div className="grid gap-1.5 sm:grid-cols-2">
+              {reserves.map((playerId, index) => (
+                <select
+                  key={index}
+                  value={playerId}
+                  onChange={(event) =>
+                    setReserves((current) =>
+                      current.map((held, at) => (at === index ? event.target.value : held)),
+                    )
+                  }
+                  className="ui-select w-full !py-1"
+                >
+                  <option value="">Nobody</option>
+                  {roster.map((player) => (
+                    <option key={player.id} value={player.id}>{player.name}</option>
+                  ))}
+                </select>
+              ))}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-500">
+              {reserves.filter(Boolean).length === 0
+                ? "Nobody named, so this side cannot substitute."
+                : `${reserves.filter(Boolean).length} named.`}
+            </p>
+          </div>
+        )}
 
         {useDh && benchedId && !filled.some((slot) => slot.position === "DH") && (
           <p className="text-xs text-amber-400">

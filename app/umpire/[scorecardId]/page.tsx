@@ -3,13 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { inningsPerGameForScorecard } from "@/db/queries";
+import { benchLimitForScorecard, inningsPerGameForScorecard } from "@/db/queries";
 import {
   fieldingChanges,
   games,
   players,
   plateAppearances,
   runnerOuts,
+  scorecardBench,
   scorecardLineups,
   scorecards,
   teams,
@@ -65,6 +66,14 @@ export default async function ScorecardPage({
     .select()
     .from(scorecardLineups)
     .where(eq(scorecardLineups.scorecardId, scorecardId));
+  // How many a side names on the bench here, and who they named. Null is a
+  // competition that does not declare one - the MCBA - where a substitution
+  // may still bring in anybody on the roster.
+  const benchLimit = await benchLimitForScorecard(scorecardId);
+  const named = await db
+    .select()
+    .from(scorecardBench)
+    .where(eq(scorecardBench.scorecardId, scorecardId));
   // Which runners were retired on the bases, and in which half-inning - a
   // batter's cell shows what became of them after they reached, and the out
   // hangs off whichever play was standing at the time rather than their own.
@@ -123,13 +132,24 @@ export default async function ScorecardPage({
   const replaced = new Set(
     moves.filter((move) => move.position === BENCH && !inLineup.has(move.playerId)).map((move) => move.playerId),
   );
-  const benchFor = (teamId: number | undefined) =>
-    roster
+  // Who this side may bring on. Where the competition declares a bench that is
+  // the five they named before the game and nobody else; where it does not, it
+  // is everybody on the roster who is not already in the game. Either way a
+  // player who has been replaced is out of it for good.
+  const benchFor = (teamId: number | undefined, isHome: boolean) => {
+    const declared = new Set(
+      named.filter((row) => row.isHome === isHome).map((row) => row.playerId),
+    );
+    return roster
       .filter(
         (player) =>
-          player.teamId === teamId && !inLineup.has(player.id) && !replaced.has(player.id),
+          player.teamId === teamId &&
+          !inLineup.has(player.id) &&
+          !replaced.has(player.id) &&
+          (benchLimit === null || declared.has(player.id)),
       )
       .map((player) => ({ id: player.id, name: player.displayName }));
+  };
 
   // What the undo button will take back, named so the umpire can see what
   // they are about to reverse before they press it.
@@ -185,7 +205,7 @@ export default async function ScorecardPage({
               name: roster.find((player) => player.id === row.playerId)?.displayName ?? "Unknown",
             }))}
             nameOf={Object.fromEntries(roster.map((player) => [player.id, player.displayName]))}
-            bench={{ away: benchFor(game.awayTeamId), home: benchFor(game.homeTeamId) }}
+            bench={{ away: benchFor(game.awayTeamId, false), home: benchFor(game.homeTeamId, true) }}
             fieldingChanges={moves.map((move) => ({
               id: move.id,
               isHome: move.isHome,
@@ -298,6 +318,8 @@ export default async function ScorecardPage({
               isHome={false}
               teamName={away?.name ?? "Away"}
               roster={rosterFor(game.awayTeamId)}
+              benchLimit={benchLimit}
+              existingBench={named.filter((row) => !row.isHome).map((row) => row.playerId)}
               existing={awayLineup.map((row) => ({
                 playerId: row.playerId,
                 battingOrder: row.battingOrder,
@@ -311,6 +333,8 @@ export default async function ScorecardPage({
               isHome
               teamName={home?.name ?? "Home"}
               roster={rosterFor(game.homeTeamId)}
+              benchLimit={benchLimit}
+              existingBench={named.filter((row) => row.isHome).map((row) => row.playerId)}
               existing={homeLineup.map((row) => ({
                 playerId: row.playerId,
                 battingOrder: row.battingOrder,

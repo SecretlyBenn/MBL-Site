@@ -1,9 +1,16 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { insertInChunks } from "@/db/chunk";
+import { benchLimitForScorecard } from "@/db/queries";
 import { logAudit } from "@/db/audit";
 import { retireActionsCreating } from "@/db/undo";
-import { fieldingChanges, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import {
+  fieldingChanges,
+  plateAppearances,
+  scorecardBench,
+  scorecardLineups,
+  scorecards,
+} from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { apiError } from "@/app/api-errors";
 import { MINIMUM_LINEUP } from "@/app/scoring";
@@ -24,7 +31,12 @@ export async function PUT(
   try {
     const user = await requireRoleForApi(["UMPIRE", "HEAD_UMPIRE", "ADMIN"]);
     const scorecardId = Number((await params).id);
-    const { isHome, rows } = (await request.json()) as { isHome: boolean; rows: LineupRow[] };
+    const { isHome, rows, bench } = (await request.json()) as {
+      isHome: boolean;
+      rows: LineupRow[];
+      /** The players this side may bring on, where its competition declares a bench. */
+      bench?: number[];
+    };
     const db = getDb();
 
     const scorecard = await db.query.scorecards.findFirst({ where: eq(scorecards.id, scorecardId) });
@@ -73,6 +85,34 @@ export async function PUT(
       return Response.json({ error: "Two players are given the same position." }, { status: 400 });
     }
 
+    // The bench, where this competition has one. Up to the limit rather than
+    // exactly it: a club that can only find three substitutes still has a game
+    // to play, and one that finds none simply cannot substitute.
+    const benchLimit = await benchLimitForScorecard(scorecardId);
+    const named = [...new Set(bench ?? [])];
+    if (named.length > 0 && benchLimit === null) {
+      return Response.json(
+        { error: "This competition does not name a bench." },
+        { status: 400 },
+      );
+    }
+    if (benchLimit !== null && named.length > benchLimit) {
+      return Response.json(
+        { error: `A side may name ${benchLimit} on the bench; this one names ${named.length}.` },
+        { status: 400 },
+      );
+    }
+    // A man cannot be in the order and on the bench at once. He would be
+    // offered as a substitute for a position he is already standing in.
+    const inOrder = new Set(rows.map((row) => row.playerId));
+    const both = named.filter((playerId) => inOrder.has(playerId));
+    if (both.length > 0) {
+      return Response.json(
+        { error: "Somebody is in the lineup and on the bench at the same time." },
+        { status: 400 },
+      );
+    }
+
     // A designated hitter bats for somebody, and that somebody has to be on
     // this card and out of the order - they field without batting. The DH may
     // bat for any fielder here, not only the pitcher, so the man named is
@@ -118,6 +158,19 @@ export async function PUT(
     await db
       .delete(scorecardLineups)
       .where(and(eq(scorecardLineups.scorecardId, scorecardId), eq(scorecardLineups.isHome, isHome)));
+
+    // Replaced wholesale with the lineup it was sent with, so the bench on the
+    // card is always the one the editor last showed.
+    if (benchLimit !== null) {
+      await db
+        .delete(scorecardBench)
+        .where(and(eq(scorecardBench.scorecardId, scorecardId), eq(scorecardBench.isHome, isHome)));
+      if (named.length > 0) {
+        await db
+          .insert(scorecardBench)
+          .values(named.map((playerId) => ({ scorecardId, isHome, playerId })));
+      }
+    }
 
     // Before the first pitch this is the starting lineup, and where everyone
     // starts is kept apart from where they go. Once play has begun the rows are

@@ -1,6 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { fieldingChanges, players, plateAppearances, scorecardLineups, scorecards } from "@/db/schema";
+import {
+  fieldingChanges,
+  players,
+  plateAppearances,
+  scorecardBench,
+  scorecardLineups,
+  scorecards,
+} from "@/db/schema";
+import { benchLimitForScorecard } from "@/db/queries";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { attachCreated, recordAction } from "@/db/undo";
 import { BENCH } from "@/app/fielding-history";
@@ -86,6 +94,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         { error: "That player has already been taken out of this game." },
         { status: 409 },
       );
+    }
+
+    // Where the competition names a bench, those are the only players who may
+    // come into the game - the MBL names up to five with the lineup. Where it
+    // does not, anybody on the roster still can.
+    if ((await benchLimitForScorecard(scorecardId)) !== null) {
+      const named = await db.query.scorecardBench.findFirst({
+        where: and(
+          eq(scorecardBench.scorecardId, scorecardId),
+          eq(scorecardBench.isHome, outRow.isHome),
+          eq(scorecardBench.playerId, payload.inPlayerId),
+        ),
+      });
+      if (!named) {
+        return Response.json(
+          { error: "That player is not on the bench this side named before the game." },
+          { status: 409 },
+        );
+      }
     }
 
     const incoming = await db.query.players.findFirst({
