@@ -41,3 +41,26 @@ test("a player's game log links each score to its own league's game page", () =>
     "the score is not a link, or does not carry the game's own league",
   );
 });
+
+test("the pre-two-league game address looks the league up instead of guessing", () => {
+  // It used to send every old link to the MBL, so an MCBA game posted in
+  // Discord a year ago opened under the wrong competition's crests.
+  const page = readFileSync("app/games/[gameId]/page.tsx", "utf8");
+  assert.match(page, /leagueSlugForGame/, "the old address still guesses which league a game is in");
+  assert.ok(
+    page.indexOf("leagueSlugForGame") < page.indexOf("toDefaultLeague("),
+    "the guess runs before the lookup, so the lookup never decides anything",
+  );
+  // A game that does not exist must still land somewhere: 404ing a link
+  // someone posted is worse than showing the default league's missing page.
+  assert.match(page, /toDefaultLeague/, "an unknown game id now dead-ends");
+});
+
+test("a game's league comes from its season, which is where the archive records it", () => {
+  const queries = readFileSync("db/queries.ts", "utf8");
+  const start = queries.indexOf("export async function leagueSlugForGame");
+  assert.ok(start > 0, "leagueSlugForGame is not exported");
+  const body = queries.slice(start, queries.indexOf("\nexport ", start + 1));
+  assert.ok(body.includes("historicalSeasons"), "the lookup does not go through the season");
+  assert.ok(body.includes("leagues"), "the lookup never reaches the leagues table");
+});

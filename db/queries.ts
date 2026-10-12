@@ -750,6 +750,27 @@ export async function getHistoricalGameSummary(gameId: number) {
   return game ?? null;
 }
 
+/**
+ * Which competition an archived game belongs to, by its id alone.
+ *
+ * For `/games/<id>`, the address from before the site held two leagues. That
+ * page has no league in it, so it used to guess - and guessing meant every
+ * old link opened under the MBL, including links to MCBA games.
+ *
+ * Null when there is no such game, which the caller treats as the old guess:
+ * a bad id should still land somewhere rather than 404 a link someone posted.
+ */
+export async function leagueSlugForGame(gameId: number): Promise<string | null> {
+  const [row] = await getDb()
+    .select({ slug: leagues.slug })
+    .from(historicalGames)
+    .innerJoin(historicalSeasons, eq(historicalGames.seasonId, historicalSeasons.id))
+    .innerJoin(leagues, eq(historicalSeasons.leagueId, leagues.id))
+    .where(eq(historicalGames.id, gameId))
+    .limit(1);
+  return row?.slug ?? null;
+}
+
 export async function getHistoricalSeason(seasonId: number) {
   const db = getDb();
   return db.query.historicalSeasons.findFirst({
