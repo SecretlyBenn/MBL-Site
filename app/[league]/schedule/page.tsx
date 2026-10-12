@@ -188,6 +188,7 @@ export default async function SchedulePage({
                     arrangement={game.sourceGameId ? arrangements[game.sourceGameId] : undefined}
                     mayArrange={mayArrange}
                     seasonSortOrder={season.sortOrder}
+                    leagueSlug={league.slug}
                   />
                 ))}
               </div>
@@ -207,6 +208,7 @@ function GameCard({
   arrangement,
   mayArrange,
   seasonSortOrder,
+  leagueSlug,
 }: {
   game: Game;
   showDate: boolean;
@@ -215,6 +217,7 @@ function GameCard({
   mayArrange: boolean;
   /** Decides whether this season's per-inning runs are trustworthy. */
   seasonSortOrder: number;
+  leagueSlug: string;
 }) {
   const isFinal = game.homeScore !== null && game.awayScore !== null;
   // A fixture the series never reached: scheduled, never played, and never
@@ -268,7 +271,10 @@ function GameCard({
     // editor to stop the card navigating away. The matchup links to the game;
     // the editor sits beside the link rather than within it.
     <div className="rounded-lg border border-slate-800/80 bg-slate-900/40 px-4 py-3 transition-colors hover:border-slate-700 hover:bg-slate-900">
-      <Link href={`/games/${game.id}`} className="block">
+      {/* The league's own address, not the pre-two-league `/games/<id>`. That
+          one redirects to whichever league is first, so every MCBA score
+          opened under MBL chrome and the extra hop broke the back button. */}
+      <Link href={`/${leagueSlug}/games/${game.id}`} className="block">
       <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-wider text-slate-500">
         <span>{showDate ? shortDateOf(game.playedOn) : ""}</span>
         <span

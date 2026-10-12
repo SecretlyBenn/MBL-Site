@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import Link from "next/link";
 import { TeamLogo } from "@/app/TeamLogo";
 import { formatInnings } from "@/app/formatStats";
 import { earnedRunAverage } from "@/app/scoring";
@@ -15,6 +16,9 @@ type GameRow = {
   gameId: number;
   playedOn: string | null;
   seasonName: string;
+  /** Each log is already filtered to one competition, but the row carries its
+      own slug, so the link never has to guess which league the game is in. */
+  leagueSlug: string;
   opponent: string | null;
   won: boolean | null;
   scoreLine: string | null;
@@ -326,7 +330,16 @@ export function PlayerProfile({
                           game.won === null ? "text-slate-500" : game.won ? "text-emerald-400" : "text-rose-400"
                         }
                       >
-                        {game.won === null ? "–" : `${game.won ? "W" : "L"} ${game.scoreLine}`}
+                        {game.won === null ? (
+                          "–"
+                        ) : (
+                          <Link
+                            href={`/${game.leagueSlug}/games/${game.gameId}`}
+                            className="hover:underline"
+                          >
+                            {`${game.won ? "W" : "L"} ${game.scoreLine}`}
+                          </Link>
+                        )}
                       </td>
                       {logColumns.map((column) => (
                         <td key={column.key}>{show(game[column.key], column)}</td>
