@@ -1,4 +1,4 @@
--- Accounts for 67 names the archive had never linked.
+-- Accounts for 71 names the archive had never linked.
 --
 -- A name with no row in minecraft_profiles gets the neutral grey block
 -- instead of a head, which is correct - a stranger's face is worse than no
@@ -16,7 +16,7 @@
 -- that canonical spelling, so they take the rename and need no new row; the
 -- inserts below are guarded so they add nothing twice.
 --
--- 45 names are still unlinked after this. Those are the untraceable ones:
+-- 36 names are still unlinked after this. Those are the untraceable ones:
 -- Discord nicknames from before the league required them to match in-game
 -- names, names with a space or a dot in them, and accounts that have since
 -- been renamed, which Mojang cannot resolve backwards since it dropped the
@@ -132,6 +132,15 @@ INSERT INTO account_fix (asked, canonical, uuid) VALUES
   ('justAMarshmellow', 'JustAMarshmellow', '7c09f9e197dd43c4a2759cbeaec3c8b9'),
   ('lVvYaelvVl', 'lVvYaelvVl', '76f525b2b18c476faddf17a0c61868bf'),
   ('meek0o', 'meek0o', '08851d7d31bc4425b5730f9ed8bbff6d');
+
+-- Four more named by the league's owner. Mojang has no account under the old
+-- name because each of these men renamed; the owner knows them by sight, and
+-- the new names resolve.
+INSERT INTO account_fix (asked, canonical, uuid) VALUES
+  ('21Korean', '21asteriix', 'fe81992a64c341118c47984bb2a8a932'),
+  ('Bestinyourmomass', 'charlielikesboys', '91c33cdece04476a823ffb6b03853f6f'),
+  ('BITEKI_2', 'Juan_f_ing_soto', 'cb8a80c0957e445fbaf4f768728984d7'),
+  ('bK2Tuff', 'th3realbk', '7373e7703dad4aa9b95388faae215a90');
 
 -- The archive first, onto Mojang's own spelling.
 UPDATE historical_player_stats
