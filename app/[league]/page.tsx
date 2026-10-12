@@ -258,20 +258,28 @@ name={row.playerName} className="truncate" />
                   <li key={article.id}>
                     <Link
                       href={`/${league.slug}/news/${article.slug}`}
-                      className="group flex flex-col overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 transition-colors hover:border-sky-500/50 hover:bg-slate-800/40"
+                      className={`group flex overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 transition-colors hover:border-sky-500/50 hover:bg-slate-800/40 ${
+                        index === 0 ? "flex-col" : "flex-row items-center"
+                      }`}
                     >
-                      {/* The newest piece carries its picture; the rest are
-                          headlines, so four fit beside the tables. */}
-                      {index === 0 && article.coverImageId && (
+                      {/* The newest piece leads with its picture across the
+                          card; the rest keep theirs as a thumbnail beside the
+                          headline, so four still fit beside the tables. They
+                          used to lose the picture altogether once a newer
+                          piece was published, which read as the cover having
+                          been deleted. */}
+                      {article.coverImageId && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={`/api/news/image/${article.coverImageId}`}
                           alt=""
                           loading="lazy"
-                          className="aspect-video w-full object-cover"
+                          className={`shrink-0 bg-slate-950 object-contain ${
+                            index === 0 ? "aspect-video w-full" : "h-14 w-20"
+                          }`}
                         />
                       )}
-                      <div className="px-3.5 py-2.5">
+                      <div className="min-w-0 px-3.5 py-2.5">
                         <p
                           className={`line-clamp-2 font-bold leading-snug text-slate-100 group-hover:text-white ${
                             index === 0 ? "text-base" : "text-sm"

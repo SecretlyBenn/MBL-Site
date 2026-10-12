@@ -83,9 +83,10 @@ export default async function ArticlePage({ params }: { params: Promise<{ league
           <img
             src={`/api/news/image/${article.coverImageId}`}
             alt=""
-            // A cover is a banner: a tall phone photo is cropped to the frame
-            // rather than pushing the article below the fold.
-            className="mt-5 aspect-video w-full rounded-xl border border-slate-800 object-cover"
+            // Held to a banner's shape so a tall picture cannot push the
+            // article below the fold, but shown whole inside it: these covers
+            // are often stat graphics, and cropping one beheads the text.
+            className="mt-5 aspect-video w-full rounded-xl border border-slate-800 bg-slate-950 object-contain"
           />
         )}
 

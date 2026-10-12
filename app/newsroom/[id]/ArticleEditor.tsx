@@ -296,7 +296,9 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
           <img
             src={`/api/news/image/${coverImageId}`}
             alt=""
-            className="aspect-video w-full rounded-xl border border-slate-800 object-cover"
+            // The same frame the published article uses, so what a writer
+            // sees here is what a reader gets.
+            className="aspect-video w-full rounded-xl border border-slate-800 bg-slate-950 object-contain"
           />
         )}
 
@@ -393,7 +395,7 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
                   <img
                     src={`/api/news/image/${id}`}
                     alt=""
-                    className={`aspect-video w-full rounded-lg border object-cover ${
+                    className={`aspect-video w-full rounded-lg border bg-slate-950 object-contain ${
                       coverImageId === id ? "border-sky-500" : "border-slate-800"
                     }`}
                   />

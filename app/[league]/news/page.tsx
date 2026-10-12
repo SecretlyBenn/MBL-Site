@@ -69,7 +69,11 @@ export default async function NewsPage({ params }: { params: Promise<{ league: s
                   src={`/api/news/image/${article.coverImageId}`}
                   alt=""
                   loading={index === 0 ? "eager" : "lazy"}
-                  className={`shrink-0 object-cover ${
+                  // Contained rather than cropped: a cover here is as often a
+                  // tall graphic of somebody's stat line as it is a wide
+                  // photograph, and filling the frame cut the top and bottom
+                  // off the words that were the point of it.
+                  className={`shrink-0 bg-slate-950 object-contain ${
                     index === 0 ? "h-48 w-full sm:h-56 sm:w-96" : "hidden h-28 w-44 sm:block"
                   }`}
                 />
