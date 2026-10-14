@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { BACKDROP, OUT_HEIGHT, OUT_WIDTH, WIN_HEIGHT, WIN_WIDTH, baseScale, minZoom, room, sourceRect } from "./cover-crop";
+import { OUT_HEIGHT, OUT_WIDTH, WIN_HEIGHT, WIN_WIDTH, baseScale, room, sourceRect } from "./cover-crop";
 
 /**
  * Chooses the part of a picture that becomes an article's cover.
@@ -43,10 +43,7 @@ export function CoverCropper({
     element.onload = () => {
       image.current = element;
       setSize({ width: element.naturalWidth, height: element.naturalHeight });
-      // Opens showing the whole picture rather than a crop of it: a writer who
-      // wants it filling the frame can zoom in, but one who does not should
-      // never find the cover already cut without having chosen it.
-      setZoom(minZoom({ width: element.naturalWidth, height: element.naturalHeight }));
+      setZoom(1);
       setOffset({ x: 0, y: 0 });
     };
     element.src = src;
@@ -55,8 +52,6 @@ export function CoverCropper({
   // The scale at which the picture just covers the window. Everything else is
   // a multiple of it, so zoom 1 always means "no empty corners".
   const base = size ? baseScale(size) : 1;
-  // Far enough out to fit the whole picture, so nothing has to be cut off.
-  const floor = size ? minZoom(size) : 1;
   const scale = base * zoom;
   const shown = size ? { width: size.width * scale, height: size.height * scale } : null;
 
@@ -101,11 +96,6 @@ export function CoverCropper({
     canvas.height = OUT_HEIGHT;
     const context = canvas.getContext("2d");
     if (!context) return;
-    // Filled first, so a picture zoomed out past the frame has the page's own
-    // colour around it rather than transparency, which a JPEG would turn black
-    // and a WebP would leave see-through over whatever is behind it.
-    context.fillStyle = BACKDROP;
-    context.fillRect(0, 0, OUT_WIDTH, OUT_HEIGHT);
     context.imageSmoothingQuality = "high";
     context.drawImage(element, frame.sx, frame.sy, frame.width, frame.height, 0, 0, OUT_WIDTH, OUT_HEIGHT);
     onDone(canvas.toDataURL("image/webp", 0.82));
@@ -150,7 +140,7 @@ export function CoverCropper({
           Zoom
           <input
             type="range"
-            min={floor}
+            min={1}
             max={4}
             step={0.01}
             value={zoom}
