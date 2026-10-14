@@ -56,12 +56,11 @@ export default async function NewsPage({ params }: { params: Promise<{ league: s
             <Link
               key={article.id}
               href={`/${league.slug}/news/${article.slug}`}
-              // The newest piece is the lead and gets the room; the rest run
-              // beneath it as a column of headlines, the way a sports page
-              // reads.
-              className={`group flex gap-4 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 transition-colors hover:border-sky-500/50 hover:bg-slate-800/40 ${
-                index === 0 ? "flex-col sm:flex-row" : "flex-row"
-              }`}
+              // Every piece gets the same card. The newest used to be laid
+              // out as a lead, twice the size of the rest, which made the list
+              // read as though the older ones mattered less and left each
+              // article changing shape as soon as another was published.
+              className="group flex flex-row gap-4 overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 transition-colors hover:border-sky-500/50 hover:bg-slate-800/40"
             >
               {article.coverImageId && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -69,24 +68,15 @@ export default async function NewsPage({ params }: { params: Promise<{ league: s
                   src={`/api/news/image/${article.coverImageId}`}
                   alt=""
                   loading={index === 0 ? "eager" : "lazy"}
-                  // Contained rather than cropped: a cover here is as often a
-                  // tall graphic of somebody's stat line as it is a wide
-                  // photograph, and filling the frame cut the top and bottom
-                  // off the words that were the point of it.
-                  // Every frame is the cover's own shape, so a cover cut to
-                  // it fills the frame exactly and the list reads as one
-                  // column rather than a row of different-sized pictures.
-                  className={`aspect-video shrink-0 bg-slate-950 object-contain ${
-                    index === 0 ? "w-full sm:w-96" : "hidden h-28 w-auto sm:block"
-                  }`}
+                  // One frame, the cover's own shape, so a cover cut to it
+                  // fills it exactly. Contained rather than cropped so that an
+                  // older cover made before the cropper existed is still shown
+                  // whole instead of having its edges cut off.
+                  className="aspect-video h-20 w-auto shrink-0 bg-slate-950 object-contain sm:h-28"
                 />
               )}
               <div className="flex min-w-0 flex-col justify-center gap-1.5 p-4">
-                <h2
-                  className={`font-black tracking-tight text-slate-100 group-hover:text-white ${
-                    index === 0 ? "text-2xl sm:text-3xl" : "text-lg"
-                  }`}
-                >
+                <h2 className="text-lg font-black tracking-tight text-slate-100 group-hover:text-white">
                   {article.title}
                 </h2>
                 {article.summary && (

@@ -254,37 +254,29 @@ name={row.playerName} className="truncate" />
               <EmptyState>No articles yet.</EmptyState>
             ) : (
               <ul className="flex flex-col gap-2.5">
-                {articles.map((article, index) => (
+                {articles.map((article) => (
                   <li key={article.id}>
                     <Link
                       href={`/${league.slug}/news/${article.slug}`}
-                      className={`group flex overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 transition-colors hover:border-sky-500/50 hover:bg-slate-800/40 ${
-                        index === 0 ? "flex-col" : "flex-row items-center"
-                      }`}
+                      className="group flex flex-row items-center overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 transition-colors hover:border-sky-500/50 hover:bg-slate-800/40"
                     >
-                      {/* The newest piece leads with its picture across the
-                          card; the rest keep theirs as a thumbnail beside the
-                          headline, so four still fit beside the tables. They
-                          used to lose the picture altogether once a newer
-                          piece was published, which read as the cover having
-                          been deleted. */}
+                      {/* Every piece is the same card with the same thumbnail,
+                          so four fit beside the tables and none of them
+                          changes shape when a newer one is published. The
+                          newest used to take its picture across the whole card
+                          and the rest showed none at all, which read as the
+                          older covers having been deleted. */}
                       {article.coverImageId && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={`/api/news/image/${article.coverImageId}`}
                           alt=""
                           loading="lazy"
-                          className={`aspect-video shrink-0 bg-slate-950 object-contain ${
-                            index === 0 ? "w-full" : "h-14 w-auto"
-                          }`}
+                          className="aspect-video h-14 w-auto shrink-0 bg-slate-950 object-contain"
                         />
                       )}
                       <div className="min-w-0 px-3.5 py-2.5">
-                        <p
-                          className={`line-clamp-2 font-bold leading-snug text-slate-100 group-hover:text-white ${
-                            index === 0 ? "text-base" : "text-sm"
-                          }`}
-                        >
+                        <p className="line-clamp-2 text-sm font-bold leading-snug text-slate-100 group-hover:text-white">
                           {article.title}
                         </p>
                         <p className="mt-1 text-xs text-slate-500">

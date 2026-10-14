@@ -66,3 +66,29 @@ test("choosing a cover goes through the cropper, never straight to the article",
   assert.match(editor, /setCropping\(id\)/, "the picker no longer opens the cropper");
   assert.match(editor, /if \(coverImageId === null\) setCropping\(id\)/, "the first upload skips the crop");
 });
+
+/**
+ * Every article is the same size.
+ *
+ * The newest piece used to be laid out as a lead - a picture across the whole
+ * card and a headline twice the size - so an article visibly shrank the moment
+ * another was published, and the list read as though the older ones mattered
+ * less. A news list here is three or four pieces long; it does not need a
+ * front page.
+ */
+
+const list = readFileSync("app/[league]/news/page.tsx", "utf8");
+
+test("the news list gives the newest article no more room than the rest", () => {
+  for (const lead of ["text-2xl", "text-3xl", "sm:w-96", "flex-col sm:flex-row"]) {
+    assert.ok(!list.includes(lead), `the lead article is still sized differently (${lead})`);
+  }
+});
+
+test("the home page's article list does not size by position either", () => {
+  assert.ok(
+    !/index === 0 \? "flex-col"/.test(home) && !/index === 0 \? "w-full"/.test(home),
+    "the newest article still takes the whole card",
+  );
+  assert.ok(!/index === 0 \? "text-base"/.test(home), "the newest headline is still larger");
+});
