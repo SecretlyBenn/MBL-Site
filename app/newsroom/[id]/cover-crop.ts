@@ -15,9 +15,26 @@ export const OUT_HEIGHT = 675;
 export const WIN_WIDTH = 512;
 export const WIN_HEIGHT = (WIN_WIDTH * OUT_HEIGHT) / OUT_WIDTH;
 
+/** The colour behind a cover that does not fill its frame, matching the page. */
+export const BACKDROP = "#020617";
+
 /** The scale at which a picture just covers the window: zoom 1 means no gaps. */
 export function baseScale(natural: { width: number; height: number }) {
   return Math.max(WIN_WIDTH / natural.width, WIN_HEIGHT / natural.height);
+}
+
+/**
+ * How far out the writer may zoom, as a multiple of zoom 1.
+ *
+ * Zoom 1 is the picture just covering the window, which for anything that is
+ * not already 16:9 means losing the overflow - and the first covers posted
+ * here were stat graphics where the first and last lines were the overflow.
+ * So zooming out far enough to fit the whole picture is allowed, and what is
+ * left over is filled with the colour the page already sits on.
+ */
+export function minZoom(natural: { width: number; height: number }) {
+  const contain = Math.min(WIN_WIDTH / natural.width, WIN_HEIGHT / natural.height);
+  return contain / baseScale(natural);
 }
 
 /**
