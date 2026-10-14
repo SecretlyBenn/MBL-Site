@@ -73,8 +73,11 @@ export default async function NewsPage({ params }: { params: Promise<{ league: s
                   // tall graphic of somebody's stat line as it is a wide
                   // photograph, and filling the frame cut the top and bottom
                   // off the words that were the point of it.
-                  className={`shrink-0 bg-slate-950 object-contain ${
-                    index === 0 ? "h-48 w-full sm:h-56 sm:w-96" : "hidden h-28 w-44 sm:block"
+                  // Every frame is the cover's own shape, so a cover cut to
+                  // it fills the frame exactly and the list reads as one
+                  // column rather than a row of different-sized pictures.
+                  className={`aspect-video shrink-0 bg-slate-950 object-contain ${
+                    index === 0 ? "w-full sm:w-96" : "hidden h-28 w-auto sm:block"
                   }`}
                 />
               )}

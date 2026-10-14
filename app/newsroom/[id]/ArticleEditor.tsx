@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { CoverCropper } from "./CoverCropper";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { RichEditor, type RichEditorHandle } from "./RichEditor";
 
@@ -52,6 +53,12 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
   const [summary, setSummary] = useState(article.summary);
   const [body, setBody] = useState(article.body);
   const [coverImageId, setCoverImageId] = useState(article.coverImageId);
+  /**
+   * The picture currently being cropped, if any. A cover is never used as it
+   * was uploaded: it is cut to the one shape every cover shares, so the news
+   * list and the home page can lay them out together.
+   */
+  const [cropping, setCropping] = useState<number | null>(null);
   const [images, setImages] = useState(imageIds);
   // Kept here rather than read from the page, so publishing does not have to
   // reload the editor to say so.
@@ -243,10 +250,34 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
       const data = await request("POST", "/api/news/images", { articleId: article.id, dataUrl });
       const id = Number(data.id);
       setImages((current) => [...current, id]);
-      // The first picture of an article is almost always its cover.
-      if (coverImageId === null) setCoverImageId(id);
+      // The first picture of an article is almost always its cover, so the
+      // crop is offered straight away rather than waiting to be asked for.
+      if (coverImageId === null) setCropping(id);
     } catch (problem) {
       setError(problem instanceof Error ? problem.message : "That picture could not be uploaded.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  /**
+   * Stores the cropped picture and makes it the cover.
+   *
+   * Kept as a picture of its own rather than written over the original, so the
+   * uploaded version is still there to crop differently later, and so the
+   * addresses under /api/news/image stay permanent the way that route promises.
+   */
+  async function useCrop(dataUrl: string) {
+    setBusy("Saving cover…");
+    setError("");
+    try {
+      const data = await request("POST", "/api/news/images", { articleId: article.id, dataUrl });
+      const id = Number(data.id);
+      setImages((current) => [...current, id]);
+      setCoverImageId(id);
+      setCropping(null);
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : "That cover could not be saved.");
     } finally {
       setBusy("");
     }
@@ -407,7 +438,7 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
                       Cover ✓
                     </button>
                   ) : (
-                    <button type="button" onClick={() => setCoverImageId(id)} className="text-left text-xs text-slate-400 hover:text-white">
+                    <button type="button" onClick={() => setCropping(id)} className="text-left text-xs text-slate-400 hover:text-white">
                       Use as cover
                     </button>
                   )}
@@ -421,6 +452,15 @@ export function ArticleEditor({ article, imageIds }: { article: Draft; imageIds:
           Delete this article
         </button>
       </aside>
+
+      {cropping !== null && (
+        <CoverCropper
+          src={`/api/news/image/${cropping}`}
+          busy={Boolean(busy)}
+          onCancel={() => setCropping(null)}
+          onDone={useCrop}
+        />
+      )}
     </div>
   );
 }

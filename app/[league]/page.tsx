@@ -274,8 +274,8 @@ name={row.playerName} className="truncate" />
                           src={`/api/news/image/${article.coverImageId}`}
                           alt=""
                           loading="lazy"
-                          className={`shrink-0 bg-slate-950 object-contain ${
-                            index === 0 ? "aspect-video w-full" : "h-14 w-20"
+                          className={`aspect-video shrink-0 bg-slate-950 object-contain ${
+                            index === 0 ? "w-full" : "h-14 w-auto"
                           }`}
                         />
                       )}

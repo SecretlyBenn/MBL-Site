@@ -45,3 +45,24 @@ test("no cover frame crops the picture", () => {
     );
   }
 });
+
+/**
+ * Covers are cut to one shape rather than used as uploaded.
+ *
+ * One article led with a tall stat graphic and the next with a square crest,
+ * and no single frame holds both: filling it cuts the words off the graphic,
+ * fitting it inside leaves the crest swimming in bars. So the writer chooses
+ * the crop, the way a profile picture is set anywhere else, and every cover is
+ * written out at the same size.
+ */
+
+const editor = readFileSync("app/newsroom/[id]/ArticleEditor.tsx", "utf8");
+
+test("choosing a cover goes through the cropper, never straight to the article", () => {
+  assert.ok(
+    !/onClick=\{\(\) => setCoverImageId\(id\)\}/.test(editor),
+    "a picture can still be made the cover without being cut to shape",
+  );
+  assert.match(editor, /setCropping\(id\)/, "the picker no longer opens the cropper");
+  assert.match(editor, /if \(coverImageId === null\) setCropping\(id\)/, "the first upload skips the crop");
+});
