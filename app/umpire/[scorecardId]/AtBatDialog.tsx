@@ -139,7 +139,6 @@ export function AtBatDialog({
   }
 
   const isHit = definition?.isHit ?? false;
-  const isOut = (definition?.defaultOuts ?? 0) > 0 || draft.outsRecorded > 0;
   // A play that already has an error on it always shows the picker, whatever
   // the result was. Hiding it behind "more" meant opening a play to check an
   // error showed no sign of one, and the umpire had to expand the form to find
@@ -223,8 +222,13 @@ export function AtBatDialog({
             </label>
           )}
 
-          {isOut && (
-            <label className="ui-field-label !flex flex-col !items-start gap-1.5">
+          {/* Asked on every play, not only the ones that are an out by
+              nature. A runner can be thrown out on a hit - going for home from
+              second on a double is the common one - and this used to be hidden
+              unless the result already carried an out, which no hit does. That
+              left the umpire no way at all to say an out had happened: the
+              runner was carried home by the advance below and the run stood. */}
+          <label className="ui-field-label !flex flex-col !items-start gap-1.5">
               How many outs on the play?
               <select
                 value={draft.outsRecorded}
@@ -235,14 +239,17 @@ export function AtBatDialog({
                   <option key={count} value={count}>{count}</option>
                 ))}
               </select>
-            </label>
-          )}
+          </label>
 
           {/* A fielder's choice retires a runner and the batter reaches - that
               is what makes it one - so the umpire says who was thrown out
               rather than the screen assuming the batter. A double play usually
               takes the batter and a runner, but two runners happens too. */}
-          {(definition.retiresRunners || draft.outsRecorded > 1) && (
+          {/* Shown as soon as there is an out the batter does not explain.
+              On an out-type result the batter is the first one and needs no
+              naming; on a hit he reached, so every out on the play belongs to
+              a runner and somebody has to be named for the putout. */}
+          {(definition.retiresRunners || draft.outsRecorded > (draft.batterOut ? 1 : 0)) && (
             <fieldset className="rounded-md border border-slate-800 p-3">
               <legend className="px-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                 Who was put out?
