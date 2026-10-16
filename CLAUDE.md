@@ -146,28 +146,44 @@ Rules learned the hard way:
 The Worker is on the **free plan** and the owner has not bought the $5/month
 Workers Paid plan.
 
-This section used to say a page had 10ms of CPU and that several were failing
-with Error 1102. That is no longer what happens. Measured from `wrangler tail`
-on 2026-09-28, every page answered `ok`:
+**The free plan allows 10ms of CPU per request. Every page here uses more than
+that** - measured from `wrangler tail` on 2026-10-16, with a 32-request run
+against the four heaviest pages:
 
 | page | CPU | wall |
 | --- | --- | --- |
-| `/mcba/statistics/batting` | 251ms | 812ms |
-| `/mbl/schedule` | 199ms | 1262ms |
-| `/mbl/statistics/batting` | 178ms | 1243ms |
-| `/mcba/schedule` | 155ms | 2567ms |
-| `/mcba` | 123ms | 1297ms |
-| `/mcba/standings` | 66ms | 1416ms |
+| `/mcba/schedule` | 37-239ms | 720ms |
+| `/mbl` | 151ms | 701ms |
+| `/mbl/statistics/batting` | 138ms | 410ms |
+| `/mbl/rosters?season=13&team=89` | 56-203ms | 437ms |
+| `/mcba/rosters` | 39-181ms | 292ms |
+| `/mcba/statistics/batting` | 55-158ms | 333ms |
 
-So the ceiling is well above 10ms now and 1102 is not the live problem it was.
-Measure before believing either number: check with `wrangler tail --format
-json`, which reports `cpuTime` and `wallTime` per request, rather than trusting
-this table as it ages.
+Every one of those answered `ok`, which is why an earlier version of this
+section concluded the ceiling had been raised and 1102 was behind us. That was
+the wrong conclusion from the right measurements: Cloudflare does not kill
+every request that goes over, so the site runs four to twenty times over its
+budget and is only occasionally refused. A reader reported being resource
+limited on a roster page on 2026-10-16, on a day the whole site read 110,000
+D1 rows - 2% of that quota - so it was not the database.
 
-What is still worth caring about is the **wall** column - one to two and a half
-seconds before a reader sees anything. That is query count and query cost, not
-CPU, and `wrangler d1 insights` is what shows which query is responsible. The
-D1 limits below are the real constraints.
+**The spikes are cold starts.** In the same run the first four requests
+averaged 139ms and the remaining 28 averaged 74ms, with the worst at 203ms.
+A fresh isolate pays for parsing the bundle - `dist/server/index.js` alone is
+1.5MB - and charges it as CPU on whichever request arrives first. A site with
+one reader hits cold isolates constantly, so **low traffic makes this worse,
+not better**, which is the opposite of what anyone expects.
+
+Nothing reasonable gets a Next.js page that renders a 90KB table out of a
+database down to 10ms. The $5/month plan allows 30 seconds per request by
+default and removes the daily D1 read cap at the same time; it belongs on the
+launch-day list with the domain and the OAuth redirects. Caching published
+archive pages at the edge would cut how often the Worker runs at all, which
+reduces how often this is rolled, but the first view of any page still pays.
+
+Measure before believing any number here: `wrangler tail --format json`
+reports `cpuTime` and `wallTime` per request, and `wrangler d1 insights`
+reports rows read per query without spending any.
 
 ## Minecraft accounts and heads
 
