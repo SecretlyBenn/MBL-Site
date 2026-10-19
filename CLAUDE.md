@@ -357,6 +357,17 @@ Rules that are easy to break:
   destroyed both leagues' history. The additive ones that replaced them
   (`import-mso-league.mjs`, `import-mso-games.mjs`, `import-one-boxscore.mjs`)
   touch only the league they are given.
+- **`scripts/import-umpire-cards.mjs` is not one of those scrapers.** The MCBA
+  plays here now but is not scored here: each game is a Google Sheet, a cell
+  per plate appearance, filled in by whoever had the clicker, and the sheet is
+  the only record. That script reads a set of them into a migration - 0095 is
+  MCBA XIV's championship round and final. It copies or counts every number and
+  prints where a card contradicts itself rather than reconciling it, and its
+  `NAMES` table is the only place a card's "Pika" or "CPA" becomes an archive
+  name, because an unmapped nickname opens a second career for a man who
+  already has one. Point it at a new set of cards and update `NAMES` and
+  `FIXTURES`; an unknown name stops the run on purpose. The gap it papers over
+  is that there is no way to enter a finished game through the site.
 - minecraftbaseball.com is not pointed at this site yet. The contact address is
   now in `app/site.ts`. The domain, the Workers Paid plan and the Discord OAuth
   redirect URLs are all waiting on the owner for launch day.
