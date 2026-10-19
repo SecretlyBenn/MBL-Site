@@ -264,3 +264,83 @@ test("a double play can retire two runners and leave the batter on", () => {
   assert.equal(bases.first, 7);
   assert.equal(bases.second, null);
 });
+
+/**
+ * A run belongs to the man who crossed the plate.
+ *
+ * The card used to store only the runners the umpire had ticked, while the
+ * number of runs was worked out from the play. So a hit that carried somebody
+ * home unasked gave the side a run that appeared on no player's line, and the
+ * team's total stopped matching the sum of its batters. It had not happened
+ * yet - 167 plays checked, none wrong - because umpires tick. It only needed
+ * one who did not.
+ */
+
+test("a hit names the runners it carries home, not just how many", () => {
+  const { scorers, runs } = advance(on(null, 7, null), {
+    batterPlayerId: 99,
+    result: "2B",
+    scored: [],
+  });
+  assert.deepEqual(scorers, [7], "the man the double drove in is not named");
+  assert.equal(runs, 1);
+});
+
+test("a forced run names the runner too", () => {
+  // Nobody has to tick this one: with the bases loaded a walk pushes the man
+  // on third home whether anybody says so or not.
+  const { scorers, runs } = advance(on(1, 2, 3), {
+    batterPlayerId: 99,
+    result: "BB",
+    scored: [],
+  });
+  assert.deepEqual(scorers, [3]);
+  assert.equal(runs, 1);
+});
+
+test("a runner the umpire ticked is named once, not twice", () => {
+  const { scorers, runs } = advance(on(null, 7, null), {
+    batterPlayerId: 99,
+    result: "2B",
+    scored: [7],
+  });
+  assert.deepEqual(scorers, [7], "the same run was counted as both ticked and carried");
+  assert.equal(runs, 1);
+});
+
+test("runs always matches the number of scorers named", () => {
+  for (const bases of [on(1, 2, 3), on(null, 2, null), on(1, null, 3), EMPTY_BASES]) {
+    for (const result of ["1B", "2B", "3B", "HR", "BB", "GO", "K", "SF"]) {
+      const { scorers, runs } = advance(bases, { batterPlayerId: 99, result, scored: [] });
+      assert.equal(runs, scorers.length, `${result} reports ${runs} runs for ${scorers.length} names`);
+    }
+  }
+});
+
+/**
+ * A runner can be called out on a home run - for passing another runner, or
+ * for missing a base on appeal. He was being given the run anyway, so the same
+ * man was both an out and a run on one swing.
+ */
+
+test("a runner put out on a home run does not score", () => {
+  const { scorers, runs } = advance(on(null, 7, null), {
+    batterPlayerId: 99,
+    result: "HR",
+    scored: [7],
+    outRunners: [7],
+  });
+  assert.deepEqual(scorers, [], "the runner who was called out still scored");
+  assert.equal(runs, 0);
+});
+
+test("a home run still scores everyone who was not put out", () => {
+  const { scorers, runs } = advance(on(1, 2, 3), {
+    batterPlayerId: 99,
+    result: "HR",
+    scored: [1, 2, 3],
+    outRunners: [2],
+  });
+  assert.deepEqual(scorers.sort(), [1, 3]);
+  assert.equal(runs, 2);
+});

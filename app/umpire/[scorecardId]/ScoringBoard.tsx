@@ -242,8 +242,12 @@ export function ScoringBoard({
     const batterScored = draft.result === "HR" ? true : draft.batterScored;
     // A home run empties the bases, so everyone aboard scored whether or not
     // the umpire ticked them.
+    // A home run scores everyone aboard without being ticked - except a
+    // runner called out on it, for passing somebody or missing a base.
     const scored =
-      draft.result === "HR" ? runners.map((runner) => runner.playerId) : draft.scoredRunners;
+      draft.result === "HR"
+        ? runners.map((runner) => runner.playerId).filter((id) => !draft.outRunners.includes(id))
+        : draft.scoredRunners;
 
     // The bases as they stand after this play are stored with it, so the
     // diamond survives a reload and an edit to an earlier at-bat replays from
@@ -264,7 +268,10 @@ export function ScoringBoard({
       fielders: draft.fielders || null,
       rbis: draft.rbis,
       batterScored,
-      otherRunsScored: scored.length,
+      // What the play actually produced, which is not always what was ticked:
+      // a hit carries runners home on its own. The server works this out again
+      // from the same function, so the two cannot disagree.
+      otherRunsScored: after.runs,
       unearnedRuns: draft.unearnedRuns,
       outsRecorded: draft.outsRecorded,
       // The fielder the umpire named, and his position at the time. Both were
@@ -274,7 +281,7 @@ export function ScoringBoard({
       errorPosition: erredAt(draft.errorPlayerId),
       stolenBases: draft.stolenBases,
       basesAfter: encodeBases(after.bases),
-      runnersScored: encodeRunners(scored),
+      runnersScored: encodeRunners(after.scorers),
       outRunners: draft.outRunners,
       batterOut: draft.batterOut,
       outPutouts: draft.outPutouts,

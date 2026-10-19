@@ -96,14 +96,21 @@ export function advance(
 ): {
   bases: Bases;
   /**
-   * Runs scored by runners. The batter is not counted here even when they came
-   * all the way round - the caller records that separately, and adding it here
-   * too would score them twice.
+   * The runners who reached home, by id. The batter is never among them even
+   * when he came all the way round - the caller records that separately, and
+   * adding him here too would score him twice.
+   *
+   * Returned by name rather than as a count because a run belongs to the man
+   * who crossed the plate. The caller used to store only the runners the
+   * umpire had ticked, so anyone the hit carried home unasked gave his side a
+   * run that appeared on nobody's line.
    */
+  scorers: number[];
+  /** How many of them there are, which is always `scorers.length`. */
   runs: number;
 } {
   // A skipped batter never took the plate, so the bases are untouched.
-  if (isSkip(result)) return { bases, runs: 0 };
+  if (isSkip(result)) return { bases, scorers: [], runs: 0 };
 
   // Only runners actually standing on a base can score or be put out. A name
   // that is not out there earns nothing: the screen can offer a stale list, and
@@ -123,9 +130,14 @@ export function advance(
 
   // A home run clears the bases: everyone aboard scores along with the batter.
   if (destination === "home") {
-    // Everyone aboard scores. The batter is counted by the caller, which
-    // records them separately - see the note on the return type.
-    return { bases: EMPTY_BASES, runs: runnerCount(bases) };
+    // Everyone still aboard scores. A runner named out does not: a man can be
+    // called out on a home run for passing another runner or missing a base,
+    // and counting him anyway gave him a run and an out on the same swing.
+    const retired = new Set(outRunners);
+    const home = runnersOn(bases)
+      .map((runner) => runner.playerId)
+      .filter((playerId) => !retired.has(playerId));
+    return { bases: EMPTY_BASES, scorers: home, runs: home.length };
   }
 
   const next: Bases = { ...remaining };
@@ -142,7 +154,9 @@ export function advance(
     ? RESULT_BY_CODE.get(result as ResultCode)?.bases ?? 0
     : 0;
 
-  let carriedHome = 0;
+  // Runners the play carried home without the umpire naming them. They are
+  // scorers like any other and are returned as such.
+  const carried: number[] = [];
   if (step > 0) {
     const order: BaseName[] = ["first", "second", "third"];
     // Lead runner first, so nobody is put on a bag the runner ahead has yet to
@@ -153,7 +167,7 @@ export function advance(
       if (runner === null) continue;
       next[from] = null;
       const target = index + step;
-      if (target >= order.length) carriedHome += 1;
+      if (target >= order.length) carried.push(runner);
       else next[order[target]] = runner;
     }
   }
@@ -174,13 +188,17 @@ export function advance(
       }
       // A runner pushed past third scores; the caller normally states this, but
       // a forced run is not optional.
-      if (carrying !== null) carriedHome += 1;
+      if (carrying !== null) carried.push(carrying);
     }
 
     next[destination] = batterPlayerId;
   }
 
-  return { bases: next, runs: realScorers.length + carriedHome };
+  // The ticked runners first, in the order the umpire gave them, then anyone
+  // the play carried home. A ticked runner was removed from the bases before
+  // the advance above, so he cannot appear in both.
+  const scorers = [...realScorers, ...carried];
+  return { bases: next, scorers, runs: scorers.length };
 }
 
 /** Serialised for storage - the column holds JSON so the shape can grow. */

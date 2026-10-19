@@ -222,7 +222,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       errorPlayerId: body.errorPlayerId ?? null,
       stolenBases: body.stolenBases,
       basesAfter: encodeBases(after.bases),
-      runnersScored: encodeRunners(scored),
+      // Everyone who reached home, not only those the umpire ticked. A hit
+      // carries runners with it, and the ones it carried used to give their
+      // side a run that appeared on no player's line.
+      runnersScored: encodeRunners(after.scorers),
       note: body.note?.trim() || null,
     })
       // The row is read back so the outs recorded on this play can point at

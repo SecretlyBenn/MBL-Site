@@ -201,6 +201,19 @@ export function validatePlateAppearance(
   if (input.result === "OTHER" && !input.note?.trim()) {
     return "Describe what happened when using Other.";
   }
+  // Every out has to belong to somebody. The screen warns when the count and
+  // the names disagree but does not stop the umpire, and this did not check
+  // at all - so a play could add an out to the inning that no fielder was
+  // credited with and no runner left the bases for. It matters more now that
+  // the outs are asked for on every result rather than only on the ones that
+  // are an out by nature: a double with a runner thrown out at home is one
+  // out, and a double with the count left at one by accident is a phantom.
+  const named = (input.batterOut ? 1 : 0) + (input.outRunners?.length ?? 0);
+  if (input.outsRecorded !== named) {
+    return named < input.outsRecorded
+      ? `${input.outsRecorded} out${input.outsRecorded === 1 ? "" : "s"} on the play but ${named} named. Say who was put out.`
+      : `${named} named as out but the play records ${input.outsRecorded}. Change the number of outs.`;
+  }
   return null;
 }
 

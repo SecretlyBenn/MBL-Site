@@ -107,10 +107,21 @@ export async function PATCH(
     const scoredHere = decodeRunners(body.runnersScored ?? existing.runnersScored).filter((id) =>
       aboard.has(id),
     );
+    // The runners this play retired, read before it is replayed. Without
+    // them the replay walks a man who was thrown out back round the bases,
+    // and now that the scorers are taken from the replay it would credit him
+    // with the run as well.
+    const retired = await db
+      .select({ runnerPlayerId: runnerOuts.runnerPlayerId })
+      .from(runnerOuts)
+      .where(eq(runnerOuts.plateAppearanceId, existing.id));
+    const outHere = retired.map((row) => row.runnerPlayerId).filter((id) => aboard.has(id));
+
     const corrected = advance(standing, {
       batterPlayerId: body.batterPlayerId ?? existing.batterPlayerId,
       result,
       scored: scoredHere,
+      outRunners: outHere,
       // See the note in the POST route: scoring the batter takes him off the
       // bases rather than leaving him on one to be scored again.
       batterTo: (body.batterScored ?? existing.batterScored) ? "home" : undefined,
@@ -137,7 +148,7 @@ export async function PATCH(
         // play, so a corrected result moves the runners with it.
         basesAfter: encodeBases(corrected.bases),
         otherRunsScored: corrected.runs,
-        runnersScored: encodeRunners(scoredHere),
+        runnersScored: encodeRunners(corrected.scorers),
       })
       .where(eq(plateAppearances.id, existing.id));
 
