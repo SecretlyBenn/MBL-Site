@@ -122,6 +122,49 @@ const NAMES = {
 };
 const UNROSTERED = ["Iko", "Elite080812", "Tino", "Miniboi"];
 
+/**
+ * Where a card's summary is wrong and its own cells say what is right.
+ *
+ * The cells are written a batter at a time while the game is going on; the
+ * totals underneath are counted up afterwards, and that is the half that slips.
+ * So the cells win. Where the side used one pitcher the correction needs no
+ * table - the team's total is his, and the code below just takes it. These are
+ * the ones where two pitchers shared the innings, or where nobody ticked who
+ * crossed the plate, and the cells still settle it between them.
+ *
+ * Each is worked out by reading the inning down the card in batting order,
+ * which these cards hold exactly: every inning's batters are a run of
+ * consecutive rows, wrapping at the ninth.
+ */
+const CORRECTIONS = {
+  "g4.csv": {
+    // Fifth inning: Dream singled, DezJoe singled, ImYourBizz walked to load
+    // them, two were out, and Fallman10 singled both home - his "1B+2RBI".
+    // Nobody was ticked "+R", so the two runs belonged to no one.
+    runs: [["Dreamslayer3485", 5], ["DezJoe", 5]],
+    // SleepyHallow2nd came in for Narwhal with two out in the fifth and struck
+    // him out. One batter faced, which is the 0.1 innings his own line says,
+    // so the two hits and the walk beside it are not his: the walk is
+    // ImYourBizz's, earlier in the same inning, off the starter.
+    pitching: {
+      SleepyHallow2nd: { hitsAllowed: 0, walksAllowed: 0 },
+      LowTierNormy: { walksAllowed: 1 },
+    },
+  },
+  "g6.csv": {
+    // Every Beaver strikeout is in the first four innings and Sleepy did not
+    // come in until the seventh, so the one the Spiders' line is short is
+    // VertigoIsSad's.
+    pitching: { VertigoIsSad: { strikeoutsPitched: 5 } },
+  },
+  "g7.csv": {
+    // Fourth inning: CreteMA07 doubled, AustinMat235611 singled and took
+    // second on the throw, two were out, and CPA's home run scored all three -
+    // his "HR+3RBI". Only CPA himself was ticked.
+    runs: [["CreteMA07", 4], ["AustinMat235611", 4]],
+  },
+};
+
 const notes = [];
 const problems = [];
 const note = (line) => notes.push(line);
@@ -394,14 +437,43 @@ for (const fixture of reading ? FIXTURES : []) {
   const umpire = (rows[0][3] ?? "").trim();
   const cardNotes = [...away.cellNotes, ...home.cellNotes];
 
-  // The score is the runs the other side's pitchers gave up. The "+R" marks on
-  // the batting rows come to the same figure when every scorer was ticked, but
-  // umpires tick inconsistently and a pitching line is one number per pitcher,
-  // so the pitching lines decide it - cross-checked below against the marks and
-  // against whatever the umpire wrote in the spare innings.
+  const correction = CORRECTIONS[where] ?? {};
+  for (const [name, inning] of correction.runs ?? []) {
+    const batter = [...away.batters, ...home.batters].find((row) => row.name === name);
+    if (!batter) throw new Error(`${where}: corrected a run for ${name}, who is not on the card`);
+    batter.runs += 1;
+    batter.runsByInning.set(inning, (batter.runsByInning.get(inning) ?? 0) + 1);
+  }
+  for (const [name, fields] of Object.entries(correction.pitching ?? {})) {
+    const pitcher = [...away.pitchers, ...home.pitchers].find((row) => row.name === name);
+    if (!pitcher) throw new Error(`${where}: corrected ${name}'s pitching, who did not pitch`);
+    Object.assign(pitcher, fields);
+  }
+
+  // The score is the runs the other side's pitchers gave up. It is the only
+  // figure here the cells do not carry on their own: how many of a side's runs
+  // were earned is the umpire's judgement, written once per pitcher, and the
+  // "+R" ticks are whoever he remembered to mark.
   const runsOff = (side) => sum(side.pitchers, "earnedRuns") + sum(side.pitchers, "unearnedRuns");
   const awayScore = runsOff(home);
   const homeScore = runsOff(away);
+
+  // Hits, walks and strikeouts are counted off the cells instead, because the
+  // cells are written a batter at a time and the totals underneath are added
+  // up at the end. A side that used one pitcher needs no deciding - the team's
+  // figure is his - and where two shared the innings, CORRECTIONS says which
+  // of them the difference belongs to.
+  for (const [side, other] of [[away, home], [home, away]]) {
+    if (other.pitchers.length !== 1) continue;
+    const [pitcher] = other.pitchers;
+    for (const [from, to] of [["hits", "hitsAllowed"], ["walks", "walksAllowed"], ["strikeouts", "strikeoutsPitched"]]) {
+      const counted = sum(side.batters, from);
+      if (pitcher[to] !== counted) {
+        note(`${where}: ${pitcher.name}'s ${to} read from the cells as ${counted}, not the ${pitcher[to]} written under his line.`);
+        pitcher[to] = counted;
+      }
+    }
+  }
 
   for (const [side, other, scored] of [[away, home, awayScore], [home, away, homeScore]]) {
     const marked = sum(side.batters, "runs");
