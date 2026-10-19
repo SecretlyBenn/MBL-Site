@@ -67,7 +67,15 @@ CLOUDFLARE_ACCOUNT_ID=b690333da05f8e1aea40b7e68f6ff519 npx --no-install wrangler
 
 Use `--file drizzle/00NN_name.sql` for anything longer. `--file` prints only a
 summary, so read results with `--command`. Occasional `Authentication error
-[code: 10000]` responses are transient - retry.
+[code: 10000]` and `fetch failed` responses are transient - retry.
+
+**Write every migration so running it twice is the same as running it once**,
+because that retry is not always a retry. A `fetch failed` can be a lost
+*response* to a write that went through, and there is no way to tell from the
+error. `0097` set a pitcher's season wins with `wins = wins + 1`, failed that
+way, and the second run left him with two wins in a season he pitched one. Set
+values rather than adding to them, delete before you insert, and the retry is
+free.
 
 Locally the same database is a SQLite file under
 `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite` (the largest one).

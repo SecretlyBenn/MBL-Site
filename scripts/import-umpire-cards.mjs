@@ -112,15 +112,18 @@ const NAMES = {
   tsslinky7: "TSlinky7",
   austinmat: "AustinMat235611",
   austinmat235611: "AustinMat235611",
+  // The league says Miniboi is CardsFan1982, who has four seasons under that
+  // name. There is a Minecraft account called Miniboi and it is a stranger's,
+  // the same trap as `vyv`, so nothing is linked to it - see drizzle/0096.
+  miniboi: "CardsFan1982",
   // On no roster the site holds. The two Elite spellings are one man and
   // neither resolves on Mojang, so the two cards that agree decide it.
   iko: "Iko",
   elite080812: "Elite080812",
   elite082012: "Elite080812",
   tino: "Tino",
-  miniboi: "Miniboi",
 };
-const UNROSTERED = ["Iko", "Elite080812", "Tino", "Miniboi"];
+const UNROSTERED = ["Iko", "Elite080812", "Tino"];
 
 /**
  * Where a card's summary is wrong and its own cells say what is right.
@@ -142,6 +145,10 @@ const CORRECTIONS = {
     // them, two were out, and Fallman10 singled both home - his "1B+2RBI".
     // Nobody was ticked "+R", so the two runs belonged to no one.
     runs: [["Dreamslayer3485", 5], ["DezJoe", 5]],
+    // Nobody signed the card for the win. The Spiders led from the first
+    // inning and LowTierNormy went 4.2 of the five, so it is his; the league
+    // confirmed it rather than leaving the game without a winning pitcher.
+    winner: "LowTierNormy",
     // SleepyHallow2nd came in for Narwhal with two out in the fifth and struck
     // him out. One batter faced, which is the 0.1 innings his own line says,
     // so the two hits and the walk beside it are not his: the walk is
@@ -524,8 +531,8 @@ for (const fixture of reading ? FIXTURES : []) {
   const only = (side) => (side.pitchers.length === 1 ? side.pitchers[0].name : null);
   const wonBy = awayScore > homeScore ? away : home;
   const lostBy = awayScore > homeScore ? home : away;
-  const winner = decision("WP") ?? only(wonBy);
-  const loser = decision("LP") ?? only(lostBy);
+  const winner = decision("WP") ?? only(wonBy) ?? correction.winner ?? null;
+  const loser = decision("LP") ?? only(lostBy) ?? correction.loser ?? null;
   if (!winner) problem(`${where}: no winning pitcher named, and the ${wonBy.club} used ${wonBy.pitchers.length} pitchers, so the win is unassigned.`);
   if (!loser) problem(`${where}: no losing pitcher named, and the ${lostBy.club} used ${lostBy.pitchers.length} pitchers, so the loss is unassigned.`);
   if (winner && !wonBy.pitchers.some((p) => p.name === winner)) {
