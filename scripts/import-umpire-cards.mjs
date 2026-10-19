@@ -112,18 +112,20 @@ const NAMES = {
   tsslinky7: "TSlinky7",
   austinmat: "AustinMat235611",
   austinmat235611: "AustinMat235611",
-  // The league says Miniboi is CardsFan1982, who has four seasons under that
-  // name. There is a Minecraft account called Miniboi and it is a stranger's,
-  // the same trap as `vyv`, so nothing is linked to it - see drizzle/0096.
+  // Four the cards left on no roster, and the league has since named. Nothing
+  // here could have been looked up: `Miniboi` and `Tino` are both real
+  // Minecraft accounts belonging to strangers, the same trap as `vyv`, so
+  // nothing is linked to either - see drizzle/0096 and 0098.
   miniboi: "CardsFan1982",
-  // On no roster the site holds. The two Elite spellings are one man and
-  // neither resolves on Mojang, so the two cards that agree decide it.
-  iko: "Iko",
-  elite080812: "Elite080812",
-  elite082012: "Elite080812",
-  tino: "Tino",
+  iko: "whitewonders_",
+  tino: "Romans_8_14",
+  // One man, and 0 and 2 transposed on one of the three cards. Elite082012 is
+  // the spelling that is his.
+  elite080812: "Elite082012",
+  elite082012: "Elite082012",
 };
-const UNROSTERED = ["Iko", "Elite080812", "Tino"];
+/** Still on no roster the site holds. */
+const UNROSTERED = [];
 
 /**
  * Where a card's summary is wrong and its own cells say what is right.
