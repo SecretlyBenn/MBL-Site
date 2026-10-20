@@ -258,6 +258,17 @@ export const leagues = sqliteTable("leagues", {
    * innings_per_game above: it is a rule the league can change about itself.
    */
   benchLimit: integer("bench_limit"),
+  /**
+   * Whether this competition borrows its players rather than owning them.
+   *
+   * The off-season tournament does. Its clubs are picked from everybody on
+   * the site, and a player who turns out for one keeps the club they belong
+   * to in the MBL or the MCBA - he holds a `roster_spots` row for the
+   * tournament club instead of being moved onto it. So the tournament can be
+   * run and then deleted without having touched a single roster, and its
+   * statistics stay its own because they hang off its own seasons.
+   */
+  isTournament: integer("is_tournament", { mode: "boolean" }).notNull().default(false),
 });
 
 export const historicalSeasons = sqliteTable("historical_seasons", {

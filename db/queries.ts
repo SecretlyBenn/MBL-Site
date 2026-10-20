@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, like, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNotNull, like, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { getDb } from "./index";
 import { playedOnValue } from "@/app/formatStats";
@@ -1072,10 +1072,18 @@ export async function getHistoricalLeaders(
  * A club's active squad: the players who belong to it, plus anyone holding an
  * extra spot there.
  *
- * The extra spots are the MiBL. A player sent down keeps the club they belong
- * to and gains a spot on the affiliate, because the site cannot tell from one
- * day to the next whether they are down or have been recalled - so they are
- * available to both rather than moved between them.
+ * The extra spots are the MiBL and the off-season tournament. A player sent
+ * down keeps the club they belong to and gains a spot on the affiliate,
+ * because the site cannot tell from one day to the next whether they are down
+ * or have been recalled - so they are available to both rather than moved
+ * between them. A tournament club is built the same way, out of players who
+ * belong to clubs in other competitions.
+ *
+ * Which is why the two halves are filtered differently. Belonging to a club
+ * only puts you on its roster while you are active on it; holding a spot *is*
+ * the statement that you turn out for that club, whatever your own club has
+ * you down as. A released player is nobody's, so the spot stops counting -
+ * otherwise a tournament roster would keep a man the league had let go.
  */
 export async function getTeamRoster(teamId: number) {
   const db = getDb();
@@ -1083,15 +1091,15 @@ export async function getTeamRoster(teamId: number) {
     .select()
     .from(players)
     .where(
-      and(
-        or(
-          eq(players.teamId, teamId),
+      or(
+        and(eq(players.teamId, teamId), eq(players.status, "ACTIVE")),
+        and(
           inArray(
             players.id,
             db.select({ id: rosterSpots.playerId }).from(rosterSpots).where(eq(rosterSpots.teamId, teamId)),
           ),
+          ne(players.status, "RELEASED"),
         ),
-        eq(players.status, "ACTIVE"),
       ),
     );
 }

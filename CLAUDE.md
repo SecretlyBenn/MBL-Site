@@ -11,11 +11,23 @@ a Minecraft baseball league. Read this before changing anything.
 - The league is real and the data is live. Seasons IV-XII are published history
   that people read; there is no staging copy of it.
 
-**The site holds two competitions**, not one: the MBL and the Minecraft
+**The site holds three competitions**, not one: the MBL, the Minecraft
 Collegiate Baseball Association, whose fourteen seasons were imported from
-MyStatsOnline. The MiBL's clubs sit under the MCBA, which is where their games
-are played. Every public page lives under `app/[league]/` and takes its league
-from the address - `/mbl/standings`, `/mcba/standings`.
+MyStatsOnline, and the off-season tournament. The MiBL's clubs sit under the
+MCBA, which is where their games are played. Every public page lives under
+`app/[league]/` and takes its league from the address - `/mbl/standings`,
+`/mcba/standings`, `/off-season/standings`. **A new competition is a row in
+`leagues`, not code**: the tabs, the pages, club creation, scheduling and the
+statistics all read that table.
+
+**The off-season tournament borrows its players** (`leagues.is_tournament`).
+Its clubs are picked from everybody on the site rather than from one
+competition's free agents, and a player who turns out for one keeps the club
+he belongs to - he holds a `roster_spots` row instead of being moved, the same
+mechanism the MiBL uses. So a tournament can be run over the winter with MBL
+and MCBA players in it and the clubs deleted afterwards without a single
+roster having changed. `tournamentMove` in `/api/roster-moves` is the whole of
+it, and it must never write to `players`.
 
 Which league a row belongs to is recorded in exactly two places:
 
@@ -146,6 +158,19 @@ Rules learned the hard way:
   assuming a rename is safe. Before merging at all, check the two names never
   appear in the same game - that proves they are two people, and it caught two
   wrong merges in 0053.
+- **The player pool is everybody who has played, not everybody on a roster.**
+  `players` used to hold only the current rosters, so the MBL had seven free
+  agents and the MCBA none while 584 and 843 men respectively had played here;
+  anyone who sat a season out had no row at all and could not be signed.
+  `drizzle/0099` filled it from the archive - a man with a game in the MBL is
+  an MBL free agent, and one with a game in the MCBA and none in the MBL is an
+  MCBA free agent, which is why the two inserts in that file run in that
+  order. The pool is now about 1,200 names, so **anything that lists it must
+  search and cap rather than render it** - `/gm` does both, because printing
+  twelve hundred rows costs more than a page's whole CPU budget. The archive
+  files one man under whatever name each competition used for him, so someone
+  who played as `Purpeyy` and `_purp__` has a row in each; merging those is
+  still the hand-written job it has always been.
 - Never invent data. Fabricated playoff dates, guessed forfeits and a partial
   score import have each had to be undone by hand afterwards.
 
