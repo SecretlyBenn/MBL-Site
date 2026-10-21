@@ -22,6 +22,7 @@ import { currentSeasonName } from "@/db/settings";
 import { deriveBoxScore, type BattingLine, type PitchingLine } from "@/app/derive-box-score";
 import { fieldingHistory } from "@/app/fielding-history";
 import { earnedRunAverage, perGame } from "@/app/scoring";
+import { easternDateString } from "@/app/eastern";
 
 /**
  * Publishing an approved scorecard writes it into the historical tables the
@@ -177,7 +178,7 @@ export async function publishScorecard(scorecardId: number) {
     .values({
       seasonId: existingGame?.seasonId ?? seasonId,
       sourceGameId,
-      playedOn: existingGame?.playedOn ?? new Date(game.scheduledAt).toDateString(),
+      playedOn: existingGame?.playedOn ?? easternDateString(game.scheduledAt),
       awayTeamId,
       homeTeamId,
       awayScore: box.awayScore,

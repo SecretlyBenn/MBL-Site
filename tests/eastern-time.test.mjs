@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   EASTERN_LABEL,
+  easternDateString,
   easternInputToIso,
   inEastern,
   instantFrom,
@@ -86,4 +87,36 @@ test("a date with no time on it carries no timezone label", () => {
   // There is no hour for a timezone to be about, and "September 13, 2026 ET"
   // reads like a mistake.
   assert.doesNotMatch(inEastern("2026-09-13T22:30:00.000Z", "dateOnly"), /ET/);
+});
+
+/**
+ * The day a game is filed under.
+ *
+ * This one is only wrong in production. `toDateString()` reads the clock of
+ * the machine it runs on; a developer's machine is on Eastern and gives the
+ * right answer, and the Worker is on UTC and gives the wrong one. An MBL game
+ * at half past ten at night is half past two the next morning in UTC, so
+ * World Series Game 4 went into the archive dated the day after it was played
+ * and nothing on this side of the deploy could have noticed.
+ */
+
+test("a late game keeps the day it was played on, not UTC's", () => {
+  // 10:30pm in Philadelphia on the Saturday. In UTC it is already Sunday.
+  assert.equal(easternDateString("2026-10-11T02:30:00.000Z"), "Sat Oct 10 2026");
+  // Early enough that the two agree, which is the case that hid this.
+  assert.equal(easternDateString("2026-10-10T18:00:00.000Z"), "Sat Oct 10 2026");
+});
+
+test("the day is written the way the archive already holds it", () => {
+  // `toDateString()` pads the day to two digits and the archive is full of
+  // dates it wrote, so this has to as well or they sort and read differently.
+  assert.equal(easternDateString("2026-10-05T18:00:00.000Z"), "Mon Oct 05 2026");
+  assert.equal(easternDateString(""), "");
+  assert.equal(easternDateString(null), "");
+});
+
+test("a bare wall-clock time is the league's own, here too", () => {
+  // The archive's older rows carry no timezone. Read as UTC they would move
+  // back four hours and, for an evening game, into the day before.
+  assert.equal(easternDateString("2026-09-13T22:30"), "Sun Sep 13 2026");
 });

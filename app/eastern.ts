@@ -99,6 +99,35 @@ export function instantFrom(stored: string): Date | null {
   return easternWallClockToInstant(year, month, day, hour, minute);
 }
 
+/**
+ * The day a game was played, in Eastern, shaped like `Date.toDateString()`.
+ *
+ * `new Date(x).toDateString()` asks the machine it runs on what day it is, and
+ * the machine a Worker runs on is on UTC. MBL games start in the evening, so
+ * half past ten in Philadelphia is half past two the next morning in UTC, and
+ * World Series Game 4 went into the archive dated the day after it was played.
+ * Nothing catches this on a developer's machine, which is on Eastern already
+ * and gives the right answer for the wrong reason.
+ *
+ * The shape is kept exactly - "Sat Oct 10 2026", day zero-padded - because the
+ * archive already holds games dated by the old call and by the import, and
+ * `playedOnValue` reads them all.
+ */
+export function easternDateString(stored: string | null | undefined): string {
+  if (!stored) return "";
+  const instant = instantFrom(stored);
+  if (!instant) return stored;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: EASTERN,
+    weekday: "short",
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  }).formatToParts(instant);
+  const part = (type: string) => parts.find((piece) => piece.type === type)?.value ?? "";
+  return `${part("weekday")} ${part("month")} ${part("day")} ${part("year")}`;
+}
+
 type Style = "full" | "short" | "dateOnly";
 
 const STYLES: Record<Style, Intl.DateTimeFormatOptions> = {
