@@ -3,7 +3,13 @@
 import { createContext, useContext } from "react";
 import { usePathname } from "next/navigation";
 
-export type LeagueChoice = { slug: string; name: string; abbreviation: string };
+export type LeagueChoice = {
+  slug: string;
+  name: string;
+  abbreviation: string;
+  /** A borrowed-players competition, which wears the league's mark rather than one of its own. */
+  isTournament: boolean;
+};
 
 /**
  * The leagues the site holds, read once in the root layout and shared with

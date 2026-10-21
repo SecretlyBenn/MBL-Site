@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MobileMenu } from "./MobileMenu";
+import { SITE } from "./site";
 import { useCurrentLeague, useLeagues } from "./Leagues";
 
 /**
@@ -112,20 +113,24 @@ export function LeagueSwitch() {
 /**
  * The wordmark, which names the league being read rather than the site.
  *
- * Both leagues still share the one mark: the MCBA has no logo on the site yet,
- * and a missing image would be worse than a shared one.
+ * A competition that borrows its players is not one of those: the off-season
+ * tournament is an MBL event, so it wears the MBL's mark instead of being
+ * announced as "OFF", which is not a thing anybody calls anything. The name
+ * underneath still says which competition is open, so nothing is lost by it.
+ * The MCBA does have a mark of its own and keeps it.
  */
 export function LeagueBrand() {
   const league = useCurrentLeague();
+  const own = league && !league.isTournament ? league : null;
   return (
     <Link href={`/${league?.slug ?? ""}`} className="mr-2 flex shrink-0 items-center gap-2.5 lg:mr-6">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/${league?.slug ?? "mbl"}-logo.png`} alt="" width={36} height={36} className="h-9 w-auto" />
+      <img src={`/${own?.slug ?? "mbl"}-logo.png`} alt="" width={36} height={36} className="h-9 w-auto" />
       <span className="flex flex-col leading-none">
-        <span className="text-lg font-black tracking-tight">{league?.abbreviation ?? "MBL"}</span>
+        <span className="text-lg font-black tracking-tight">{own?.abbreviation ?? SITE.shortName}</span>
         {/* Dropped on phones, where it would push the menu button off the bar. */}
         <span className="hidden text-[9px] font-bold uppercase tracking-[0.08em] text-slate-600 sm:block">
-          {league?.name ?? "Minecraft Baseball League"}
+          {league?.name ?? SITE.name}
         </span>
       </span>
     </Link>

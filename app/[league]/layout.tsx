@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getLeagueBySlug } from "@/db/queries";
+import { SITE } from "../site";
 import { leagueFrom } from "./league";
 
 /**
@@ -16,8 +17,11 @@ export async function generateMetadata({
   // a 500 instead. The layout below does it, where it works.
   const league = await getLeagueBySlug((await params).league.toLowerCase());
   if (!league) return {};
+  // A tournament has no abbreviation worth putting in a browser tab - "OFF"
+  // names nothing - so it is titled as what it is, an MBL competition.
+  const mark = league.isTournament ? SITE.shortName : league.abbreviation;
   return {
-    title: { default: `${league.abbreviation} | ${league.name}`, template: `%s | ${league.abbreviation}` },
+    title: { default: `${mark} | ${league.name}`, template: `%s | ${mark}` },
   };
 }
 

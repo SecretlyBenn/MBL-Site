@@ -36,6 +36,7 @@ export function SiteFooter() {
   // Written without a leading slash, a link belongs to the league being read;
   // the policies and the contact page are the same whichever one that is.
   const league = useCurrentLeague();
+  const own = league && !league.isTournament ? league : null;
   const within = (href: string) => (href.startsWith("/") ? href : `/${league?.slug ?? "mbl"}/${href}`);
   return (
     <footer className="mt-12 border-t border-slate-800/80 bg-slate-950 text-slate-400">
@@ -43,8 +44,10 @@ export function SiteFooter() {
         <div>
           <Link href="/" className="inline-flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/${league?.slug ?? "mbl"}-logo.png`} alt="" width={32} height={32} className="h-8 w-auto" />
-            <span className="text-base font-black tracking-tight text-slate-100">{league?.abbreviation ?? SITE.shortName}</span>
+            {/* A tournament wears the league's mark rather than one of its
+                own - see LeagueBrand, which this matches. */}
+            <img src={`/${own?.slug ?? "mbl"}-logo.png`} alt="" width={32} height={32} className="h-8 w-auto" />
+            <span className="text-base font-black tracking-tight text-slate-100">{own?.abbreviation ?? SITE.shortName}</span>
           </Link>
           <p className="mt-3 max-w-xs text-sm">{SITE.description}</p>
           <a
