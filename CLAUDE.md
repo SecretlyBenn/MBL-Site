@@ -401,6 +401,18 @@ Rules that are easy to break:
   already has one. Point it at a new set of cards and update `NAMES` and
   `FIXTURES`; an unknown name stops the run on purpose. The gap it papers over
   is that there is no way to enter a finished game through the site.
+- **The MBL is scored on sheets too now**, not only the MCBA: Game 5 of the
+  Season XII World Series came in as a Google Sheet and went in by hand as
+  `drizzle/0101`. Its template is not the MCBA's - the lineup, the pitching
+  line, the bench and the position changes are separate blocks, and the
+  changes carry the half-inning and the out count they happened on, which is
+  what makes a pitcher's innings and every fielder's time on the field
+  derivable. Read a card this way before trusting any of it: every figure
+  appears twice, in the cells and in a totals row, and the two agreeing is the
+  only check there is. The season lines were written as the old line plus the
+  game, with every rate derived exactly as `recomputeSeason` derives it, so a
+  recompute afterwards is a no-op - worth keeping to, because the alternative
+  leaves the archive disagreeing with itself until somebody clicks Recompute.
 - minecraftbaseball.com is not pointed at this site yet. The contact address is
   now in `app/site.ts`. The domain, the Workers Paid plan and the Discord OAuth
   redirect URLs are all waiting on the owner for launch day.
