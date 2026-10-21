@@ -232,8 +232,13 @@ function settle(
  */
 export async function GET(request: Request) {
   try {
+    // Told apart on purpose: "not set here" and "does not match" are
+    // different jobs to go and do, and the bot prints whichever it gets.
     const expected = (env as unknown as { BOT_SECRET?: string }).BOT_SECRET;
-    if (!expected || !sameSecret(request.headers.get("x-bot-secret") ?? "", expected)) {
+    if (!expected) {
+      return Response.json({ error: "BOT_SECRET is not set on this Worker." }, { status: 503 });
+    }
+    if (!sameSecret(request.headers.get("x-bot-secret") ?? "", expected)) {
       return Response.json({ error: "Not authorised." }, { status: 401 });
     }
 
