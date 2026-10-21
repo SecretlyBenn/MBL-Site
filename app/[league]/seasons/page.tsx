@@ -1,8 +1,22 @@
-import type { Metadata } from "next";
 import Link from "next/link";
-import { getHistoricalSeasons, getSeasonSummaries } from "@/db/queries";
-import { EmptyState, PageShell } from "@/app/SiteNav";
+import { BackButton } from "@/app/BackButton";
+import { RosterStatsTable } from "./RosterStatsTable";
+import { RosterSections } from "./RosterSections";
+import styles from "./rosters.module.css";
+import type { Metadata } from "next";
+import {
+  getHistoricalSchedule,
+  getHistoricalSeasonStandings,
+  getHistoricalSeasons,
+  getHistoricalTeamRoster,
+  getAvatarsFor,
+} from "@/db/queries";
+import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
+
 import { TeamLogo } from "@/app/TeamLogo";
+
+
+import { RosterSelect } from "./RosterSelect";
 import { leagueFrom } from "../league";
 
 export async function generateMetadata({
@@ -14,86 +28,171 @@ export async function generateMetadata({
   return {
     title: "Seasons",
     description:
-      "Every Minecraft Baseball League season since Season IV, with standings, playoffs and statistics for each.",
+      "Every Minecraft Baseball League season: each club's roster, the statistics its players put up and the games it played.",
     alternates: { canonical: `/${league}/seasons` },
   };
 }
 
 export const dynamic = "force-dynamic";
 
-/**
- * The way into league history.
- *
- * This was a list of names, which said nothing about a season and gave no
- * reason to open one. Each season now shows how big it was, who won the most
- * games in it, and leads straight to its standings, statistics or rosters -
- * so the page answers "which season do I want" rather than just listing them.
- */
-export default async function SeasonsPage({ params }: { params: Promise<{ league: string }> }) {
+export default async function SeasonsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ league: string }>;
+  searchParams: Promise<{ season?: string; team?: string }>;
+}) {
   const league = await leagueFrom(params);
+  const { season: seasonParam, team: teamParam } = await searchParams;
   const seasons = await getHistoricalSeasons(league.id);
-  const summaries = await getSeasonSummaries();
-  const summaryFor = new Map(summaries.map((row) => [row.seasonId, row]));
+  if (seasons.length === 0) {
+    return (
+      <PageShell title="Seasons">
+        <div className="mb-4"><BackButton /></div>
+        <EmptyState>No seasons have been recorded yet.</EmptyState>
+      </PageShell>
+    );
+  }
+
+  const season = seasons.find((row) => String(row.id) === seasonParam) ?? seasons[0];
+  const teams = await getHistoricalSeasonStandings(season.id);
+  const team = teams.find((row) => String(row.id) === teamParam) ?? teams[0];
+  const [roster, schedule] = team
+    ? await Promise.all([
+        getHistoricalTeamRoster(team.id),
+        getHistoricalSchedule(season.id, team.id),
+      ])
+    : [[], []];
+  // Only the heads this page draws: reading every profile in the league to
+  // show one roster cost 603 rows a page view.
+  const avatars = await getAvatarsFor(roster.map((row) => row.playerName));
+
+  const wins = team?.wins ?? 0;
+  const losses = team?.losses ?? 0;
+  // A listed roster member may not have appeared in a game. Keep those
+  // players in the main roster table and show a complete zero stat line.
+  const batters = roster;
+  const pitchers = roster.filter((row) => (row.inningsPitched ?? 0) > 0);
 
   return (
-    <PageShell title="Seasons" subtitle="Every season in league history.">
-      {seasons.length === 0 ? (
-        <EmptyState>No seasons have been recorded yet.</EmptyState>
+    <PageShell wide title="Seasons" subtitle={season.name}>
+      <div className={styles.page}>
+      <div className={styles.toolbar}>
+      <BackButton />
+      <div className={styles.filters}>
+        <RosterSelect
+          label="Season"
+          param="season"
+          options={seasons.map((row) => ({ id: row.id, name: row.name }))}
+          selected={String(season.id)}
+          resetParam="team"
+        />
+        {teams.length > 0 && team && (
+          <RosterSelect
+            label="Team"
+            param="team"
+            options={teams.map((row) => ({ id: row.id, name: row.name }))}
+            selected={String(team.id)}
+          />
+        )}
+      </div>
+      </div>
+
+      {!team ? (
+        <EmptyState>No teams recorded for this season.</EmptyState>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {seasons.map((season) => {
-            const summary = summaryFor.get(season.id);
-            // "MBL Season XII Playoffs" reads as "XII" once the page has said
-            // these are all MBL seasons, and the playoffs get their own chip.
-            const numeral = season.name.replace(/^MBL Season\s*/i, "").replace(/\s*Playoffs$/i, "");
-            return (
-              <li key={season.id}>
-                <Link
-                  href={`/${league.slug}/seasons/${season.id}`}
-                  className="group relative flex h-full flex-col overflow-hidden rounded-xl border border-slate-800/80 bg-slate-900/40 p-4 transition-colors hover:border-sky-500/50 hover:bg-slate-800/50"
-                >
-                  {/* The club that won the most games, as a faint backdrop. */}
-                  {summary?.leaderName && (
-                    <TeamLogo
-                      teamName={summary.leaderName}
-                      className="pointer-events-none absolute -right-4 -top-4 h-28 w-28 opacity-[0.07] transition-opacity group-hover:opacity-[0.13]"
-                    />
-                  )}
+        <>
+          <div className={styles.hero}>
+            <TeamLogo teamName={team.name} className="pointer-events-none absolute -right-8 -top-10 h-64 w-64 opacity-[0.05]" />
+            <div className={styles.identity}>
+              <div className={styles.crest}><TeamLogo teamName={team.name} className="h-full w-full" /></div>
+              <div className="min-w-0">
+                <p className={styles.eyebrow}>{season.name}{team.league ? ` · ${team.league === "AMERICAN" ? "American" : "National"} League` : ""}</p>
+                <h2 className={styles.name}>{team.name}</h2>
+              </div>
+            </div>
+            <dl className={styles.metrics}>
+              {[
+                { label: "Record", value: `${wins}–${losses}${team.ties ? `–${team.ties}` : ""}` },
+                { label: "Win percentage", value: wins + losses ? (wins / (wins + losses)).toFixed(3).replace(/^0/, "") : "—" },
+                { label: "Runs scored", value: team.runsScored ?? "—" },
+                { label: "Runs allowed", value: team.runsAllowed ?? "—" },
+                { label: "Players", value: roster.length },
+              ].map((figure) => <div key={figure.label}><dt>{figure.label}</dt><dd>{figure.value}</dd></div>)}
+            </dl>
+          </div>
 
-                  <div className="relative flex items-baseline gap-2">
-                    <span className="text-2xl font-black tracking-tight text-slate-100">{numeral}</span>
-                    {season.isPlayoffs && (
-                      <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                        Playoffs
+          <RosterSections key={`${season.id}-${team.id}`} counts={[batters.length, pitchers.length, schedule.length]}>
+          <section className="mb-5">
+            <SectionHeader title="Batting" meta={batters.length + " players"} />
+            {batters.length === 0 ? <EmptyState>No batting stats recorded.</EmptyState> : <RosterStatsTable leagueSlug={league.slug}
+rows={batters} kind="batting" avatars={avatars} />}
+          </section>
+          <section className="mb-5">
+            <SectionHeader title="Pitching" meta={pitchers.length + " players"} />
+            {pitchers.length === 0 ? <EmptyState>No pitching stats recorded.</EmptyState> : <RosterStatsTable leagueSlug={league.slug}
+rows={pitchers} kind="pitching" avatars={avatars} />}
+          </section>
+
+          <section>
+            <SectionHeader title="Schedule & scores" meta={`${schedule.length} games`} />
+            {schedule.length === 0 ? (
+              <EmptyState>No games recorded for this team.</EmptyState>
+            ) : (
+              <ul className="grid gap-1.5 lg:grid-cols-2">
+                {schedule.map((game) => {
+                  const isHome = game.homeTeamId === team.id;
+                  const us = isHome ? game.homeScore : game.awayScore;
+                  const them = isHome ? game.awayScore : game.homeScore;
+                  const opponent = isHome ? game.awayName : game.homeName;
+                  const played = us !== null && them !== null;
+                  const won = played && (us as number) > (them as number);
+                  const tied = played && us === them;
+
+                  return (
+                    <li
+                      key={game.id}
+                      className="overflow-hidden rounded-lg border border-slate-800/80 bg-slate-900/40 text-sm transition-colors hover:border-slate-600"
+                    >
+                      <Link href={`/${league.slug}/games/${game.id}`} className={styles.gameLink} aria-label={`${isHome ? "Home" : "Away"} against ${opponent ?? "Unknown"}${played ? `, ${us}–${them}` : ""}; game details`}>
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        {/* A result is a win or a loss before it is anything
+                            else, so it gets the badge and the colour. */}
+                        <span
+                          className={`w-5 shrink-0 rounded text-center text-xs font-black ${
+                            !played
+                              ? "text-slate-700"
+                              : tied
+                                ? "bg-slate-700/60 text-slate-300"
+                                : won
+                                  ? "bg-emerald-500/15 text-emerald-400"
+                                  : "bg-rose-500/15 text-rose-400"
+                          }`}
+                        >
+                          {played ? (tied ? "T" : won ? "W" : "L") : "·"}
+                        </span>
+                        <span className="w-5 shrink-0 text-xs text-slate-500">{isHome ? "vs" : "@"}</span>
+                        {opponent && <TeamLogo teamName={opponent} className="h-5 w-5 shrink-0" />}
+                        <span className="truncate">{opponent ?? "Unknown"}</span>
                       </span>
-                    )}
-                  </div>
-
-                  <p className="relative mt-0.5 text-xs text-slate-500">
-                    {summary
-                      ? `${summary.teams} clubs · ${summary.played} of ${summary.games} games played`
-                      : "No games recorded"}
-                  </p>
-
-                  {summary?.leaderName && (
-                    <p className="relative mt-3 flex items-center gap-2 text-sm text-slate-300">
-                      <TeamLogo teamName={summary.leaderName} className="h-5 w-5 shrink-0" />
-                      <span className="min-w-0 truncate">{summary.leaderName}</span>
-                      <span className="ml-auto shrink-0 tabular-nums text-slate-500">
-                        {summary.leaderWins}-{summary.leaderLosses}
+                      <span className="flex shrink-0 items-center gap-3">
+                        {game.note && <span className="text-xs text-slate-500">{game.note}</span>}
+                        <span className="tabular-nums">{played ? `${us}-${them}` : "—"}</span>
+                        <span className="text-right text-xs text-slate-400">
+                          {game.playedOn?.replace(/^\w+day\s+/, "") ?? ""}
+                        </span>
                       </span>
-                    </p>
-                  )}
-
-                  <span className="relative mt-3 text-xs font-semibold text-sky-400 group-hover:text-sky-300">
-                    Open season →
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+          </RosterSections>
+        </>
       )}
+      </div>
     </PageShell>
   );
 }

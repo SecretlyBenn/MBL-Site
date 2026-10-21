@@ -305,7 +305,7 @@ name={row.playerName} className="truncate" />
             {seasons.slice(0, 10).map((season) => (
               <Link
                 key={season.id}
-                href={`/${league.slug}/seasons/${season.id}`}
+                href={`/${league.slug}/seasons?season=${season.id}`}
                 className="rounded-md border border-slate-800/80 bg-slate-900/40 px-3 py-1.5 text-sm text-slate-300 transition-colors hover:border-sky-500/40 hover:bg-slate-900 hover:text-white"
               >
                 {season.name}

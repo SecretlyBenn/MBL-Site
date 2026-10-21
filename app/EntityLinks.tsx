@@ -42,7 +42,7 @@ export function HistoricalTeamLink({
 }) {
   return (
     <Link
-      href={`/${leagueSlug}/rosters?season=${seasonId}&team=${teamId}`}
+      href={`/${leagueSlug}/seasons?season=${seasonId}&team=${teamId}`}
       className={`hover:text-white hover:underline ${className}`}
     >
       {name}

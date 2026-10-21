@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { benchLimitForScorecard, inningsPerGameForScorecard } from "@/db/queries";
+import { benchLimitForScorecard, getTeamRoster, inningsPerGameForScorecard } from "@/db/queries";
 import {
   fieldingChanges,
   games,
@@ -61,11 +61,42 @@ export default async function ScorecardPage({
   const away = teamById.get(game.awayTeamId);
   const home = teamById.get(game.homeTeamId);
 
-  const roster = await db.select().from(players);
   const lineups = await db
     .select()
     .from(scorecardLineups)
     .where(eq(scorecardLineups.scorecardId, scorecardId));
+
+  // Only the two clubs playing, through the same roster rule the rest of the
+  // site uses: active on the club, or holding a spot on it, which is how a
+  // player sent down turns out for the affiliate without leaving his own club.
+  // This used to read the whole `players` table and filter in memory - fine at
+  // four hundred rows, but the pool became every man who has ever played here
+  // and that is about twelve hundred, on a page already over its CPU budget.
+  const [awayRoster, homeRoster] = await Promise.all([
+    away ? getTeamRoster(away.id) : Promise.resolve([]),
+    home ? getTeamRoster(home.id) : Promise.resolve([]),
+  ]);
+
+  // Names for anybody already written on the card. A player released or moved
+  // since the game started is in neither roster above, and the board would
+  // print "Unknown" where his name belongs. Every player a game can refer to -
+  // batters, runners, fielders, substitutes - has a lineup row, so this covers
+  // them. Scoped to the ids on the card, which keeps it under D1's cap of a
+  // hundred bound parameters.
+  const onCard = [...new Set(lineups.map((row) => row.playerId))];
+  const alsoNamed = onCard.length
+    ? await db
+        .select({ id: players.id, displayName: players.displayName })
+        .from(players)
+        .where(inArray(players.id, onCard))
+    : [];
+  const nameById = new Map<number, string>(
+    [...alsoNamed, ...awayRoster, ...homeRoster].map((player) => [player.id, player.displayName]),
+  );
+
+  /** The squad a side may pick from, however the player comes to be on it. */
+  const rosterOf = (teamId: number | undefined) =>
+    teamId === away?.id ? awayRoster : teamId === home?.id ? homeRoster : [];
   // How many a side names on the bench here, and who they named. Null is a
   // competition that does not declare one - the MCBA - where a substitution
   // may still bring in anybody on the roster.
@@ -107,8 +138,7 @@ export default async function ScorecardPage({
     .orderBy(asc(plateAppearances.sequence));
 
   const rosterFor = (teamId: number | undefined) =>
-    roster
-      .filter((player) => player.teamId === teamId)
+    rosterOf(teamId)
       .map((player) => ({ id: player.id, name: player.displayName }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -140,10 +170,9 @@ export default async function ScorecardPage({
     const declared = new Set(
       named.filter((row) => row.isHome === isHome).map((row) => row.playerId),
     );
-    return roster
+    return rosterOf(teamId)
       .filter(
         (player) =>
-          player.teamId === teamId &&
           !inLineup.has(player.id) &&
           !replaced.has(player.id) &&
           (benchLimit === null || declared.has(player.id)),
@@ -202,9 +231,9 @@ export default async function ScorecardPage({
               position: row.position,
               pitchingOrder: row.pitchingOrder,
               leftAtSequence: row.leftAtSequence,
-              name: roster.find((player) => player.id === row.playerId)?.displayName ?? "Unknown",
+              name: nameById.get(row.playerId) ?? "Unknown",
             }))}
-            nameOf={Object.fromEntries(roster.map((player) => [player.id, player.displayName]))}
+            nameOf={Object.fromEntries(nameById)}
             bench={{ away: benchFor(game.awayTeamId, false), home: benchFor(game.homeTeamId, true) }}
             fieldingChanges={moves.map((move) => ({
               id: move.id,

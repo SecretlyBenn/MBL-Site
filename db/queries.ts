@@ -1104,6 +1104,49 @@ export async function getTeamRoster(teamId: number) {
     );
 }
 
+/**
+ * Every club's roster in one competition, by the same rule as
+ * `getTeamRoster` - active on the club, or holding a spot on it.
+ *
+ * Two queries for the whole league rather than one per club. A competition
+ * has ten of them, and ten round trips is most of a page's budget spent
+ * asking the same question ten ways. The two halves are separate because
+ * they answer different questions, and a player can be in both: his own club
+ * by belonging to it, the affiliate by holding a spot.
+ */
+export async function getLeagueRosters(leagueId: number) {
+  const db = getDb();
+  const [clubs, own, lent] = await Promise.all([
+    db
+      .select({ id: teams.id, name: teams.name })
+      .from(teams)
+      .where(eq(teams.leagueId, leagueId))
+      .orderBy(asc(teams.name)),
+    db
+      .select({
+        teamId: teams.id,
+        id: players.id,
+        displayName: players.displayName,
+        status: players.status,
+      })
+      .from(players)
+      .innerJoin(teams, eq(teams.id, players.teamId))
+      .where(and(eq(teams.leagueId, leagueId), eq(players.status, "ACTIVE"))),
+    db
+      .select({
+        teamId: teams.id,
+        id: players.id,
+        displayName: players.displayName,
+        status: players.status,
+      })
+      .from(rosterSpots)
+      .innerJoin(teams, eq(teams.id, rosterSpots.teamId))
+      .innerJoin(players, eq(players.id, rosterSpots.playerId))
+      .where(and(eq(teams.leagueId, leagueId), ne(players.status, "RELEASED"))),
+  ]);
+  return { clubs, roster: [...own, ...lent] };
+}
+
 /** Names per profile lookup, under D1's cap of 100 bound parameters. */
 const PROFILE_BATCH = 90;
 

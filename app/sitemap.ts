@@ -65,7 +65,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     }
     for (const season of seasons) {
       const slug = slugOf.get(season.leagueId ?? -1) ?? fallback;
-      pages.push({ url: `${SITE.url}/${slug}/seasons/${season.id}`, changeFrequency: "weekly", priority: 0.5 });
+      // A season is a query on the Seasons page now, not a page of its own:
+      // what used to be there was the standings and the statistics over
+      // again, each of which has its own page and does it better.
+      pages.push({ url: `${SITE.url}/${slug}/seasons?season=${season.id}`, changeFrequency: "weekly", priority: 0.5 });
     }
     for (const player of players) {
       const slug = slugOf.get(player.leagueId ?? -1) ?? fallback;

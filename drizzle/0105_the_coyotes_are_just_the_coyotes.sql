@@ -1,0 +1,23 @@
+-- The live MiBL club drops the suffix and is named like any other club.
+--
+-- It was "Coyotes (MIBL)" so a reader could tell it apart from the MCBA's
+-- own sides. `teams.division` already says MIBL for it, and the standings
+-- group by division, so the suffix was saying a second time what the table
+-- it appears in already says.
+--
+-- It also had a cost. The roster bot calls the club "Coyotes", and the site
+-- matches the bot's clubs on the last word of the name - which for this one
+-- was "(MIBL)". So a player sent down could not be matched to a club here at
+-- all, and the push would have been refused. Dropping the suffix is what
+-- makes the affiliate work rather than a tidy-up.
+--
+-- The archive keeps its own names. Six MiBL clubs are filed there as
+-- "X (MIBL)", and for the Fleeces and the Sandals - who played inside the
+-- MCBA's ordinary divisions rather than an MIBL one - that suffix is the
+-- only thing recording they were MiBL sides at all. Stripping it there would
+-- lose something; stripping it here loses nothing.
+--
+-- `teams.name` is unique across the whole table and no club is called
+-- Coyotes, so this is a plain rename.
+
+UPDATE teams SET name = 'Coyotes' WHERE name = 'Coyotes (MIBL)';
