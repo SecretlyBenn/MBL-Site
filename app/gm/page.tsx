@@ -5,7 +5,7 @@ import { leagues, players, rosterSpots, teams } from "@/db/schema";
 import { hasRole, requireRole } from "@/app/roles";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { TeamLogo } from "@/app/TeamLogo";
-import { AddPlayerButton, RosterActionButton } from "./RosterActions";
+import { RosterActionButton } from "./RosterActions";
 import { TeamPicker } from "./TeamPicker";
 
 export const metadata: Metadata = {
@@ -83,6 +83,13 @@ export default async function GmPage({
     : null;
   const canSendDown = league?.hasMinorLeague ?? false;
   const isTournament = league?.isTournament ?? false;
+  // The MBL and the MCBA do their rosters in Discord, and the bot pushes them
+  // here. Editing one on this page would last until the next push and then
+  // vanish with no sign it had ever happened, so the page shows them and
+  // offers nothing. The off-season tournament has no presence in the bot at
+  // all and is run entirely from here, which is why it is the exception
+  // rather than a special case.
+  const fromDiscord = !isTournament;
 
   // The squad is the players who belong to the club plus anyone holding an
   // extra spot there - the MiBL's sent-down players, and the whole of a
@@ -115,40 +122,37 @@ export default async function GmPage({
     .filter((player) => player.teamId === teamId && player.status === "TRIPLE_A")
     .sort(byName);
 
-  // The pool this club may pick from.
-  //
-  // An ordinary club sees its own competition's free agents: a free agent
-  // belongs to a competition even with no club, so one league's GM is never
-  // offered the other league's players. A tournament club sees everybody who
-  // is not already spoken for in that tournament, which is the point of it.
+  // The pool a tournament club may pick from: everybody not already spoken
+  // for in that tournament, which is the point of it. Only a tournament has
+  // one now - the MBL and the MCBA sign in Discord - so this is not fetched
+  // at all for them, which is a page's worth of CPU not spent on a list that
+  // would only be shown to be refused.
   //
   // Searched and capped rather than listed. Every man who has ever played a
-  // game here is in the pool now, which is about twelve hundred names, and
+  // game here is in the pool, which is about twelve hundred names, and
   // rendering them all would spend more than this page's whole CPU budget
   // printing a list nobody can find a name in anyway.
-  const pool = await db
-    .select()
-    .from(players)
-    .where(
-      and(
-        isTournament
-          ? and(
-              ne(players.status, "RELEASED"),
-              notInArray(
-                players.id,
-                db
-                  .select({ id: rosterSpots.playerId })
-                  .from(rosterSpots)
-                  .innerJoin(teams, eq(teams.id, rosterSpots.teamId))
-                  .where(eq(teams.leagueId, team?.leagueId ?? -1)),
-              ),
-            )
-          : and(eq(players.status, "FREE_AGENT"), eq(players.leagueId, team?.leagueId ?? -1)),
-        find ? like(players.displayName, `%${find}%`) : undefined,
-      ),
-    )
-    .orderBy(asc(players.displayName))
-    .limit(POOL_LIMIT + 1);
+  const pool = fromDiscord
+    ? []
+    : await db
+        .select()
+        .from(players)
+        .where(
+          and(
+            ne(players.status, "RELEASED"),
+            notInArray(
+              players.id,
+              db
+                .select({ id: rosterSpots.playerId })
+                .from(rosterSpots)
+                .innerJoin(teams, eq(teams.id, rosterSpots.teamId))
+                .where(eq(teams.leagueId, team?.leagueId ?? -1)),
+            ),
+            find ? like(players.displayName, `%${find}%`) : undefined,
+          ),
+        )
+        .orderBy(asc(players.displayName))
+        .limit(POOL_LIMIT + 1);
   const shown = pool.slice(0, POOL_LIMIT);
   const more = pool.length > POOL_LIMIT;
 
@@ -174,23 +178,25 @@ export default async function GmPage({
           <section>
             <SectionHeader title="Active roster" meta={`${active.length} players`} />
             <PlayerList players={active} empty="No active players.">
-              {(player) => (
-                <>
-                  {canSendDown && (
-                    <RosterActionButton playerId={player.id} moveType="SEND_DOWN" label="Send to AAA" />
-                  )}
-                  {/* The club is sent with a release too, because a tournament
-                      club is never the one the player belongs to - without it
-                      the API could not tell whose roster he is leaving. */}
-                  <RosterActionButton
-                    playerId={player.id}
-                    moveType="RELEASE"
-                    teamId={teamId}
-                    label={isTournament ? "Drop" : "Release"}
-                    className="ui-button-danger"
-                  />
-                </>
-              )}
+              {(player) =>
+                fromDiscord ? null : (
+                  <>
+                    {canSendDown && (
+                      <RosterActionButton playerId={player.id} moveType="SEND_DOWN" label="Send to AAA" />
+                    )}
+                    {/* The club is sent with a release too, because a tournament
+                        club is never the one the player belongs to - without it
+                        the API could not tell whose roster he is leaving. */}
+                    <RosterActionButton
+                      playerId={player.id}
+                      moveType="RELEASE"
+                      teamId={teamId}
+                      label="Drop"
+                      className="ui-button-danger"
+                    />
+                  </>
+                )
+              }
             </PlayerList>
           </section>
 
@@ -198,35 +204,33 @@ export default async function GmPage({
           <section>
             <SectionHeader title="Triple-A" meta={`${tripleA.length} players`} />
             <PlayerList players={tripleA} empty="No players on the farm team.">
-              {(player) => (
-                <>
-                  <RosterActionButton playerId={player.id} moveType="RECALL" label="Recall" />
-                  <RosterActionButton playerId={player.id} moveType="RELEASE" label="Release" className="ui-button-danger" />
-                </>
-              )}
+              {(player) =>
+                fromDiscord ? null : (
+                  <>
+                    <RosterActionButton playerId={player.id} moveType="RECALL" label="Recall" />
+                    <RosterActionButton playerId={player.id} moveType="RELEASE" label="Release" className="ui-button-danger" />
+                  </>
+                )
+              }
             </PlayerList>
           </section>
           )}
         </div>
 
+        {fromDiscord ? (
+          <section>
+            <SectionHeader title="Signing and releasing" meta="in Discord" />
+            <EmptyState>
+              {league?.name ?? "This competition"} does its rosters in the Discord
+              bot, which sends every move here. Sign and release with the bot&apos;s
+              commands and this page will follow; a change made here would be
+              overwritten the next time it pushes.
+            </EmptyState>
+          </section>
+        ) : (
         <section>
-          {/* A tournament is played by men who have played here already, so
-              there is nobody to add who is not in the pool below. */}
-          {!isTournament && (
-            <>
-              <SectionHeader title="Add a player" meta="new to the league" />
-              <div className="mb-6">
-                <p className="mb-2 text-xs text-slate-400">
-                  For someone who has never played here, so is in no pool to sign from.
-                  They join {team?.name} straight away.
-                </p>
-                <AddPlayerButton teamName={team?.name ?? "your club"} />
-              </div>
-            </>
-          )}
-
           <SectionHeader
-            title={isTournament ? "Player pool" : "Free agents"}
+            title="Player pool"
             meta={more ? `first ${POOL_LIMIT} of more` : `${shown.length} available`}
           />
           {/* An ordinary GET form. The pool is twelve hundred names long and
@@ -248,12 +252,7 @@ export default async function GmPage({
             empty={find ? `Nobody in the pool is called that.` : "Nobody in the pool."}
           >
             {(player) => (
-              <RosterActionButton
-                playerId={player.id}
-                moveType="SIGN"
-                teamId={teamId}
-                label={isTournament ? "Add" : "Sign"}
-              />
+              <RosterActionButton playerId={player.id} moveType="SIGN" teamId={teamId} label="Add" />
             )}
           </PlayerList>
           {more && (
@@ -262,6 +261,7 @@ export default async function GmPage({
             </p>
           )}
         </section>
+        )}
       </div>
     </PageShell>
   );

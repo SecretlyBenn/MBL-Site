@@ -17,5 +17,7 @@ declare namespace Cloudflare {
     AUTH_SECRET?: string;
     DISCORD_CLIENT_ID?: string;
     DISCORD_CLIENT_SECRET?: string;
+    /** Shared with the roster bot, which pushes MBL and MCBA moves here. */
+    BOT_SECRET?: string;
   }
 }

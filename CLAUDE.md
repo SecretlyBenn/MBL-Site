@@ -29,6 +29,26 @@ and MCBA players in it and the clubs deleted afterwards without a single
 roster having changed. `tournamentMove` in `/api/roster-moves` is the whole of
 it, and it must never write to `players`.
 
+**The MBL and the MCBA do their rosters in Discord, not here.** They always
+have: a GM asks, an admin runs `/sign`, and the roster bot's DynamoDB is what
+the league believes. This site kept its own copy by hand and it drifted. The
+bot now pushes every move to `/api/bot/roster-move`, which is authenticated by
+a shared `BOT_SECRET` and resolves the club and the player itself because the
+bot does not know this site's ids. `/gm` shows those two competitions'
+rosters and offers nothing: an edit made there would last until the next push
+and then vanish with nothing recording it had happened. The off-season
+tournament is the exception in the other direction - it has no presence in the
+bot at all and is run entirely from here, which is why `fromDiscord` on that
+page is simply `!isTournament`.
+
+The two systems are joined on the **IGN**, the only thing they share - the
+site has no Discord id for a player, and the bot has no site id. That join
+holds only because both sides follow a rename on their own: this site through
+`adoptCurrentName`, the bot through a listener on Discord nickname changes.
+A push that is lost is invisible on both sides, so `/sitecheck` in the bot
+asks the whole question again and reports the differences rather than
+repairing them, because which side is right is a question for a person.
+
 Which league a row belongs to is recorded in exactly two places:
 
 - **`historical_seasons.league_id`** for the archive. Everything archived hangs

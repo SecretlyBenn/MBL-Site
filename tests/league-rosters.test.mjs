@@ -43,9 +43,19 @@ test("a club cannot sign another competition's free agent", () => {
     moves.includes("player.leagueId !== null && player.leagueId !== landingTeam.leagueId"),
     "the signing check no longer compares the player's league with the club's",
   );
+  // The GM page used to show a league's free agents and scope the list to
+  // that competition. It shows no free agents at all now: the MBL and the
+  // MCBA sign in Discord, and the only pool left on this page belongs to the
+  // off-season tournament, which is meant to draw from both. So the rule is
+  // kept by there being nothing here to sign, which is stronger than a
+  // scoped list, and the route above is still what enforces it.
   assert.ok(
-    gmPage.includes("eq(players.leagueId,"),
-    "the free-agent list is not scoped to the club's competition",
+    gmPage.includes("const fromDiscord = !isTournament"),
+    "the GM page is offering roster edits for a competition the bot owns again",
+  );
+  assert.ok(
+    gmPage.includes("const pool = fromDiscord"),
+    "the GM page is listing a pool for a competition that signs in Discord",
   );
 });
 
