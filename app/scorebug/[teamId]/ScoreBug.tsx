@@ -86,7 +86,6 @@ export function ScoreBug({
         <div className="bg-[#2b2320]/95 px-3 py-1.5 text-[15px] leading-tight">
           <Line
             left={pitcher?.name ?? "-"}
-            note={pitcher?.season?.era != null ? `${pitcher.season.era.toFixed(2)}` : null}
             right={pitcher ? `${innings(pitcher.line.outs)} IP` : ""}
           />
           <Line
@@ -94,11 +93,6 @@ export function ScoreBug({
               batter
                 ? `${batter.slot !== null ? `${batter.slot}. ` : ""}${batter.name}`
                 : "-"
-            }
-            note={
-              batter?.season?.average != null
-                ? batter.season.average.toFixed(3).replace(/^0/, "")
-                : null
             }
             right={batter ? `${batter.line.hits} FOR ${batter.line.atBats}` : ""}
           />
@@ -149,16 +143,11 @@ function innings(outs: number) {
   return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
 
-/**
- * A name on the left and his figure on the right, with his season number
- * between them in small type - the bug the league asked to copy has no room
- * for a season line, but a viewer who has just tuned in wants it.
- */
-function Line({ left, note, right }: { left: string; note: string | null; right: string }) {
+/** A name on the left and his figure for the day on the right, and nothing else. */
+function Line({ left, right }: { left: string; right: string }) {
   return (
     <div className="flex items-baseline gap-2">
       <span className="truncate font-semibold">{left}</span>
-      {note && <span className="shrink-0 text-[11px] tabular-nums text-white/45">{note}</span>}
       <span className="ml-auto shrink-0 font-bold tabular-nums">{right}</span>
     </div>
   );

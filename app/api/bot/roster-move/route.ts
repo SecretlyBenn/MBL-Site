@@ -128,12 +128,25 @@ export async function POST(request: Request) {
     // Both sides now follow a player's renames on their own - the bot through
     // its nickname listener, this site through `adoptCurrentName` - which is
     // what keeps a join on the name from coming apart.
-    const named = await db
-      .select()
-      .from(players)
-      .where(
-        sql`lower(${players.minecraftUsername}) = ${ign.toLowerCase()} OR lower(${players.displayName}) = ${ign.toLowerCase()}`,
-      );
+    // The exact spelling first, because `minecraft_username` is unique and so
+    // this is one row off an index. Folding both columns with `lower()` means
+    // neither index can be used and the whole player pool is walked instead -
+    // 1,171 rows every push, which came to 283,382 rows read in a single
+    // /sitecheck run. The bot sends the spelling this site already holds
+    // almost every time, so almost every push now settles here.
+    let named = await db.select().from(players).where(eq(players.minecraftUsername, ign));
+
+    // Only when that finds nobody: the same question asked case-insensitively,
+    // which is what keeps a name the two systems capitalise differently from
+    // reading as a man this site has never seen.
+    if (named.length === 0) {
+      named = await db
+        .select()
+        .from(players)
+        .where(
+          sql`lower(${players.minecraftUsername}) = ${ign.toLowerCase()} OR lower(${players.displayName}) = ${ign.toLowerCase()}`,
+        );
+    }
 
     // One name can exist twice over, once per competition, because the
     // archive filed a man under whatever each league called him. Take the one
