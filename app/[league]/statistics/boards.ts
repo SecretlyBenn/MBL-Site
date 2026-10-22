@@ -45,6 +45,13 @@ export const BATTING: Board[] = [
   { key: "walks", label: "Walks", unit: "BB" },
   { key: "stolenBases", label: "Stolen bases", unit: "SB" },
   { key: "plateAppearances", label: "Plate appearances", unit: "PA" },
+  // The ones nobody wants to lead. They are still records - somebody did
+  // strike out more times in a season than anyone else ever has - and a
+  // leaderboard that only shows the flattering half of the box score is
+  // telling half the story. Most first, like every other board, because the
+  // fewest of a bad thing is a list of men who barely played.
+  { key: "strikeouts", label: "Strikeouts", unit: "SO" },
+  { key: "leftOnBase", label: "Left on base", unit: "LOB" },
 ];
 
 export const PITCHING: Board[] = [
@@ -66,11 +73,23 @@ export const PITCHING: Board[] = [
   { key: "shutouts", label: "Shutouts", unit: "SHO" },
   { key: "pitchingGames", label: "Games pitched", unit: "G" },
   { key: "gamesStarted", label: "Games started", unit: "GS" },
+  { key: "hitsAllowed", label: "Hits allowed", unit: "H" },
+  { key: "runsAllowed", label: "Runs allowed", unit: "R" },
+  { key: "earnedRuns", label: "Earned runs", unit: "ER" },
+  { key: "homeRunsAllowed", label: "Home runs allowed", unit: "HR" },
+  { key: "walksAllowed", label: "Walks allowed", unit: "BB" },
+  { key: "losses", label: "Losses", unit: "L" },
 ];
 
+/**
+ * No fielding percentage. With no assists scored, a chance is a putout or an
+ * error, and in one season almost everybody handles every chance - so the
+ * board was thirty men tied on 1.000 and told you nothing about any of them.
+ * The errors behind it are the part worth reading.
+ */
 export const FIELDING: Board[] = [
   { key: "putouts", label: "Putouts", unit: "PO" },
-  { key: "fieldingPct", label: "Fielding percentage", unit: "FPCT", rate: true, qualified: true },
+  { key: "errors", label: "Errors", unit: "E" },
 ];
 
 /**

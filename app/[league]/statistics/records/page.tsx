@@ -123,7 +123,7 @@ export default async function RecordsPage({ params }: { params: Promise<{ league
     },
     {
       title: "Fielding records",
-      meta: "The league scores no assists, so chances are putouts plus errors",
+      meta: "No assists are scored in this league, so these two are the whole of a fielder's record",
       boards: group(FIELDING, fielders, fielders),
     },
   ];
