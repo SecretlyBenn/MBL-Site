@@ -86,13 +86,7 @@ export function RosterBoard({
         empty="Nobody is on this roster."
       />
       {injured.length > 0 && (
-        <Squad
-          title="Injured list"
-          players={injured}
-          leagueSlug={leagueSlug}
-          avatars={avatars}
-          note="On the club, but cannot be named in a lineup."
-        />
+        <Squad title="Injured list" players={injured} leagueSlug={leagueSlug} avatars={avatars} />
       )}
       {sentDown.length > 0 && (
         <Squad
@@ -101,7 +95,6 @@ export function RosterBoard({
           leagueSlug={leagueSlug}
           avatars={avatars}
           sentTo={sentTo}
-          note="Sent down. They play for their MiBL club and cannot be named in this one's lineup."
         />
       )}
     </div>
@@ -114,7 +107,6 @@ function Squad({
   leagueSlug,
   avatars,
   sentTo,
-  note,
   empty,
 }: {
   title: string;
@@ -122,7 +114,6 @@ function Squad({
   leagueSlug: string;
   avatars: Record<string, string>;
   sentTo?: Record<number, string>;
-  note?: string;
   empty?: string;
 }) {
   return (
@@ -131,7 +122,6 @@ function Squad({
         <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300">{title}</h3>
         <span className="text-xs text-slate-500">{players.length}</span>
       </div>
-      {note && <p className="-mt-2 mb-3 text-xs text-slate-500">{note}</p>}
       {players.length === 0 ? (
         <p className="py-2 text-sm text-slate-500">{empty}</p>
       ) : (
