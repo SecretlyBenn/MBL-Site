@@ -105,7 +105,8 @@ test("single-season records leave the playoffs out", () => {
   // By the flag, never by the name: "MBL Season XI Playoffs" is a convention
   // somebody can rename, and is_playoffs is the thing that actually says so.
   assert.match(body, /season\.isPlayoffs/);
-  assert.doesNotMatch(body, /Playoffs"/, "must not match on the season's name");
+  assert.match(body, /season\.isPreseason/, "a pre-season is not a season either");
+  assert.doesNotMatch(body, /Playoffs"|Pre-season"/, "must not match on the season's name");
   // Lines are merged per season, so a man traded in June holds one record for
   // that year rather than two half-seasons that both miss it.
   assert.match(body, /mergePlayerLines/);

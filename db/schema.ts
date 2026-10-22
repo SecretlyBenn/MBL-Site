@@ -284,6 +284,9 @@ export const historicalSeasons = sqliteTable("historical_seasons", {
   // Source system's season id, so a re-import can match rows instead of duplicating.
   sourceSeasonId: text("source_season_id").notNull(),
   isPlayoffs: integer("is_playoffs", { mode: "boolean" }).notNull().default(false),
+  // A warm-up, not a season. Kept off the single-season records for the
+  // same reason the playoffs are: too few games to mean anything there.
+  isPreseason: integer("is_preseason", { mode: "boolean" }).notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
 });
 

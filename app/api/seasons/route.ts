@@ -31,6 +31,7 @@ export async function POST(request: Request) {
       name: string;
       leagueId?: number;
       isPlayoffs?: boolean;
+      isPreseason?: boolean;
       includeTeams?: boolean;
     };
 
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
         // every season imported from the old site was named and the archive
         // reads the same way either side of this.
         isPlayoffs: Boolean(payload.isPlayoffs ?? /playoffs?$/i.test(name)),
+        isPreseason: Boolean(payload.isPreseason ?? /pre-?season$/i.test(name)),
         sortOrder: Number(last) + 1,
         // No upstream export behind a season run on this site; the id only has
         // to be unique so a later import could still match rows.

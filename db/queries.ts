@@ -985,13 +985,16 @@ export async function getLeagueSeasonTotals(leagueId: number): Promise<SeasonTot
   // A playoff run is its own season in this archive, and it is a handful of
   // games. Counted here it would set no counting record - there is no time to
   // - but it would crowd the rate boards with short hot streaks, and a .600
-  // over fifteen at bats is not the best season anybody ever had. They are
-  // left out, so a record on this page always means a full season.
-  const playoffs = new Set(seasons.filter((season) => season.isPlayoffs).map((s) => s.id));
+  // over fifteen at bats is not the best season anybody ever had. The MCBA's
+  // pre-seasons are shorter still and go the same way, so a record on this
+  // page always means a season somebody actually played out.
+  const partial = new Set(
+    seasons.filter((season) => season.isPlayoffs || season.isPreseason).map((s) => s.id),
+  );
 
   const bySeason = new Map<number, HistoricalStatViewRow[]>();
   for (const line of lines) {
-    if (playoffs.has(line.seasonId)) continue;
+    if (partial.has(line.seasonId)) continue;
     const group = bySeason.get(line.seasonId);
     if (group) group.push(line);
     else bySeason.set(line.seasonId, [line]);
