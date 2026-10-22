@@ -232,6 +232,31 @@ body {
     text-align: left;
   }
 
+  /* Leaderboards: rank, player, club, figure. Two of those four are labels,
+     and the heading has to sit over the words rather than over the figure
+     column's right edge - a cell whose contents are a flex row reads as left
+     aligned however the cell itself is set, so a right-aligned TEAM floated
+     away from the clubs underneath it.
+
+     The club also wraps here rather than being cut off. These cards are a
+     third of the page wide and "Philadelphia Panthers" does not fit on one
+     line in that, so the row grows to two lines instead of ending in an
+     ellipsis that makes every Philadelphia club look the same. */
+  .data-table.leaderboard th:nth-child(2),
+  .data-table.leaderboard td:nth-child(2),
+  .data-table.leaderboard th:nth-child(3),
+  .data-table.leaderboard td:nth-child(3) {
+    text-align: left;
+  }
+
+  .data-table.leaderboard tbody td {
+    height: auto;
+    min-height: 2.4rem;
+    padding-top: 0.3rem;
+    padding-bottom: 0.3rem;
+    white-space: normal;
+  }
+
   /* Stat tables get the full page width, so their type and rows scale up to
      use it rather than leaving a band of empty cell around every figure. */
   .data-table.stat-table {

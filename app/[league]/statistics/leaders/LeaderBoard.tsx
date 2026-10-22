@@ -39,7 +39,6 @@ export function LeaderBoard({
   seasonId,
   leagueSlug,
   top = 5,
-  columnLabel = "Team",
 }: {
   label: string;
   unit: string;
@@ -48,8 +47,6 @@ export function LeaderBoard({
   leagueSlug: string;
   /** How many are shown before it is opened. */
   top?: number;
-  /** "Team" on a season's leaderboard, "Season" on the records boards. */
-  columnLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const shown = open ? rows : rows.slice(0, top);
@@ -60,18 +57,20 @@ export function LeaderBoard({
       <div className={open ? "max-h-96 overflow-y-auto" : undefined}>
         {/* Ranked, like the standings and the front page, so a rank, a name
             and a figure line up across every card on the site. */}
-        <table className="data-table ranked w-full table-fixed text-sm">
+        <table className="data-table ranked leaderboard w-full table-fixed text-sm">
           <colgroup>
-            <col style={{ width: "2.75rem" }} />
+            <col style={{ width: "2.6rem" }} />
             <col />
-            <col style={{ width: "28%" }} />
-            <col style={{ width: "20%" }} />
+            {/* The club needs the room: it is two words and a crest, where
+                the figure is four characters at most. */}
+            <col style={{ width: "38%" }} />
+            <col style={{ width: "17%" }} />
           </colgroup>
           <thead>
             <tr>
               <th>RNK</th>
               <th>{label}</th>
-              <th>{columnLabel}</th>
+              <th>Team</th>
               <th>{unit}</th>
             </tr>
           </thead>
@@ -93,20 +92,25 @@ export function LeaderBoard({
                     </span>
                   </td>
                   <td>
-                    <span className="flex min-w-0 items-center gap-1.5 text-slate-400">
-                      <TeamLogo teamName={row.teamName} className="h-4 w-4 shrink-0" />
-                      <span className="truncate">
-                        {row.season ? (
-                          row.season
-                        ) : row.teamId === null ? (
-                          row.teamName
-                        ) : (
-                          <HistoricalTeamLink
-                            leagueSlug={leagueSlug}
-                            name={row.teamName}
-                            seasonId={seasonId}
-                            teamId={row.teamId}
-                          />
+                    <span className="flex min-w-0 items-start gap-1.5 text-slate-400">
+                      <TeamLogo teamName={row.teamName} className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span className="min-w-0 leading-tight">
+                        <span className="block">
+                          {row.teamId === null ? (
+                            row.teamName
+                          ) : (
+                            <HistoricalTeamLink
+                              leagueSlug={leagueSlug}
+                              name={row.teamName}
+                              seasonId={seasonId}
+                              teamId={row.teamId}
+                            />
+                          )}
+                        </span>
+                        {/* Records only: which season he did it in, which is
+                            half of what the row is saying. */}
+                        {row.season && (
+                          <span className="block text-[11px] text-slate-500">{row.season}</span>
                         )}
                       </span>
                     </span>

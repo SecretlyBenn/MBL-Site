@@ -37,13 +37,11 @@ const DEEP = 25;
  * total above every real season anybody played.
  */
 /**
- * "MBL Season XI Playoffs" under a column headed SEASON, on the MBL's own
- * page, says both of those words again and then runs out of room for the
- * part that tells them apart. What is left is "XI Playoffs".
+ * "MBL Season V" on the MBL's own page says the league twice, and the season
+ * sits under the club in a narrow cell where the room is wanted elsewhere.
  */
 function shortSeason(name: string, prefix: string) {
-  const withoutLeague = name.startsWith(prefix) ? name.slice(prefix.length) : name;
-  return withoutLeague.startsWith("Season ") ? withoutLeague.slice("Season ".length) : withoutLeague;
+  return name.startsWith(prefix) ? name.slice(prefix.length) : name;
 }
 
 function build(board: Board, rows: SeasonTotalRow[], prefix: string): LeaderRow[] {
@@ -62,7 +60,7 @@ function build(board: Board, rows: SeasonTotalRow[], prefix: string): LeaderRow[
       // A season line already names the club he finished it with.
       teamName: row.teamName.replace(/ \(\+\d+\)$/, ""),
       // The club link wants a season's own standings and these rows span
-      // fifteen of them, so the crest is shown without one.
+      // fifteen of them, so the club is named without one.
       teamId: null,
       value: format(row, board),
       season: shortSeason(row.seasonName, prefix),
@@ -164,7 +162,6 @@ export default async function RecordsPage({ params }: { params: Promise<{ league
                   unit={board.unit}
                   rows={rows}
                   seasonId={0}
-                  columnLabel="Season"
                 />
               ))}
             </div>
