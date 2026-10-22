@@ -173,6 +173,14 @@ export type Scoreboard = {
   /** Runners aboard, nearest home first - the order they would score in. */
   bases: { base: BaseName; playerId: number; name: string }[];
   linescore: Linescore;
+  /**
+   * The count on the batter, typed in by the umpire for the stream scorebug.
+   * The jumbotron ignores these - the plugin has the real count from the
+   * umpire's own /ball and /strike - but a bug in OBS has no plugin behind it
+   * and this is the only count there is.
+   */
+  balls: number;
+  strikes: number;
 };
 
 /** Columns `deriveBoxScore` needs, and nothing else - this runs on a poll. */
@@ -531,6 +539,8 @@ export async function getScoreboard(clubId: number, origin: string): Promise<Sco
       playerId: runner.playerId,
       name: name(runner.playerId),
     })),
+    balls: scorecard.balls,
+    strikes: scorecard.strikes,
     linescore: {
       regulation: inningsPerGame,
       away: state.awayInnings,

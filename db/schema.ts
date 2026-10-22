@@ -190,6 +190,13 @@ export const scorecards = sqliteTable("scorecards", {
   reviewNote: text("review_note"),
   submittedAt: text("submitted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   reviewedAt: text("reviewed_at"),
+  /**
+   * The count on the batter, for the scorebug on a stream and nothing else.
+   * This site does not record pitches, so an umpire types these in; writing a
+   * plate appearance puts them back to nought. No box score reads them.
+   */
+  balls: integer("balls").notNull().default(0),
+  strikes: integer("strikes").notNull().default(0),
 });
 
 export const scorecardLines = sqliteTable("scorecard_lines", {

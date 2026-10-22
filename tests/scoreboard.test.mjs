@@ -216,3 +216,42 @@ test("the board's condensed face is served, not left to next/font", () => {
     "the board no longer asks for the face it is measured against",
   );
 });
+
+/**
+ * The scorebug is the same data wearing a different face, and it breaks the
+ * jumbotron's one hard rule on purpose: it polls. These guard the reason that
+ * is allowed, which is that a bug has one viewer however many people watch the
+ * stream, where a stadium board has one viewer per player in the ground.
+ */
+const bug = readFileSync("app/scorebug/[teamId]/ScoreBug.tsx", "utf8");
+
+test("the scorebug polls, and the jumbotron still does not", () => {
+  assert.match(bug, /setInterval\(/, "a bug that never re-reads shows the first pitch all night");
+  // The board next door keeps its single fetch, behind ?preview=1.
+  assert.equal([...board.matchAll(/fetch\(/g)].length, 1);
+});
+
+test("the scorebug draws nothing when no game is on", () => {
+  // An OBS source that is "off" has to be invisible. An idle card would sit
+  // over somebody's broadcast saying there is no game during the game.
+  assert.match(bug, /if \(!board\) return null;/);
+});
+
+test("the count reaches the bug and nothing else reads it", () => {
+  assert.match(query, /balls: scorecard\.balls/, "the payload must carry the typed-in count");
+  // Nothing may derive from it: it is two numbers for a graphic, and a box
+  // score that started reading them would be recording pitches by the back door.
+  const boxScore = readFileSync("app/derive-box-score.ts", "utf8");
+  assert.doesNotMatch(boxScore, /\bballs\b|\bstrikes\b/);
+});
+
+test("recording an at-bat clears the count", () => {
+  // Otherwise the umpire has to remember, every batter, all game.
+  const atBats = readFileSync("app/api/scorecards/[id]/at-bats/route.ts", "utf8");
+  assert.match(atBats, /set\(\{ balls: 0, strikes: 0 \}\)/);
+});
+
+test("site furniture stays off both kinds of board", () => {
+  const offBoard = readFileSync("app/OffBoard.tsx", "utf8");
+  assert.match(offBoard, /scoreboard\|scorebug/, "a cookie banner over a broadcast");
+});

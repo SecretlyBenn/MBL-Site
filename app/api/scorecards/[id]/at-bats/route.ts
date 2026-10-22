@@ -235,6 +235,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await attachCreated(action.id, { deletePlateAppearanceIds: inserted ? [inserted.id] : [] });
 
+    // The turn at bat is over, so the count on the stream's scorebug goes back
+    // to nought here rather than relying on an umpire to clear it. Nothing in
+    // the game depends on these two, so a failure would not be worth undoing
+    // the at-bat for - but they are written in the same breath as it, which is
+    // the only moment the answer is certainly zero.
+    await db.update(scorecards).set({ balls: 0, strikes: 0 }).where(eq(scorecards.id, scorecardId));
+
     await resequenceInnings(scorecardId);
     const box = await syncScore(scorecardId, scorecard.gameId);
     if (outRunners.length > 0 && inserted) {

@@ -1,0 +1,21 @@
+-- Somewhere to keep the ball-and-strike count.
+--
+-- This site does not record pitches and is not going to start: a plate
+-- appearance is the unit the whole archive is built on, and counting balls
+-- would double an umpire's work for a number nobody looks up afterwards. But
+-- a scorebug on a stream has to show a count, so the umpire types this one
+-- in and it lives only as long as the batter does.
+--
+-- It sits on the scorecard rather than in a table of its own because there is
+-- exactly one count per game in progress, and the scorecard is already the
+-- row that says a game is in progress. It is reset to nought whenever a plate
+-- appearance is written, so the umpire never has to remember to clear it -
+-- the at-bat ending is what clears it.
+--
+-- Not part of the record. Nothing derives from it, no box score reads it, and
+-- a card that was never used for a stream simply carries two noughts.
+--
+-- Re-running errors on the ALTER with "duplicate column name", which is safe:
+-- it means the columns are already there.
+ALTER TABLE scorecards ADD COLUMN balls INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scorecards ADD COLUMN strikes INTEGER NOT NULL DEFAULT 0;

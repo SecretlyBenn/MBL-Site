@@ -125,6 +125,18 @@ export default async function UmpirePage() {
       title="Umpire"
       subtitle={`${leagueUser.displayName} · ${describeRoles(leagueUser.roles)}`}
     >
+      {/* Set up before the first pitch rather than looked for during it, so it
+          sits above the games rather than at the foot of the page. */}
+      <nav className="mb-6">
+        <Link
+          href="/umpire/scoreboards"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-800/80 bg-slate-900/40 px-3 py-2 text-sm text-slate-300 transition-colors hover:border-sky-600/50 hover:text-white"
+        >
+          Scoreboards &amp; scorebugs
+          <span className="text-xs text-slate-500">every club&apos;s screen addresses</span>
+        </Link>
+      </nav>
+
       <section className="mb-8">
         <h2 className="section-title mb-3">Games being scored</h2>
         {open.length === 0 ? (
