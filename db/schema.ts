@@ -7,10 +7,16 @@ import { integer, primaryKey, real, sqliteTable, text } from "drizzle-orm/sqlite
 export const ROLES = ["ADMIN", "HEAD_UMPIRE", "UMPIRE", "GM", "WRITER"] as const;
 export type Role = (typeof ROLES)[number];
 
-export const PLAYER_STATUSES = ["FREE_AGENT", "ACTIVE", "TRIPLE_A", "RELEASED"] as const;
+// INJURED is the league's injured list. It is its own status rather than a
+// flag because it answers the same question the others do - can this man be
+// put in a lineup tonight - and the lineup pool reads one column.
+export const PLAYER_STATUSES = ["FREE_AGENT", "ACTIVE", "TRIPLE_A", "INJURED", "RELEASED"] as const;
 export type PlayerStatus = (typeof PLAYER_STATUSES)[number];
 
-export const ROSTER_MOVE_TYPES = ["SIGN", "RELEASE", "SEND_DOWN", "RECALL"] as const;
+// INJURE and ACTIVATE are the IL's two directions. ACTIVATE lands a player in
+// the same place RECALL does; they are kept apart so the move history says
+// which of the two actually happened, which is the only reason the row exists.
+export const ROSTER_MOVE_TYPES = ["SIGN", "RELEASE", "SEND_DOWN", "RECALL", "INJURE", "ACTIVATE"] as const;
 export type RosterMoveType = (typeof ROSTER_MOVE_TYPES)[number];
 
 export const GAME_STATUSES = ["SCHEDULED", "FINAL", "CANCELLED"] as const;

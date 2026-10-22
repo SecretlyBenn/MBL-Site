@@ -256,6 +256,12 @@ function settle(
       return { teamId: player.teamId, status: "TRIPLE_A" };
     case "RECALL":
       return { teamId: player.teamId, status: "ACTIVE" };
+    // The IL keeps a man on his club; he simply cannot be picked. `/deactivate`
+    // and `/activate` in the bot are the two ends of it.
+    case "INJURE":
+      return { teamId: player.teamId, status: "INJURED" };
+    case "ACTIVATE":
+      return { teamId: player.teamId, status: "ACTIVE" };
   }
 }
 

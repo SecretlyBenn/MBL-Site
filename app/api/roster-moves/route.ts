@@ -250,5 +250,10 @@ function applyMove(
       return { newTeamId: player.teamId, newStatus: "TRIPLE_A" };
     case "RECALL":
       return { newTeamId: player.teamId, newStatus: "ACTIVE" };
+    // The IL keeps a man on his club; he simply cannot be picked.
+    case "INJURE":
+      return { newTeamId: player.teamId, newStatus: "INJURED" };
+    case "ACTIVATE":
+      return { newTeamId: player.teamId, newStatus: "ACTIVE" };
   }
 }

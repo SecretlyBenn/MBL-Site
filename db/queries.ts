@@ -1116,7 +1116,7 @@ export async function getTeamRoster(teamId: number) {
  */
 export async function getLeagueRosters(leagueId: number) {
   const db = getDb();
-  const [clubs, own, lent] = await Promise.all([
+  const [clubs, own, lent, spots] = await Promise.all([
     db
       .select({ id: teams.id, name: teams.name })
       .from(teams)
@@ -1131,7 +1131,16 @@ export async function getLeagueRosters(leagueId: number) {
       })
       .from(players)
       .innerJoin(teams, eq(teams.id, players.teamId))
-      .where(and(eq(teams.leagueId, leagueId), eq(players.status, "ACTIVE"))),
+      // Not only the active men. A club's own injured and sent-down players
+      // are still its players and belong on its page - they are the two
+      // things a GM most wants to see and the two the roster bot knows about
+      // that nothing here used to show.
+      .where(
+        and(
+          eq(teams.leagueId, leagueId),
+          inArray(players.status, ["ACTIVE", "TRIPLE_A", "INJURED"]),
+        ),
+      ),
     db
       .select({
         teamId: teams.id,
@@ -1143,8 +1152,21 @@ export async function getLeagueRosters(leagueId: number) {
       .innerJoin(teams, eq(teams.id, rosterSpots.teamId))
       .innerJoin(players, eq(players.id, rosterSpots.playerId))
       .where(and(eq(teams.leagueId, leagueId), ne(players.status, "RELEASED"))),
+    // Where a sent-down player actually went. Not filtered by league on
+    // purpose: the MiBL's clubs sit under the MCBA, so a Philadelphia man
+    // sent down is holding a spot in the other competition and a league
+    // filter would always miss him. The table holds the MiBL and whatever
+    // tournament is running, so it is small enough to read whole.
+    db
+      .select({ playerId: rosterSpots.playerId, club: teams.name })
+      .from(rosterSpots)
+      .innerJoin(teams, eq(teams.id, rosterSpots.teamId)),
   ]);
-  return { clubs, roster: [...own, ...lent] };
+  return {
+    clubs,
+    roster: [...own, ...lent],
+    sentTo: Object.fromEntries(spots.map((spot) => [spot.playerId, spot.club])),
+  };
 }
 
 /** Names per profile lookup, under D1's cap of 100 bound parameters. */

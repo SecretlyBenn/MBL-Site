@@ -22,13 +22,31 @@ function bodyOf(source, name) {
   return source.slice(start, source.indexOf("\n}", start));
 }
 
-test("both roster queries use the same two branches", () => {
-  for (const name of ["getTeamRoster", "getLeagueRosters"]) {
-    const body = bodyOf(queries, name);
-    assert.match(body, /eq\(players\.status, "ACTIVE"\)/, `${name}: own club must require ACTIVE`);
-    assert.match(body, /rosterSpots/, `${name}: must count players holding a spot`);
-    assert.match(body, /ne\(players\.status, "RELEASED"\)/, `${name}: a released player holds nothing`);
-  }
+test("the lineup pool stays strict where the rosters page does not", () => {
+  // getTeamRoster is what an umpire picks a lineup from, so its own-club
+  // branch must require ACTIVE. That is the whole rule: a man who is injured
+  // or sent down cannot be named, and this is the only place it is enforced.
+  const pool = bodyOf(queries, "getTeamRoster");
+  assert.match(pool, /eq\(players\.status, "ACTIVE"\)/, "the pool must require ACTIVE");
+  assert.match(pool, /rosterSpots/, "a man holding a spot plays for the club lending it");
+  assert.match(pool, /ne\(players\.status, "RELEASED"\)/, "a released player holds nothing");
+
+  // getLeagueRosters draws a page rather than a lineup, so it deliberately
+  // brings the injured and the sent-down back too. They are shown in their
+  // own sections, apart from the men who can be picked - which is the point
+  // of asking for them at all.
+  const page = bodyOf(queries, "getLeagueRosters");
+  assert.match(page, /inArray\(players\.status, \["ACTIVE", "TRIPLE_A", "INJURED"\]\)/);
+  assert.match(page, /rosterSpots/);
+  assert.match(page, /ne\(players\.status, "RELEASED"\)/);
+});
+
+test("the rosters page keeps the three groups apart", () => {
+  const board = readFileSync(new URL("../app/[league]/rosters/RosterBoard.tsx", import.meta.url), "utf8");
+  // The top list is the pickable one and must match the pool's rule exactly.
+  assert.match(board, /filter\(\(player\) => player\.status === "ACTIVE"\)/);
+  assert.match(board, /filter\(\(player\) => player\.status === "INJURED"\)/);
+  assert.match(board, /filter\(\(player\) => player\.status === "TRIPLE_A"\)/);
 });
 
 test("a sent-down player is off his own club and on the affiliate", () => {
