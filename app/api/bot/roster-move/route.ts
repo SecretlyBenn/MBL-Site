@@ -137,10 +137,20 @@ export async function POST(request: Request) {
     // archive filed a man under whatever each league called him. Take the one
     // already at this club, then the one in this competition, then one
     // belonging to no competition yet.
+    //
+    // And failing all three, take him anyway. `players.league_id` is where he
+    // played last, not a wall: the MBL signs out of the MCBA every season, so
+    // insisting on a match meant an MCBA man signed to an MBL club was read
+    // as somebody this site had never seen, and the signing fell through to
+    // the insert below - which `minecraft_username` being unique then
+    // refused. Eight of nine signings were lost that way on the first full
+    // push, in silence, because a failed push only writes to the debug
+    // channel. The update underneath files him in the club's league.
     let player =
       named.find((row) => club && row.teamId === club.id) ??
       named.find((row) => row.leagueId === league.id) ??
       named.find((row) => row.leagueId === null) ??
+      named[0] ??
       null;
 
     if (!player) {

@@ -128,3 +128,16 @@ test("/gm offers no roster edits for a competition the bot owns", () => {
   // The pool is not even fetched for them, because it could not be used.
   assert.match(gmPage, /const pool = fromDiscord\s*\?\s*\[\]/);
 });
+
+test("a name this site already holds is never re-inserted over its league", () => {
+  const lookup = route.slice(route.indexOf("let player ="), route.indexOf("if (!player)"));
+  assert.match(lookup, /named\[0\]/, "a row found by name must be used even when its league disagrees");
+  assert.ok(
+    lookup.indexOf("named[0]") > lookup.indexOf("row.leagueId === null"),
+    "the catch-all comes last, so a club or league match still wins",
+  );
+  // Falling past it reaches the insert, and `minecraft_username` is unique,
+  // so the push dies on the constraint and is only ever seen in the debug
+  // channel. That is how eight of nine signings went missing.
+  assert.ok(route.indexOf("named[0]") < route.indexOf(".insert(players)"));
+});
