@@ -141,3 +141,15 @@ test("a name this site already holds is never re-inserted over its league", () =
   // channel. That is how eight of nine signings went missing.
   assert.ok(route.indexOf("named[0]") < route.indexOf(".insert(players)"));
 });
+
+test("a push under a new name finds the man this site still calls something else", () => {
+  const body = route.slice(route.indexOf("let player ="), route.indexOf(".insert(players)"));
+  assert.match(body, /lookupAccounts/, "the account is the only thing two spellings share");
+  assert.match(body, /adoptCurrentName/, "and the ordinary rename path is what moves him");
+  // Ahead of the action split, not inside the SIGN branch: a release under a
+  // new name has to find him too, or he stays on a roster he has left.
+  assert.ok(
+    route.indexOf("adoptCurrentName") < route.indexOf("there is nothing to"),
+    "the rename lookup must run for every action, not only signings",
+  );
+});

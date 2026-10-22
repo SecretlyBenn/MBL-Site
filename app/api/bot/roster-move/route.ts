@@ -1,7 +1,9 @@
 import { env } from "cloudflare:workers";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
+import { adoptCurrentName } from "@/db/adopt-name";
 import { logAudit } from "@/db/audit";
+import { lookupAccounts } from "@/db/minecraft";
 import { leagues, players, rosterMoves, teams, users, ROSTER_MOVE_TYPES, type RosterMoveType } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
 
@@ -152,6 +154,32 @@ export async function POST(request: Request) {
       named.find((row) => row.leagueId === null) ??
       named[0] ??
       null;
+
+    // Nobody here by that name, which is exactly what a rename looks like
+    // from this side. The bot follows a Discord nickname the same minute it
+    // changes, and a verified player's nickname is his IGN, so the bot has
+    // the new name immediately. This site only hears about it when somebody
+    // happens to load that player's head and the six-hourly skin check
+    // notices. Between the two, every push about him misses: a release gets
+    // a 404 and the man stays on a roster he has left, and a signing opens a
+    // second row beside a career that already exists.
+    //
+    // The account is the one thing the two spellings share, so ask Mojang
+    // who holds the name and let the ordinary rename path move him. It is
+    // the same call the skin refresh makes and it refuses a merge on the
+    // same terms, which is the behaviour wanted here too: a name that
+    // already belongs to somebody else leaves him where he is rather than
+    // welding two careers together.
+    if (!player) {
+      const { found } = await lookupAccounts([ign]);
+      const account = found.get(ign.toLowerCase());
+      if (account && (await adoptCurrentName(account.uuid, account.name)) === "renamed") {
+        [player] = await db
+          .select()
+          .from(players)
+          .where(eq(players.minecraftUsername, account.name));
+      }
+    }
 
     if (!player) {
       if (payload.action !== "SIGN") {
