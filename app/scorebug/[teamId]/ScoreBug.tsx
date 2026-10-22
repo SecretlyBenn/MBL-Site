@@ -6,6 +6,13 @@ import type { Scoreboard } from "@/db/scoreboard";
 /**
  * A broadcast scorebug, for OBS to load as a browser source.
  *
+ * Built to the shape a television bug has: the two men in the middle of the
+ * pitch on top, the clubs and their runs underneath in their own colours, and
+ * the bases, the inning, the outs and the count along the bottom. The figure
+ * on the pitcher's line is his innings rather than a pitch count, because
+ * this site records plate appearances and has no idea how many pitches he has
+ * thrown.
+ *
  * This is the one page on the site that is allowed to poll, and the reason is
  * the opposite of the jumbotron's. A stadium board runs inside every watching
  * player's own Chromium, so one fetch on the page is one poller per viewer and
@@ -31,12 +38,11 @@ const POLL_MS = 3000;
 export function ScoreBug({
   teamId,
   initial,
-  side,
 }: {
   teamId: number;
   initial: Scoreboard | null;
-  /** Which half of the bug to colour as "ours", for a club's own stream. */
-  side: "home" | "away" | null;
+  /** Kept for the page's call signature; the bug colours both clubs alike. */
+  side?: "home" | "away" | null;
 }) {
   const [board, setBoard] = useState(initial);
 
@@ -74,95 +80,65 @@ export function ScoreBug({
 
   return (
     <div className="flex min-h-screen items-start justify-start p-3">
-      <div className="overflow-hidden rounded-lg border border-white/15 bg-[#0b1118]/95 font-sans text-white shadow-2xl backdrop-blur-sm">
-        <div className="flex items-stretch">
-          <Team
-            abbreviation={board.away.abbreviation}
-            color={board.away.color}
-            score={board.awayScore}
-            batting={!board.isHomeBatting}
-            ours={side === "away"}
+      <div className="w-[21rem] overflow-hidden rounded-md font-sans text-white shadow-2xl">
+        {/* Who is involved in this pitch. The pitcher above the batter, the
+            way a television bug stacks them. */}
+        <div className="bg-[#2b2320]/95 px-3 py-1.5 text-[15px] leading-tight">
+          <Line
+            left={pitcher?.name ?? "-"}
+            note={pitcher?.season?.era != null ? `${pitcher.season.era.toFixed(2)}` : null}
+            right={pitcher ? `${innings(pitcher.line.outs)} IP` : ""}
           />
-          <Team
-            abbreviation={board.home.abbreviation}
-            color={board.home.color}
-            score={board.homeScore}
-            batting={board.isHomeBatting}
-            ours={side === "home"}
+          <Line
+            left={
+              batter
+                ? `${batter.slot !== null ? `${batter.slot}. ` : ""}${batter.name}`
+                : "-"
+            }
+            note={
+              batter?.season?.average != null
+                ? batter.season.average.toFixed(3).replace(/^0/, "")
+                : null
+            }
+            right={batter ? `${batter.line.hits} FOR ${batter.line.atBats}` : ""}
           />
-
-          {/* Inning, bases and outs: the block a viewer's eye goes to. */}
-          <div className="flex items-center gap-4 border-l border-white/15 px-4">
-            <div className="flex flex-col items-center leading-none">
-              <span className="text-xs text-white/60">
-                {board.isHomeBatting ? "BOT" : "TOP"}
-              </span>
-              <span className="text-3xl font-bold leading-none tabular-nums">{board.inning}</span>
-            </div>
-            <Diamond onBase={onBase} />
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-xs tracking-wider text-white/60">OUT</span>
-              <span className="flex gap-1">
-                {[0, 1].map((index) => (
-                  <span
-                    key={index}
-                    className={`h-3 w-3 rounded-full ${
-                      index < board.outs ? "bg-amber-400" : "bg-white/20"
-                    }`}
-                  />
-                ))}
-              </span>
-            </div>
-            <div className="flex flex-col items-center leading-none">
-              <span className="text-xs tracking-wider text-white/60">B-S</span>
-              <span className="text-3xl font-bold leading-none tabular-nums">
-                {board.balls}-{board.strikes}
-              </span>
-            </div>
-          </div>
         </div>
 
-        {/* Who is involved in this pitch. Kept on its own line so the top row
-            stays the same width all game, whatever the names are. */}
-        {(batter || pitcher) && (
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-white/15 bg-black/30 px-4 py-2 text-base">
-            {batter && (
-              <span className="flex items-center gap-2">
-                <span className="text-white/50">AB</span>
-                <span className="font-semibold">
-                  {batter.slot !== null && `${batter.slot} `}
-                  {batter.name}
-                </span>
-                <span className="text-white/50">{batter.position}</span>
-                <span className="tabular-nums text-white/80">
-                  {batter.line.hits}-{batter.line.atBats}
-                  {batter.line.homeRuns > 0 && `, ${batter.line.homeRuns} HR`}
-                  {batter.line.rbis > 0 && `, ${batter.line.rbis} RBI`}
-                </span>
-                {batter.season?.average !== null && batter.season !== null && (
-                  <span className="tabular-nums text-white/50">
-                    {batter.season.average.toFixed(3).replace(/^0/, "")}
-                  </span>
-                )}
+        <div className="flex">
+          <div className="flex-1">
+            <TeamRow
+              abbreviation={board.away.abbreviation}
+              color={board.away.color}
+              score={board.awayScore}
+            />
+            <TeamRow
+              abbreviation={board.home.abbreviation}
+              color={board.home.color}
+              score={board.homeScore}
+            />
+            {/* Inning, with the arrow a scoreboard uses for which half, then
+                the outs in words rather than as lights. */}
+            <div className="flex items-center gap-3 bg-[#11161d] px-3 py-1 text-[15px] font-semibold">
+              <span className="tabular-nums">
+                {board.isHomeBatting ? "▼" : "▲"}
+                {board.inning}
               </span>
-            )}
-            {pitcher && (
-              <span className="flex items-center gap-2">
-                <span className="text-white/50">P</span>
-                <span className="font-semibold">{pitcher.name}</span>
-                <span className="tabular-nums text-white/80">
-                  {innings(pitcher.line.outs)} IP, {pitcher.line.strikeouts} K,{" "}
-                  {pitcher.line.earnedRuns} ER
+              <span>
+                <span className="tabular-nums">{board.outs}</span>{" "}
+                <span className="font-normal text-white/70">
+                  {board.outs === 1 ? "Out" : "Outs"}
                 </span>
-                {pitcher.season?.era !== null && pitcher.season !== null && (
-                  <span className="tabular-nums text-white/50">
-                    {pitcher.season.era.toFixed(2)} ERA
-                  </span>
-                )}
               </span>
-            )}
+            </div>
           </div>
-        )}
+
+          <div className="flex w-[7.5rem] flex-col items-center justify-center gap-1 bg-[#11161d] py-1">
+            <Diamond onBase={onBase} />
+            <span className="text-xl font-bold leading-none tabular-nums">
+              {board.balls}-{board.strikes}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -173,45 +149,72 @@ function innings(outs: number) {
   return `${Math.floor(outs / 3)}.${outs % 3}`;
 }
 
-function Team({
+/**
+ * A name on the left and his figure on the right, with his season number
+ * between them in small type - the bug the league asked to copy has no room
+ * for a season line, but a viewer who has just tuned in wants it.
+ */
+function Line({ left, note, right }: { left: string; note: string | null; right: string }) {
+  return (
+    <div className="flex items-baseline gap-2">
+      <span className="truncate font-semibold">{left}</span>
+      {note && <span className="shrink-0 text-[11px] tabular-nums text-white/45">{note}</span>}
+      <span className="ml-auto shrink-0 font-bold tabular-nums">{right}</span>
+    </div>
+  );
+}
+
+/**
+ * One club's band. The club's own colour fills the row, as it does on a
+ * television bug, with a fallback for a club nobody has given one.
+ */
+function TeamRow({
   abbreviation,
   color,
   score,
-  batting,
-  ours,
 }: {
   abbreviation: string;
   color: string | null;
   score: number;
-  batting: boolean;
-  ours: boolean;
 }) {
   return (
-    <div className="flex items-center gap-2.5 px-4 py-3">
-      {/* The club's own colour as a stripe rather than a fill: a bug sits over
-          moving footage and a solid block of a club colour fights it. */}
+    <div
+      className="flex items-center justify-between px-3 py-0.5"
+      style={{ backgroundColor: color ?? "#1d2733" }}
+    >
+      {/* A shadow rather than a chosen text colour: the clubs pick their own
+          colours and some of them are light, and white on a pale crest colour
+          is unreadable over moving footage without it. */}
       <span
-        className="h-9 w-1.5 rounded-full"
-        style={{ backgroundColor: color ?? "rgba(255,255,255,0.35)" }}
-      />
-      <span className={`text-2xl font-bold tracking-wide ${ours ? "text-white" : "text-white/85"}`}>
+        className="text-xl font-bold tracking-wide"
+        style={{ textShadow: "0 1px 2px rgba(0,0,0,0.65)" }}
+      >
         {abbreviation}
       </span>
-      <span className="min-w-[1.75rem] text-right text-3xl font-bold tabular-nums">{score}</span>
-      {/* Which side is up, the way a television bug marks it. */}
-      <span className={`h-2.5 w-2.5 rounded-full ${batting ? "bg-amber-400" : "bg-transparent"}`} />
+      <span
+        className="text-xl font-bold tabular-nums"
+        style={{ textShadow: "0 1px 2px rgba(0,0,0,0.65)" }}
+      >
+        {score}
+      </span>
     </div>
   );
 }
 
 /** The bases, drawn as the diamond they are rather than three lights in a row. */
 function Diamond({ onBase }: { onBase: Set<string> }) {
-  const on = (base: string) => (onBase.has(base) ? "fill-amber-400" : "fill-white/20");
+  const on = (base: string) => (onBase.has(base) ? "fill-amber-400" : "fill-transparent");
   return (
-    <svg viewBox="0 0 34 34" className="h-11 w-11" aria-hidden>
-      <rect className={on("second")} x="11" y="2" width="12" height="12" rx="1.5" transform="rotate(45 17 8)" />
-      <rect className={on("third")} x="2" y="11" width="12" height="12" rx="1.5" transform="rotate(45 8 17)" />
-      <rect className={on("first")} x="20" y="11" width="12" height="12" rx="1.5" transform="rotate(45 26 17)" />
+    // A rotated square's corners reach further than its side, so the bases
+    // have to sit wider apart than their width or they overlap into a blob.
+    // Ten across the diagonal is about fourteen, and the nearest pair here is
+    // seventeen apart.
+    <svg viewBox="0 0 40 32" className="h-12 w-14" aria-hidden>
+      <g className="stroke-white/70" strokeWidth="1.5">
+        <rect className={on("second")} x="15" y="3" width="10" height="10" rx="1" transform="rotate(45 20 8)" />
+        <rect className={on("third")} x="3" y="15" width="10" height="10" rx="1" transform="rotate(45 8 20)" />
+        <rect className={on("first")} x="27" y="15" width="10" height="10" rx="1" transform="rotate(45 32 20)" />
+      </g>
     </svg>
   );
 }
