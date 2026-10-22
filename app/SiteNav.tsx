@@ -24,6 +24,7 @@ const GROUPS = [
       { href: "statistics/team-batting", label: "Team Batting Statistics" },
       { href: "statistics/team-pitching", label: "Team Pitching Statistics" },
       { href: "statistics/leaders", label: "Leaders" },
+      { href: "statistics/records", label: "Records" },
     ],
   },
   {

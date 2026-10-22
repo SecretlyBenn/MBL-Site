@@ -22,6 +22,7 @@ const COLUMNS = [
       { href: "statistics/batting", label: "Batting" },
       { href: "statistics/pitching", label: "Pitching" },
       { href: "statistics/leaders", label: "Leaders" },
+      { href: "statistics/records", label: "Records" },
     ],
   },
   {

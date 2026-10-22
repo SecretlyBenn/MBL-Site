@@ -12,6 +12,7 @@ const DESTINATIONS = [
   { href: "/schedule", label: "Schedule & Scores", detail: "Every game and result" },
   { href: "/standings", label: "Standings", detail: "Where every club sits" },
   { href: "/statistics/leaders", label: "Leaders", detail: "The best of the season" },
+  { href: "/statistics/records", label: "Records", detail: "The best seasons ever had" },
   { href: "/rosters", label: "Rosters", detail: "Who plays where" },
 ];
 

@@ -953,6 +953,66 @@ export async function getIndividualHistoricalStats(seasonId?: number, leagueId?:
   return mergePlayerLines(lines, (grouped) => mostRecentTeam(grouped).teamName, inningsPerGame);
 }
 
+export type SeasonTotalRow = ReturnType<typeof recalculateRates> & {
+  seasonId: number;
+  seasonName: string;
+};
+
+/**
+ * Every player's season line, for every season a competition has played.
+ *
+ * This is what a single-season record is measured over: not a career total
+ * and not one season's table, but all of them side by side, so the best
+ * season anybody ever had can be found by sorting. One read of the whole
+ * archive for the league - a couple of thousand lines - rather than a query
+ * per season, which at fifteen seasons would be fifteen round trips for a
+ * page nobody would wait for.
+ *
+ * Lines are merged per season, so a player traded in June has one line that
+ * season rather than two half-seasons that would both miss the record he
+ * actually set. Rates are recomputed from the summed totals by the same
+ * function the season tables use, so a record here and the same figure on
+ * that season's leaderboard can never disagree.
+ */
+export async function getLeagueSeasonTotals(leagueId: number): Promise<SeasonTotalRow[]> {
+  const [lines, seasons, inningsPerGame] = await Promise.all([
+    getHistoricalStatLines(undefined, leagueId),
+    getHistoricalSeasons(leagueId),
+    inningsPerGameFor(leagueId),
+  ]);
+
+  const named = new Map(seasons.map((season) => [season.id, season.name]));
+  // A playoff run is its own season in this archive, and it is a handful of
+  // games. Counted here it would set no counting record - there is no time to
+  // - but it would crowd the rate boards with short hot streaks, and a .600
+  // over fifteen at bats is not the best season anybody ever had. They are
+  // left out, so a record on this page always means a full season.
+  const playoffs = new Set(seasons.filter((season) => season.isPlayoffs).map((s) => s.id));
+
+  const bySeason = new Map<number, HistoricalStatViewRow[]>();
+  for (const line of lines) {
+    if (playoffs.has(line.seasonId)) continue;
+    const group = bySeason.get(line.seasonId);
+    if (group) group.push(line);
+    else bySeason.set(line.seasonId, [line]);
+  }
+
+  const totals: SeasonTotalRow[] = [];
+  for (const [seasonId, group] of bySeason) {
+    const merged = mergePlayerLines(
+      group,
+      // The club he finished the season with, same as that season's own
+      // table. A record belongs to one club, not to "Multiple teams".
+      (grouped) => (grouped.find((line) => line.isSeasonEndTeam) ?? grouped[0]).teamName,
+      inningsPerGame,
+    );
+    for (const row of merged) {
+      totals.push({ ...row, seasonId, seasonName: named.get(seasonId) ?? `Season ${seasonId}` });
+    }
+  }
+  return totals;
+}
+
 export type HistoricalTeamStatRow = HistoricalStatViewRow & { isLeagueAverage?: boolean };
 
 export async function getHistoricalTeamStats(seasonId: number): Promise<HistoricalTeamStatRow[]> {

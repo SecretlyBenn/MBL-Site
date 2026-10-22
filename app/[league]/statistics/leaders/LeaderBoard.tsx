@@ -12,6 +12,13 @@ export type LeaderRow = {
   teamId: number | null;
   uuid?: string;
   value: string;
+  /**
+   * The season this line was put up in. Only the records boards set it: there
+   * every row is a different season, which is half of what the row says, so
+   * it takes the column the club would otherwise have. The crest stays, so
+   * the club is still there to see.
+   */
+  season?: string;
 };
 
 /**
@@ -32,6 +39,7 @@ export function LeaderBoard({
   seasonId,
   leagueSlug,
   top = 5,
+  columnLabel = "Team",
 }: {
   label: string;
   unit: string;
@@ -40,6 +48,8 @@ export function LeaderBoard({
   leagueSlug: string;
   /** How many are shown before it is opened. */
   top?: number;
+  /** "Team" on a season's leaderboard, "Season" on the records boards. */
+  columnLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const shown = open ? rows : rows.slice(0, top);
@@ -61,7 +71,7 @@ export function LeaderBoard({
             <tr>
               <th>RNK</th>
               <th>{label}</th>
-              <th>Team</th>
+              <th>{columnLabel}</th>
               <th>{unit}</th>
             </tr>
           </thead>
@@ -74,7 +84,7 @@ export function LeaderBoard({
               </tr>
             ) : (
               shown.map((row, index) => (
-                <tr key={row.playerName}>
+                <tr key={`${row.playerName}-${row.season ?? ""}`}>
                   <td>{index + 1}</td>
                   <td>
                     <span className="flex min-w-0 items-center gap-2">
@@ -86,7 +96,9 @@ export function LeaderBoard({
                     <span className="flex min-w-0 items-center gap-1.5 text-slate-400">
                       <TeamLogo teamName={row.teamName} className="h-4 w-4 shrink-0" />
                       <span className="truncate">
-                        {row.teamId === null ? (
+                        {row.season ? (
+                          row.season
+                        ) : row.teamId === null ? (
                           row.teamName
                         ) : (
                           <HistoricalTeamLink

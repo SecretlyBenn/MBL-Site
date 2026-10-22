@@ -95,3 +95,18 @@ test("an old season link lands on the archive, not on today's roster", () => {
   const guard = rosters.slice(rosters.indexOf("if (asked.season)"));
   assert.match(guard.slice(0, 220), /redirect\(`\/\$\{league\.slug\}\/seasons\?season=/);
 });
+
+test("single-season records leave the playoffs out", () => {
+  const queriesSrc = readFileSync(new URL("../db/queries.ts", import.meta.url), "utf8");
+  const body = queriesSrc.slice(
+    queriesSrc.indexOf("export async function getLeagueSeasonTotals"),
+    queriesSrc.indexOf("export type HistoricalTeamStatRow"),
+  );
+  // By the flag, never by the name: "MBL Season XI Playoffs" is a convention
+  // somebody can rename, and is_playoffs is the thing that actually says so.
+  assert.match(body, /season\.isPlayoffs/);
+  assert.doesNotMatch(body, /Playoffs"/, "must not match on the season's name");
+  // Lines are merged per season, so a man traded in June holds one record for
+  // that year rather than two half-seasons that both miss it.
+  assert.match(body, /mergePlayerLines/);
+});
