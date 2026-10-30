@@ -9,6 +9,7 @@ import { leagues, teams } from "@/db/schema";
 import { logoKey, teamLogoPath } from "@/app/logo-key";
 import { SITE } from "@/app/site";
 import { Jumbotron } from "./Jumbotron";
+import { boardShape } from "./shape";
 
 /**
  * A club's stadium scoreboard, as a page a browser can be pointed at.
@@ -32,7 +33,7 @@ export default async function ScoreboardPage({
   searchParams,
 }: {
   params: Promise<{ teamId: string }>;
-  searchParams: Promise<{ preview?: string }>;
+  searchParams: Promise<{ preview?: string; shape?: string }>;
 }) {
   const teamId = Number((await params).teamId);
   if (!Number.isInteger(teamId) || teamId <= 0) notFound();
@@ -64,6 +65,13 @@ export default async function ScoreboardPage({
 
   const path = overrides[logoKey(club.name)] ?? teamLogoPath(club.name);
 
+  // Normally absent: the board measures its own screen and picks a shape
+  // itself, so a ground never has to be told how wide its wall is. This is only
+  // the override, for a screen whose proportions do not match how it is really
+  // read, and an unrecognised one is null rather than an error - the answer to
+  // a typo on a screen the size of a wall is the board everybody expects.
+  const shape = boardShape((await searchParams).shape);
+
   // The league's own crest, from the site rather than from whatever address an
   // operator typed into the plugin. Those were small images scaled up on a
   // screen the size of a wall; these are the 512px ones the site already ships,
@@ -84,6 +92,7 @@ export default async function ScoreboardPage({
       leagueLogo={leagueLogo}
       origin={origin}
       preview={(await searchParams).preview === "1"}
+      shape={shape}
     />
   );
 }

@@ -9,6 +9,7 @@ import type {
   ScoreboardSide,
   SeasonLine,
 } from "@/db/scoreboard";
+import { shapeFor, type BoardShape } from "./shape";
 
 /**
  * A stadium jumbotron, drawn from two sources that each know half the game.
@@ -64,6 +65,42 @@ type PluginState = {
 };
 
 type Club = { id: number; name: string; abbreviation: string; color: string | null; logo: string | null };
+
+/**
+ * How big one unit is on each shape.
+ *
+ * Every size on the board is a multiple of `--u`, so this one line decides how
+ * large the whole thing reads. Each is the height divided by roughly the number
+ * of units that stack up on that shape, then capped by the width so a long
+ * screen cannot grow the type until the panels collide. The ribbon's is five
+ * times the others because almost nothing stacks on it - one row, rather than a
+ * header, a body and a footer.
+ *
+ * The near-square board stacks the same seventy-odd units as the ordinary one,
+ * since taking the batting orders off a board removes nothing from the column
+ * down its middle, so its height figure is the same. What changes is the cap:
+ * with the orders gone the middle has the whole width to itself and can be
+ * nearly three times as generous before anything collides. Raising the height
+ * figure instead was tried first and overflowed the screen - the panels drew on
+ * top of each other, which on a wall-sized board is unreadable rather than
+ * merely ugly.
+ *
+ * The ordinary board's height figure was 1.25vh, which was wrong and only ever
+ * looked right because every screen in the league was sixteen by nine. The
+ * column down the middle stacks fifty-seven units and the middle row of the
+ * board is about sixty hundredths of its height, so a unit cannot be more than
+ * about a hundredth of the height without the diamond growing through the
+ * pitcher's line underneath it. At sixteen by nine the width cap bit first at
+ * 1.03vh and hid the mistake; a board any wider than that was pinned by the
+ * height instead, got 1.25, and overflowed - which is what a scoreboard
+ * twenty-odd blocks wide by eight looked like. Measured on the live board at
+ * 1680x620: fifty-seven units wanted 443px of a 376px row.
+ */
+const UNIT: Record<"wide" | "tall" | "default", string> = {
+  default: "min(1vh, 0.58vw)",
+  tall: "min(1.05vh, 1.6vw)",
+  wide: "min(7.5vh, 0.62vw)",
+};
 
 const EVENT_LABELS: Record<string, string> = {
   HOME_RUN: "HOME RUN!",
@@ -163,6 +200,7 @@ export function Jumbotron({
   leagueLogo,
   origin,
   preview,
+  shape,
 }: {
   initial: Scoreboard | null;
   club: Club;
@@ -176,6 +214,8 @@ export function Jumbotron({
    */
   origin: string;
   preview: boolean;
+  /** The shape of screen this board hangs on. See `BoardShape`. */
+  shape: BoardShape;
 }) {
   const [board, setBoard] = useState<Scoreboard | null>(initial);
   const [plugin, setPlugin] = useState<PluginState | null>(null);
@@ -206,7 +246,30 @@ export function Jumbotron({
   useEffect(() => {
     window.mblJumbotron = {
       updateState: (state: PluginState) => {
-        if (state && typeof state === "object") setPlugin(state);
+        if (!state || typeof state !== "object") return;
+
+        // Whose ground this is was decided by the address, so a game pushed in
+        // here is this board's game only when this club is playing in it.
+        //
+        // The plugin pushes the arena's game to every screen in the arena, and
+        // nothing used to check, so a screen pointed at a club that was not
+        // playing showed whichever game happened to be running instead of going
+        // idle - and a second screen in the same ground could not be given a
+        // different club at all, because both would mirror the one game. The
+        // state is cleared rather than merely ignored: leaving the last good
+        // push in place would freeze a finished game on the screen, and what
+        // this board should fall back to is what the site itself says about
+        // this club, which is an idle screen when the club is not playing.
+        //
+        // A plugin too old to relay the site's half sends no `site` at all.
+        // There is no way to tell whose game that is, so it is still trusted -
+        // those grounds worked before this check and must not break under it.
+        if (state.site && state.site.clubId !== club.id) {
+          setPlugin(null);
+          return;
+        }
+
+        setPlugin(state);
       },
       playEvent,
     };
@@ -214,7 +277,7 @@ export function Jumbotron({
       delete window.mblJumbotron;
       if (timer.current) clearTimeout(timer.current);
     };
-  }, [playEvent]);
+  }, [playEvent, club.id]);
 
   // Preview only. Opening the link in a real browser has no plugin behind it,
   // so this is the only way to watch it move - and it is opt-in precisely
@@ -243,6 +306,34 @@ export function Jumbotron({
     [board, plugin, club, leagueName, leagueLogo],
   );
 
+  // A ribbon has room for one row and nothing else, so the nameplate and the
+  // line score come off it and the two clubs keep only their crest and their
+  // runs. A near-square screen has the height but not the width, so the two
+  // batting orders come off instead and the man at the plate takes the room
+  // they were using - he is what the board is for, and a name squeezed to four
+  // letters is worse than no order at all.
+  //
+  // Which of the three it is, the board works out by measuring itself. Nobody
+  // should have to tell a screen how wide it is when it can see. Measured after
+  // mounting rather than during the render because the server has no window to
+  // ask, and the first paint is a frame of the ordinary board on a page that
+  // then stays open for a whole game.
+  const [measured, setMeasured] = useState<BoardShape>(null);
+
+  useEffect(() => {
+    const read = () => setMeasured(shapeFor(window.innerWidth, window.innerHeight));
+    read();
+    window.addEventListener("resize", read);
+    return () => window.removeEventListener("resize", read);
+  }, []);
+
+  // A shape in the address wins, for the screen whose proportions do not match
+  // how it is actually read - one hung high enough that only its top half is
+  // ever looked at, say.
+  const effective = shape ?? measured;
+  const ribbon = effective === "wide";
+  const square = effective === "tall";
+
   return (
     <div
       className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#05070c] text-white select-none"
@@ -256,7 +347,7 @@ export function Jumbotron({
       // tighter dimension takes over.
       style={
         {
-          "--u": "min(1.25vh, 0.58vw)",
+          "--u": UNIT[effective ?? "default"],
           // Declared in globals.css rather than loaded through next/font,
           // which writes an address no browser will fetch - see the comment
           // there. The whole layout below is measured against this face, so a
@@ -271,7 +362,11 @@ export function Jumbotron({
           looking at then and this is only a title bar. With nothing on, the
           header is most of what there is, so it gets the room. */}
       <header
-        className={`flex shrink-0 items-center justify-between gap-[calc(var(--u)*2)] border-b-[calc(var(--u)*0.3)] border-white/15 bg-black/50 px-[calc(var(--u)*1.4)] ${
+        className={`${
+          // A ribbon in use gives every row it has to the game. With no game on
+          // it the nameplate is the only thing worth showing, so it comes back.
+          ribbon && view.live ? "hidden" : "flex"
+        } shrink-0 items-center justify-between gap-[calc(var(--u)*2)] border-b-[calc(var(--u)*0.3)] border-white/15 bg-black/50 px-[calc(var(--u)*1.4)] ${
           view.live ? "py-[calc(var(--u)*0.7)]" : "py-[calc(var(--u)*2)]"
         }`}
       >
@@ -314,39 +409,57 @@ export function Jumbotron({
       {view.live ? (
         <>
           <main className="flex min-h-0 flex-1 items-stretch gap-[calc(var(--u)*1.1)] px-[calc(var(--u)*1.1)] py-[calc(var(--u)*1.1)]">
-            <LineupCard
-              side={view.away}
-              score={view.awayScore}
-              batting={view.top}
-              label="Away"
-              batterId={view.batter?.playerId}
-              origin={origin}
-            />
+            {square ? null : (
+              <LineupCard
+                side={view.away}
+                score={view.awayScore}
+                batting={view.top}
+                label="Away"
+                batterId={view.batter?.playerId}
+                origin={origin}
+                compact={ribbon}
+              />
+            )}
 
-            <Feature view={view} origin={origin} />
+            <Feature view={view} origin={origin} compact={ribbon} />
 
-            <LineupCard
-              side={view.home}
-              score={view.homeScore}
-              batting={!view.top}
-              label="Home"
-              batterId={view.batter?.playerId}
-              origin={origin}
-            />
+            {/* On a ribbon the count goes in the row, because there is no
+                second row for it to go in, and a board without a count is not
+                a scoreboard. */}
+            {ribbon ? (
+              <CountPanel balls={view.balls} strikes={view.strikes} outs={view.outs} compact />
+            ) : null}
+
+            {square ? null : (
+              <LineupCard
+                side={view.home}
+                score={view.homeScore}
+                batting={!view.top}
+                label="Home"
+                batterId={view.batter?.playerId}
+                origin={origin}
+                compact={ribbon}
+              />
+            )}
           </main>
 
-          <footer className="flex shrink-0 items-stretch gap-[calc(var(--u)*1.1)] border-t-[calc(var(--u)*0.3)] border-white/15 bg-black/60 px-[calc(var(--u)*1.1)] py-[calc(var(--u)*1.1)]">
-            <LinescoreBoard
-              away={view.away}
-              home={view.home}
-              awayScore={view.awayScore}
-              homeScore={view.homeScore}
-              line={view.linescore}
-              inning={view.inning}
-              top={view.top}
-            />
-            <CountPanel balls={view.balls} strikes={view.strikes} outs={view.outs} />
-          </footer>
+          {/* The line score is the first panel to go on a short screen: it is
+              the widest thing on the board and the least urgent, since every
+              figure on it can be worked out from the runs and the inning. */}
+          {ribbon ? null : (
+            <footer className="flex shrink-0 items-stretch gap-[calc(var(--u)*1.1)] border-t-[calc(var(--u)*0.3)] border-white/15 bg-black/60 px-[calc(var(--u)*1.1)] py-[calc(var(--u)*1.1)]">
+              <LinescoreBoard
+                away={view.away}
+                home={view.home}
+                awayScore={view.awayScore}
+                homeScore={view.homeScore}
+                line={view.linescore}
+                inning={view.inning}
+                top={view.top}
+              />
+              <CountPanel balls={view.balls} strikes={view.strikes} outs={view.outs} />
+            </footer>
+          )}
         </>
       ) : (
         <Idle club={view.club} />
@@ -470,6 +583,7 @@ function LineupCard({
   label,
   batterId,
   origin,
+  compact,
 }: {
   side: SideView;
   score: number;
@@ -477,6 +591,12 @@ function LineupCard({
   label: string;
   batterId?: number;
   origin: string;
+  /**
+   * Crest, abbreviation and runs only, with the batting order left off. Nine
+   * names need nine rows and a ribbon has about one, so on that shape this is
+   * all a club gets - which is all a club gets on most real ribbons too.
+   */
+  compact?: boolean;
 }) {
   const tint = side.color ?? "#1e293b";
   const ink = readableOn(side.color);
@@ -485,56 +605,87 @@ function LineupCard({
 
   return (
     <section
-      className="flex w-[25.5%] shrink-0 flex-col overflow-hidden rounded-[calc(var(--u)*0.8)] bg-black/40"
+      className={`flex ${
+        // Without the order underneath it the card only has to be as wide as a
+        // crest, an abbreviation and two digits, and the room it gives back is
+        // what makes the man at the plate readable along a ribbon.
+        compact ? "w-[13%]" : "w-[25.5%]"
+      } shrink-0 flex-col overflow-hidden rounded-[calc(var(--u)*0.8)] bg-black/40`}
       style={{ boxShadow: `inset 0 0 0 0.3vh ${batting ? "#ffffff" : "rgba(255,255,255,0.14)"}` }}
     >
       <div
-        className="flex shrink-0 items-center gap-[calc(var(--u)*1)] px-[calc(var(--u)*1)] py-[calc(var(--u)*0.7)]"
+        className={`flex items-center gap-[calc(var(--u)*1)] px-[calc(var(--u)*1)] py-[calc(var(--u)*0.7)] ${
+          // With no order beneath it, the crest and the runs fill the card
+          // rather than sitting in a band at the top of an empty box.
+          compact ? "min-h-0 flex-1" : "shrink-0"
+        }`}
         style={{ background: tint, color: ink }}
       >
         {side.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={side.logo} alt="" className="h-[calc(var(--u)*8.5)] w-[calc(var(--u)*8.5)] shrink-0 object-contain" />
+          <img
+            src={side.logo}
+            alt=""
+            className={`shrink-0 object-contain ${
+              compact
+                ? "h-[calc(var(--u)*6)] w-[calc(var(--u)*6)]"
+                : "h-[calc(var(--u)*8.5)] w-[calc(var(--u)*8.5)]"
+            }`}
+          />
         ) : null}
         <div className="min-w-0 flex-1">
-          <div className="text-[length:calc(var(--u)*1.9)] font-bold uppercase leading-none tracking-[0.3em] opacity-60">
+          <div
+            className={`font-bold uppercase leading-none tracking-[0.3em] opacity-60 ${
+              compact ? "text-[length:calc(var(--u)*1.4)]" : "text-[length:calc(var(--u)*1.9)]"
+            }`}
+          >
             {label}
           </div>
-          <div className="truncate text-[length:calc(var(--u)*5.4)] font-black uppercase leading-none tracking-tight">
+          <div
+            className={`truncate font-black uppercase leading-none tracking-tight ${
+              compact ? "text-[length:calc(var(--u)*3.6)]" : "text-[length:calc(var(--u)*5.4)]"
+            }`}
+          >
             {side.abbreviation}
           </div>
         </div>
-        <div className="text-[length:calc(var(--u)*9.5)] font-black leading-[0.8] tabular-nums tracking-tighter">
+        <div
+          className={`font-black leading-[0.8] tabular-nums tracking-tighter ${
+            compact ? "text-[length:calc(var(--u)*6.5)]" : "text-[length:calc(var(--u)*9.5)]"
+          }`}
+        >
           {score}
         </div>
       </div>
 
-      <ol className="flex min-h-0 flex-1 flex-col">
-        {side.lineup.map((row) => (
-          <LineupRow
-            key={row.playerId}
-            slot={row.slot}
-            name={row.name}
-            position={row.position}
-            uuid={row.uuid}
-            detail={average(row.season)}
-            up={row.playerId === batterId}
-            origin={origin}
-          />
-        ))}
-        {pitcher ? (
-          <LineupRow
-            key={pitcher.playerId}
-            slot={null}
-            name={pitcher.name}
-            position="P"
-            uuid={pitcher.uuid}
-            detail={era(pitcher.season)}
-            up={false}
-            origin={origin}
-          />
-        ) : null}
-      </ol>
+      {compact ? null : (
+        <ol className="flex min-h-0 flex-1 flex-col">
+          {side.lineup.map((row) => (
+            <LineupRow
+              key={row.playerId}
+              slot={row.slot}
+              name={row.name}
+              position={row.position}
+              uuid={row.uuid}
+              detail={average(row.season)}
+              up={row.playerId === batterId}
+              origin={origin}
+            />
+          ))}
+          {pitcher ? (
+            <LineupRow
+              key={pitcher.playerId}
+              slot={null}
+              name={pitcher.name}
+              position="P"
+              uuid={pitcher.uuid}
+              detail={era(pitcher.season)}
+              up={false}
+              origin={origin}
+            />
+          ) : null}
+        </ol>
+      )}
     </section>
   );
 }
@@ -596,7 +747,22 @@ function LineupRow({
  * pitching to him. A real jumbotron gives this the most room, because it is the
  * only part that changes between pitches in a way a crowd reacts to.
  */
-function Feature({ view, origin }: { view: BoardView; origin: string }) {
+function Feature({
+  view,
+  origin,
+  compact,
+}: {
+  view: BoardView;
+  origin: string;
+  /**
+   * Laid out along a row rather than down a column, with the season figures
+   * and the pitcher's day left off. The four blocks here stack to about twenty
+   * times the unit, which is taller than a ribbon is, so on that shape they run
+   * across instead and only what a person reads first survives: who is up, how
+   * he has gone today, who is on, and who is pitching.
+   */
+  compact?: boolean;
+}) {
   const batter = view.batter;
   const pitcher = view.pitcher;
   const tint = view.battingColor ?? "#1e293b";
@@ -604,39 +770,72 @@ function Feature({ view, origin }: { view: BoardView; origin: string }) {
   const notes = batter ? dayNotes(batter.line) : [];
 
   return (
-    <section className="flex min-w-0 flex-1 flex-col gap-[calc(var(--u)*1)]">
-      <div
-        className="flex shrink-0 items-baseline justify-between rounded-[calc(var(--u)*0.6)] px-[calc(var(--u)*1.2)] py-[calc(var(--u)*0.5)]"
-        style={{ background: tint, color: ink }}
-      >
-        <span className="text-[length:calc(var(--u)*2.6)] font-black uppercase tracking-[0.3em]">At bat</span>
-        <span className="truncate text-[length:calc(var(--u)*2.8)] font-bold uppercase tracking-wider opacity-80">
-          {view.battingSide?.name ?? ""}
-        </span>
-      </div>
+    <section
+      className={`flex min-w-0 flex-1 gap-[calc(var(--u)*1)] ${
+        compact ? "items-center" : "flex-col"
+      }`}
+    >
+      {/* Which club is batting is already plain from the two cards either side,
+          so on a ribbon this band is the first thing to give up its row. */}
+      {compact ? null : (
+        <div
+          className="flex shrink-0 items-baseline justify-between rounded-[calc(var(--u)*0.6)] px-[calc(var(--u)*1.2)] py-[calc(var(--u)*0.5)]"
+          style={{ background: tint, color: ink }}
+        >
+          <span className="text-[length:calc(var(--u)*2.6)] font-black uppercase tracking-[0.3em]">At bat</span>
+          <span className="truncate text-[length:calc(var(--u)*2.8)] font-bold uppercase tracking-wider opacity-80">
+            {view.battingSide?.name ?? ""}
+          </span>
+        </div>
+      )}
 
       <div
-        className="flex shrink-0 items-center gap-[calc(var(--u)*1.6)] rounded-[calc(var(--u)*0.6)] p-[calc(var(--u)*1)]"
+        className={`flex min-w-0 shrink items-center gap-[calc(var(--u)*1.6)] rounded-[calc(var(--u)*0.6)] p-[calc(var(--u)*1)] ${
+          compact ? "" : "shrink-0"
+        }`}
         style={{ background: `linear-gradient(90deg, ${tint}59, transparent 70%)` }}
       >
-        <Head uuid={batter?.uuid} size="calc(var(--u)*19)" origin={origin} className="rounded-[calc(var(--u)*0.5)]" />
+        <Head
+          uuid={batter?.uuid}
+          size={compact ? "calc(var(--u)*7)" : "calc(var(--u)*19)"}
+          origin={origin}
+          className="rounded-[calc(var(--u)*0.5)]"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-[calc(var(--u)*1.4)]">
-            <span className="shrink-0 text-[length:calc(var(--u)*7)] font-black leading-none tabular-nums text-white/30">
+            <span
+              className={`shrink-0 font-black leading-none tabular-nums text-white/30 ${
+                compact ? "text-[length:calc(var(--u)*3.6)]" : "text-[length:calc(var(--u)*7)]"
+              }`}
+            >
               {batter?.slot ?? "·"}
             </span>
-            <span className="min-w-0 truncate text-[length:calc(var(--u)*7.6)] font-black uppercase leading-none tracking-tight">
+            <span
+              className={`min-w-0 truncate font-black uppercase leading-none tracking-tight ${
+                compact ? "text-[length:calc(var(--u)*4.4)]" : "text-[length:calc(var(--u)*7.6)]"
+              }`}
+            >
               {batter?.name ?? "—"}
             </span>
             <span className="shrink-0 text-[length:calc(var(--u)*3)] font-bold uppercase text-white/50">
               {batter?.position ?? ""}
             </span>
           </div>
-          <div className="mt-[calc(var(--u)*1)] flex items-baseline gap-[calc(var(--u)*1.2)]">
-            <span className="shrink-0 text-[length:calc(var(--u)*4.2)] font-black uppercase tracking-tight text-amber-300">
+          <div
+            className={`flex items-baseline gap-[calc(var(--u)*1.2)] ${
+              compact ? "" : "mt-[calc(var(--u)*1)]"
+            }`}
+          >
+            <span
+              className={`shrink-0 font-black uppercase tracking-tight text-amber-300 ${
+                compact ? "text-[length:calc(var(--u)*2.8)]" : "text-[length:calc(var(--u)*4.2)]"
+              }`}
+            >
               {batter ? dayLine(batter.line) : ""}
             </span>
-            {notes.map((note) => (
+            {/* A strikeout or a walk is worth a badge when there is room for
+                one. On a ribbon that room is the batter's own name. */}
+            {(compact ? [] : notes).map((note) => (
               <span
                 key={note}
                 className="shrink-0 rounded-[calc(var(--u)*0.4)] bg-white/10 px-[calc(var(--u)*0.9)] py-[calc(var(--u)*0.2)] text-[length:calc(var(--u)*2.6)] font-bold uppercase tracking-wider text-white/80"
@@ -648,7 +847,7 @@ function Feature({ view, origin }: { view: BoardView; origin: string }) {
           {/* His season, under the day he is having. The two are different
               questions - how he is going tonight, and whether he is any good -
               and a board that shows only one of them gets asked for the other. */}
-          {batter?.season ? (
+          {batter?.season && !compact ? (
             <div className="mt-[calc(var(--u)*0.7)] flex items-baseline gap-[calc(var(--u)*1.6)] text-white/70">
               <span className="text-[length:calc(var(--u)*3.6)] font-black tabular-nums tracking-tight">
                 {average(batter.season)}
@@ -664,18 +863,31 @@ function Feature({ view, origin }: { view: BoardView; origin: string }) {
         </div>
       </div>
 
-      <Bases bases={view.bases} onDeck={view.onDeck} />
+      <Bases bases={view.bases} onDeck={view.onDeck} compact={compact} />
 
-      <div className="flex shrink-0 items-center gap-[calc(var(--u)*1.1)] rounded-[calc(var(--u)*0.6)] bg-white/[0.05] px-[calc(var(--u)*1)] py-[calc(var(--u)*0.8)]">
+      <div
+        className={`flex min-w-0 items-center gap-[calc(var(--u)*1.1)] rounded-[calc(var(--u)*0.6)] bg-white/[0.05] px-[calc(var(--u)*1)] py-[calc(var(--u)*0.8)] ${
+          compact ? "shrink" : "shrink-0"
+        }`}
+      >
         <span className="shrink-0 text-[length:calc(var(--u)*2)] font-black uppercase tracking-[0.1em] text-white/45">
           Pitching
         </span>
-        <Head uuid={pitcher?.uuid} size="calc(var(--u)*7.5)" origin={origin} className="rounded-[calc(var(--u)*0.4)]" />
+        <Head
+          uuid={pitcher?.uuid}
+          size={compact ? "calc(var(--u)*5)" : "calc(var(--u)*7.5)"}
+          origin={origin}
+          className="rounded-[calc(var(--u)*0.4)]"
+        />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[length:calc(var(--u)*4.2)] font-black uppercase leading-none tracking-tight">
+          <div
+            className={`truncate font-black uppercase leading-none tracking-tight ${
+              compact ? "text-[length:calc(var(--u)*3.2)]" : "text-[length:calc(var(--u)*4.2)]"
+            }`}
+          >
             {pitcher?.name ?? "—"}
           </div>
-          {pitcher?.season && (pitcher.season.era !== null || pitcher.season.wins + pitcher.season.losses > 0) ? (
+          {pitcher?.season && !compact && (pitcher.season.era !== null || pitcher.season.wins + pitcher.season.losses > 0) ? (
             <div className="mt-[calc(var(--u)*0.5)] flex items-baseline gap-[calc(var(--u)*1.4)] text-white/60">
               <span className="text-[length:calc(var(--u)*2.4)] font-bold tabular-nums">
                 {pitcher.season.wins}-{pitcher.season.losses}
@@ -686,7 +898,9 @@ function Feature({ view, origin }: { view: BoardView; origin: string }) {
             </div>
           ) : null}
         </div>
-        {pitcher ? <PitcherLine line={pitcher.line} /> : null}
+        {/* His day is six columns of figures, which is a whole panel's worth of
+            width that a ribbon needs for the names. */}
+        {pitcher && !compact ? <PitcherLine line={pitcher.line} /> : null}
       </div>
     </section>
   );
@@ -729,9 +943,18 @@ function PitcherLine({ line }: { line: PitcherGameLine }) {
 function Bases({
   bases,
   onDeck,
+  compact,
 }: {
   bases: { base: string; name: string }[];
   onDeck: string | null;
+  /**
+   * The diamond alone, without the runners' names or the man on deck. The
+   * diamond is two bases plus the gap between them tall, about twenty-three
+   * units in all, which is the entire height of a ribbon - so on that shape it
+   * shrinks and the reading matter beside it goes, leaving the one thing a
+   * diamond is for: whether anybody is on.
+   */
+  compact?: boolean;
 }) {
   const runner = (which: string) => bases.find((row) => row.base === which) ?? null;
   // Lit bases are amber, not the batting club's colour. A club's own colour is
@@ -742,7 +965,11 @@ function Bases({
     const on = runner(which) !== null;
     return (
       <span
-        className="h-[calc(var(--u)*8.8)] w-[calc(var(--u)*8.8)] rotate-45 border-[calc(var(--u)*0.5)]"
+        className={`rotate-45 ${
+          compact
+            ? "h-[calc(var(--u)*3.6)] w-[calc(var(--u)*3.6)] border-[calc(var(--u)*0.3)]"
+            : "h-[calc(var(--u)*8.8)] w-[calc(var(--u)*8.8)] border-[calc(var(--u)*0.5)]"
+        }`}
         style={
           on
             ? { background: "#fbbf24", borderColor: "#ffffff", boxShadow: "0 0 2vh #fbbf24aa" }
@@ -755,8 +982,20 @@ function Bases({
   const aboard = (["third", "second", "first"] as const).filter((which) => runner(which));
 
   return (
-    <div className="flex min-h-0 flex-1 items-center gap-[calc(var(--u)*2.6)] rounded-[calc(var(--u)*0.6)] bg-white/[0.04] px-[calc(var(--u)*1.8)] py-[calc(var(--u)*1)]">
-      <div className="flex w-[calc(var(--u)*30)] shrink-0 flex-col items-center gap-[calc(var(--u)*3)]">
+    <div
+      className={`flex min-h-0 items-center rounded-[calc(var(--u)*0.6)] bg-white/[0.04] ${
+        compact
+          ? "shrink-0 px-[calc(var(--u)*1)] py-[calc(var(--u)*0.6)]"
+          : "flex-1 gap-[calc(var(--u)*2.6)] px-[calc(var(--u)*1.8)] py-[calc(var(--u)*1)]"
+      }`}
+    >
+      <div
+        className={`flex shrink-0 flex-col items-center ${
+          compact
+            ? "w-[calc(var(--u)*12)] gap-[calc(var(--u)*1.2)]"
+            : "w-[calc(var(--u)*30)] gap-[calc(var(--u)*3)]"
+        }`}
+      >
         {base("second")}
         <div className="flex w-full items-center justify-between">
           {base("third")}
@@ -764,6 +1003,7 @@ function Bases({
         </div>
       </div>
 
+      {compact ? null : (
       <div className="flex min-w-0 flex-1 flex-col justify-center gap-[calc(var(--u)*0.5)]">
         {aboard.length === 0 ? (
           <span className="text-[length:calc(var(--u)*3.6)] font-bold uppercase tracking-[0.3em] text-white/35">
@@ -794,6 +1034,7 @@ function Bases({
           </div>
         ) : null}
       </div>
+      )}
     </div>
   );
 }
@@ -920,19 +1161,38 @@ function LinescoreBoard({
  * pixels a light on a screen being read from the outfield, and the count is
  * precisely what people are squinting at.
  */
-function CountPanel({ balls, strikes, outs }: { balls: number; strikes: number; outs: number }) {
+function CountPanel({
+  balls,
+  strikes,
+  outs,
+  compact,
+}: {
+  balls: number;
+  strikes: number;
+  outs: number;
+  /** Digits that fit beside the names on a ribbon rather than above them. */
+  compact?: boolean;
+}) {
   // Each column is as wide as its own word needs plus a margin, rather than a
   // fixed width: "strike" is half as long again as "ball", and pinning all
   // three to one width ran the labels into each other.
   const column = (label: string, value: number, amber: boolean) => (
-    <div className="flex flex-col items-center justify-center px-[calc(var(--u)*1.8)]">
-      <span className="whitespace-nowrap text-[length:calc(var(--u)*2.4)] font-bold uppercase tracking-[0.18em] text-white/45">
+    <div
+      className={`flex flex-col items-center justify-center ${
+        compact ? "px-[calc(var(--u)*1)]" : "px-[calc(var(--u)*1.8)]"
+      }`}
+    >
+      <span
+        className={`whitespace-nowrap font-bold uppercase tracking-[0.18em] text-white/45 ${
+          compact ? "text-[length:calc(var(--u)*1.6)]" : "text-[length:calc(var(--u)*2.4)]"
+        }`}
+      >
         {label}
       </span>
       <span
-        className={`text-[length:calc(var(--u)*11)] font-black leading-[0.9] tabular-nums ${
-          amber ? "text-amber-300" : "text-white"
-        }`}
+        className={`font-black leading-[0.9] tabular-nums ${
+          compact ? "text-[length:calc(var(--u)*5.4)]" : "text-[length:calc(var(--u)*11)]"
+        } ${amber ? "text-amber-300" : "text-white"}`}
       >
         {value}
       </span>
@@ -1035,8 +1295,15 @@ function merge(
     inning,
     top,
     outs: (connected ? plugin?.outs : undefined) ?? board?.outs ?? 0,
-    balls: plugin?.balls ?? 0,
-    strikes: plugin?.strikes ?? 0,
+    // Falls back to the site like the outs and the score above, now that
+    // there is something to fall back to: the plugin posts the count to
+    // /api/plugin/count for the stream bug, so the board's own address can
+    // show it too. Nothing in a ballpark depends on this - the mod has had
+    // the real count over its own channel all along - but without it the
+    // board opened in an ordinary browser sat on 0-0 forever and read as
+    // broken, which is the only way anybody checks a screen before a game.
+    balls: (connected ? plugin?.balls : undefined) ?? board?.balls ?? 0,
+    strikes: (connected ? plugin?.strikes : undefined) ?? board?.strikes ?? 0,
     bases,
     battingSide,
     battingColor,

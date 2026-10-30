@@ -174,10 +174,13 @@ export type Scoreboard = {
   bases: { base: BaseName; playerId: number; name: string }[];
   linescore: Linescore;
   /**
-   * The count on the batter, typed in by the umpire for the stream scorebug.
-   * The jumbotron ignores these - the plugin has the real count from the
-   * umpire's own /ball and /strike - but a bug in OBS has no plugin behind it
-   * and this is the only count there is.
+   * The count on the batter, as the plugin last pushed it.
+   * It used to be typed a second time on the scoring page, which was never
+   * going to hold - nobody types the same thing twice all game - so the
+   * umpire's own /ball and /strike now reach here through
+   * /api/plugin/count. A bug in OBS has no plugin behind it, and a board
+   * opened in a browser has none either, so for both of them this is the
+   * only count there is.
    */
   balls: number;
   strikes: number;

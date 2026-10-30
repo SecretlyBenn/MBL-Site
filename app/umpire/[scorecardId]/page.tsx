@@ -22,7 +22,6 @@ import { latestAction } from "@/db/undo";
 import { PageShell } from "@/app/SiteNav";
 import { POSITION_NUMBER, type RunnerOutKind } from "@/app/scoring";
 import { LineupEditor } from "./LineupEditor";
-import { CountControl } from "./CountControl";
 import { ScoringBoard } from "./ScoringBoard";
 
 export const metadata: Metadata = {
@@ -220,11 +219,6 @@ export default async function ScorecardPage({
               is a correction, not a position change.
             </p>
           )}
-          <CountControl
-            scorecardId={scorecardId}
-            balls={scorecard.balls}
-            strikes={scorecard.strikes}
-          />
           <ScoringBoard
             inningsPerGame={inningsPerGame}
             scorecardId={scorecardId}

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { boardShape, shapeFor } from "../app/scoreboard/[teamId]/shape.ts";
 
 /**
  * The stadium jumbotron reads from two sources that each know half the game:
@@ -53,15 +54,22 @@ test("runners are dropped when the plugin has moved on to the next half", () => 
 
 test("the plugin wins on what it owns and the site on what it names", () => {
   const merge = board.slice(board.indexOf("function merge("));
-  for (const field of ["awayScore", "homeScore", "outs"]) {
+  // The count is in this list now. It used to be asserted separately, on the
+  // grounds that it existed nowhere but the plugin, and that stopped being
+  // true when the plugin started posting it to /api/plugin/count for the OBS
+  // bug. It is the plugin's number either way - the fallback reads the
+  // plugin's own last push back off the site - so the rule this test is named
+  // for is unchanged, and a board opened in a browser no longer sits on 0-0.
+  for (const field of ["awayScore", "homeScore", "outs", "balls", "strikes"]) {
     assert.ok(
       merge.includes(`(connected ? plugin?.${field} : undefined) ??`),
       `${field} no longer prefers the plugin's reading`,
     );
+    assert.ok(
+      merge.includes(`?? board?.${field} ?? 0`),
+      `${field} no longer falls back to the site when no plugin is attached`,
+    );
   }
-  // The count exists nowhere else - the site does not record pitches.
-  assert.ok(merge.includes("balls: plugin?.balls"), "the count is no longer taken from the plugin");
-  assert.ok(merge.includes("strikes: plugin?.strikes"), "the count is no longer taken from the plugin");
 });
 
 test("a three-digit club colour cannot silently lose the panel its tint", () => {
@@ -182,17 +190,115 @@ test("heads come from the account id, batched, and by an absolute address", () =
   );
 });
 
-test("the board is sized from whichever of width and height runs out first", () => {
+test("every board shape is sized from whichever of width and height runs out first", () => {
   // A screen in Minecraft is whatever shape somebody built. Height alone shrank
   // the panels to nothing on a long screen; width alone made the type so large
-  // on a near-square one that every name truncated to four letters.
-  assert.ok(
-    /--u["\s:]+.*min\(.*vh.*vw/.test(board),
-    "the scale unit no longer takes the smaller of the two dimensions",
-  );
+  // on a near-square one that every name truncated to four letters. Each shape
+  // has its own unit now, and every one of them still has to be capped both
+  // ways - the ribbon's is five times the ordinary board's and would run off
+  // the sides of a merely wide screen without the vw half.
+  const table = (board.match(/const UNIT[^=]*=\s*\{[\s\S]*?\n\};/) ?? [""])[0];
+  const units = table.match(/"min\([^"]*\)"/g) ?? [];
+  assert.ok(units.length >= 3, "the board's scale units are no longer declared in one table");
+  for (const unit of units) {
+    assert.match(unit, /min\([0-9.]+vh,\s*[0-9.]+vw\)/, `${unit} is not capped on both dimensions`);
+  }
+  assert.ok(board.includes('"--u": UNIT['), "the board no longer takes its unit from that table");
   assert.ok(
     !/text-\[(length:)?[0-9.]+v[hw]\]/.test(board),
     "some type is sized straight from the viewport again, which breaks one shape or the other",
+  );
+});
+
+test("the ordinary board's unit fits the column down its middle", () => {
+  // The column stacking "at bat", the batter, the diamond and the pitcher is
+  // fifty-seven units tall, and it gets the middle row of the board, which is
+  // about sixty hundredths of the height. So a unit above roughly 1.06vh draws
+  // the diamond through the pitcher's line underneath it.
+  //
+  // This was 1.25vh and looked right for a year because every screen was
+  // sixteen by nine, where the vw cap bit first at 1.03vh and hid it. The
+  // first board built wider than that was pinned by the height instead, got
+  // the full 1.25, and overflowed. Measured on the live board at 1680x620:
+  // fifty-seven units wanted 443px of a 376px row.
+  const table = (board.match(/const UNIT[^=]*=\s*\{[\s\S]*?\n\};/) ?? [""])[0];
+  const height = Number((table.match(/default:\s*"min\(([0-9.]+)vh/) ?? [])[1]);
+  assert.ok(Number.isFinite(height), "the ordinary board no longer has a height figure");
+  assert.ok(
+    height <= 1.06,
+    `the ordinary board's unit is ${height}vh, which overflows the middle column on anything wider than 16:9`,
+  );
+});
+
+test("an unknown shape falls back to the ordinary board", () => {
+  // A shape is typed into a plugin's configuration by hand, and the cost of a
+  // typo is a screen the size of a wall in the middle of a ballpark. Anything
+  // unrecognised has to render the board everybody already knows rather than an
+  // empty one.
+  assert.equal(boardShape("wide"), "wide");
+  assert.equal(boardShape("tall"), "tall");
+  assert.equal(boardShape(undefined), null, "an address with no shape is the original board");
+  assert.equal(boardShape("Wide"), null, "a shape is matched exactly, not by case");
+  assert.equal(boardShape("ribbon"), null, "an unrecognised shape is not the original board");
+  assert.equal(boardShape(""), null);
+});
+
+test("the board picks its own shape from the screen it is on", () => {
+  // Whoever builds a screen should not have to write its proportions down
+  // anywhere: the board can see them. These are the three real boards.
+  assert.equal(shapeFor(1920, 1080), null, "an ordinary 16:9 board is the ordinary layout");
+  assert.equal(shapeFor(1600, 230), "wide", "a ribbon is not being recognised");
+  assert.equal(shapeFor(620, 620), "tall", "a square board is not being recognised");
+
+  // The ordinary board holds across a wide span, because the layouts either
+  // side of it are drastic and a screen near a boundary should not flip between
+  // them as a window is dragged.
+  assert.equal(shapeFor(1600, 800), null, "twice as wide as tall is still an ordinary board");
+  assert.equal(shapeFor(1660, 1000), null, "1.66 is near 16:9 and should not change layout");
+
+  // A board three times as wide as it is tall used to lose both batting orders,
+  // which is the half of the screen people read. Nothing about the ordinary
+  // board breaks at this shape - its unit is pinned to the height above about
+  // 1.72, so the rows are the same size as on a 16:9 screen and the extra width
+  // only spreads the columns - so it keeps the full layout now.
+  assert.equal(shapeFor(1920, 640), null, "a board three times as wide should keep its lineups");
+  assert.equal(shapeFor(1920, 548), null, "3.5 is a scoreboard, not a ribbon");
+
+  // Four times as wide is where a real ribbon starts: thirty-two blocks by
+  // eight is too short for nine names down each side.
+  assert.equal(shapeFor(1920, 480), "wide", "four times as wide as tall is a ribbon");
+
+  // Narrower than about 1.5 and the ordinary board's unit is pinned to the
+  // width, so the type shrinks with every block lost while the height goes
+  // unused. The orders come off and the middle gets the room instead.
+  assert.equal(shapeFor(1200, 900), "tall", "a 4:3 board is squeezed by the two orders");
+
+  // A screen that has not been laid out yet. Dividing by a zero height gives
+  // Infinity, which would read as the widest ribbon there is and draw the
+  // wrong board for a frame.
+  assert.equal(shapeFor(1920, 0), null);
+  assert.equal(shapeFor(0, 0), null);
+});
+
+test("the shape is read somewhere the server can read it", () => {
+  // The page reads the shape out of the address on the server and the board
+  // uses it in the browser. Exporting the parser from the board itself made it
+  // a client reference, and calling one of those on the server fails the whole
+  // render - which is a blank screen in a ballpark, found only by looking.
+  assert.ok(
+    !/export function boardShape/.test(board),
+    "the shape parser is back inside the client board, which breaks the server render",
+  );
+});
+
+test("a board only shows a game its own club is playing in", () => {
+  // The plugin pushes the arena's game into every screen in that arena. A
+  // screen pointed at a club that is not in that game used to show it anyway,
+  // so a second board in the same ground could not be given a different club.
+  // Whose ground it is comes from the address, and that has to win.
+  assert.ok(
+    board.includes("state.site.clubId !== club.id"),
+    "a pushed game is no longer checked against the club in the address",
   );
 });
 
