@@ -136,10 +136,16 @@ export default async function Home({ params }: { params: Promise<{ league: strin
               { href: "/statistics/batting", label: "Stats" },
               { href: "/standings", label: "Standings" },
               { href: "/rosters", label: "Rosters" },
+              // The one thing a new player has to have before anything else
+              // on this page is any use to him, so it sits in the row rather
+              // than in the footer. Same-origin, but still an anchor: it is a
+              // file, and next/link has nothing to navigate to at the end of
+              // it.
+              { href: SITE.modpackUrl, label: "Download the modpack", external: true, tone: "pack" },
               // Where the league actually gathers, so it leads off to one side
               // in Discord's own colour rather than sitting in the row of grey
               // -blue buttons as though it were another page of the site.
-              { href: SITE.discordUrl, label: "Join Discord", external: true },
+              { href: SITE.discordUrl, label: "Join Discord", external: true, tone: "discord" },
             ].map((link) =>
               link.external ? (
                 <a
@@ -147,7 +153,11 @@ export default async function Home({ params }: { params: Promise<{ league: strin
                   href={link.href}
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-md bg-[#5865F2] px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#4752c4]"
+                  className={
+                    "tone" in link && link.tone === "discord"
+                      ? "rounded-md bg-[#5865F2] px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-[#4752c4]"
+                      : "rounded-md bg-emerald-600 px-6 py-3 text-sm font-bold uppercase tracking-wide text-white transition-colors hover:bg-emerald-500"
+                  }
                 >
                   {link.label}
                 </a>

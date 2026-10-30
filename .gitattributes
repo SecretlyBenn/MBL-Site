@@ -1,0 +1,16 @@
+# Keep every text file LF in the working tree, whatever core.autocrlf says.
+#
+# Several tests assert on the source of a route by matching a few lines of it,
+# newline included. With autocrlf on, a branch checkout rewrites those files as
+# CRLF, the literal \n in the pattern stops matching, and the suite reports a
+# failure in code nobody has touched - which is worse than no test, because it
+# is believed for about ten minutes. The files are stored LF either way, so
+# this changes nothing about what is committed.
+* text=auto eol=lf
+
+# The modpack is a zip. Normalising it would corrupt it.
+*.mrpack binary
+*.png binary
+*.jpg binary
+*.ttf binary
+*.woff2 binary

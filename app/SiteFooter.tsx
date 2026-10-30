@@ -26,9 +26,20 @@ const COLUMNS = [
     ],
   },
   {
+    heading: "Play",
+    links: [
+      // The pack is a download rather than a page, and the store is somebody
+      // else's site, so both leave the site's own navigation - see `external`
+      // below, which is the same flag the league page uses for Discord.
+      { href: SITE.modpackUrl, label: "Download the modpack", external: true },
+      { href: SITE.storeUrl, label: "Cosmetics store", external: true },
+    ],
+  },
+  {
     heading: "About",
     links: [
       { href: "/contact", label: "Contact" },
+      { href: SITE.discordUrl, label: "Discord", external: true },
     ],
   },
 ];
@@ -66,9 +77,23 @@ export function SiteFooter() {
             <ul className="mt-3 space-y-2 text-sm">
               {column.links.map((link) => (
                 <li key={link.href}>
-                  <Link href={within(link.href)} className="transition-colors hover:text-white">
-                    {link.label}
-                  </Link>
+                  {/* A link that leaves the site is a plain anchor: `within`
+                      would file an absolute address under a league's slug,
+                      and next/link has nothing to prefetch at the end of it. */}
+                  {"external" in link && link.external ? (
+                    <a
+                      href={link.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="transition-colors hover:text-white"
+                    >
+                      {link.label}
+                    </a>
+                  ) : (
+                    <Link href={within(link.href)} className="transition-colors hover:text-white">
+                      {link.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

@@ -19,6 +19,29 @@ export const SITE = {
     "The official home of the Minecraft Baseball League: live scores, standings, rosters, schedules and player statistics going back to Season IV.",
   discordUrl: "https://discord.gg/mbl",
   /**
+   * The cosmetics shop, which Tebex hosts and the league does not. It is a
+   * link and nothing more - no payment of any kind touches this site, and it
+   * should stay that way, because the moment it did this would need to care
+   * about card data.
+   */
+  storeUrl: "https://mbl.tebex.io",
+  /**
+   * The modpack, served from this site rather than linked off it.
+   *
+   * It is a Modrinth pack file - 49KB of manifest naming the ten mods, which
+   * a launcher then fetches from Modrinth itself - so hosting it costs
+   * nothing and there is no build of anything to keep in step. The path has no
+   * version in it on purpose: the link is printed in Discord and on the site,
+   * and a new release should not break either. `modpackVersion` is what the
+   * page says out loud, so a release is two lines here.
+   *
+   * This is the file a player imports into Prism or the Modrinth app. The
+   * Sports Launcher does not read it - that reads /client/json, which is the
+   * same ten mods in the shape the launcher wants.
+   */
+  modpackUrl: "/minecraft-baseball-league.mrpack",
+  modpackVersion: "1.21.8",
+  /**
    * The league's own documents, kept in Google Docs where the commissioners
    * edit them. These are the short links the league publishes in Discord, so
    * a new season's rulebook can be swapped in without touching the site.
