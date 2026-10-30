@@ -13,7 +13,7 @@ export const MINECRAFT_NAME = /^[A-Za-z0-9_]{3,16}$/;
  * is asked whenever Mojang is not. Run locally, Mojang still answers first.
  */
 const RELAY = "https://playerdb.co/api/player/minecraft/";
-const RELAY_HEADERS = { "User-Agent": "MBL-Site (+https://mbl-site.benmerlin11.workers.dev)" };
+const RELAY_HEADERS = { "User-Agent": "MBL-Site (+https://mbl-site.mbljavabaseball.workers.dev)" };
 const TIMEOUT_MS = 5000;
 
 /**

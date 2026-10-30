@@ -22,7 +22,11 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 
-const ACCOUNT = "b690333da05f8e1aea40b7e68f6ff519";
+// The league's own account, where the site runs. The old personal account
+// still holds a copy of this database, but it stopped receiving live roster
+// rows when the site moved - reconciling against it would report every
+// signing since as a difference.
+const ACCOUNT = process.env.CLOUDFLARE_ACCOUNT_ID ?? "38532e1647aeaa4803a5457a769f8087";
 const DB = "mbl-site-db";
 /** playerdb relays Mojang and is what the site itself falls back to. */
 const RELAY = "https://playerdb.co/api/player/minecraft/";

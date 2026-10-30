@@ -4,9 +4,15 @@
  * `url` is what canonical links, the sitemap and social previews are built
  * from. It is the workers.dev address for now; pointing minecraftbaseball.com
  * at the Worker is a one-line change here.
+ *
+ * It has to be the address the site is actually served from. It was left
+ * behind when the Worker moved to the league's own Cloudflare account, so
+ * every canonical link, every sitemap entry and every social preview named a
+ * Worker in the old account - which still answers, with an older copy of the
+ * site, so nothing looked broken.
  */
 export const SITE = {
-  url: "https://mbl-site.benmerlin11.workers.dev",
+  url: "https://mbl-site.mbljavabaseball.workers.dev",
   name: "Minecraft Baseball League",
   shortName: "MBL",
   description:
