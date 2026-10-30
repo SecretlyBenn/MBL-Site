@@ -153,3 +153,41 @@ test("a push under a new name finds the man this site still calls something else
     "the rename lookup must run for every action, not only signings",
   );
 });
+
+test("a player with no account on file gets one on any push, not just his first", () => {
+  // The lookup that files an account used to run only where a player row was
+  // being created. One empty answer from the relay - busy, refusing, timing
+  // out - left that player with no account for good, because the thing that
+  // keeps an account current is keyed by the uuid he hasn't got. A grey square
+  // then needed a hand-written migration, which is what PhantomKirk was.
+  const repair = route.slice(route.indexOf("const [onFile]"), route.indexOf("const { teamId, status } = settle("));
+  assert.ok(repair.includes("lookupAccounts([name])"), "a missing account is no longer asked about again");
+  assert.ok(
+    route.indexOf("const [onFile]") > route.indexOf(".returning();"),
+    "the repair runs before the player row could have been created",
+  );
+
+  // A rename that split him in two is merged rather than left as two people,
+  // and the merge can keep a different row - so his id is read again before
+  // the move is written against it.
+  assert.ok(repair.includes("adoptCurrentName(resolved.uuid, name)"), "a split career is no longer rejoined");
+  assert.ok(
+    repair.indexOf('=== "renamed"') < repair.indexOf("insert(minecraftProfiles)"),
+    "a second profile row is written before the merge is tried",
+  );
+  assert.ok(
+    repair.includes("select().from(players).where(eq(players.displayName, name))"),
+    "the player is not read again after a merge that may have kept another row",
+  );
+});
+
+test("a push whose player vanished in the merge changes nothing", () => {
+  // Writing a move against a deleted id would leave a roster_moves row
+  // pointing at nobody, which is worse than refusing the push.
+  const guard = route.slice(route.indexOf("could not be resolved on this site"));
+  assert.ok(guard.includes("Nothing was changed"), "the refusal does not say that nothing happened");
+  assert.ok(
+    route.indexOf("could not be resolved on this site") < route.indexOf("insert(rosterMoves)"),
+    "the move is written before the player is known to still exist",
+  );
+});

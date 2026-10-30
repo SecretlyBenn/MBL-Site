@@ -57,19 +57,74 @@ test("every table that keys a player by name is moved", () => {
   );
 });
 
-test("a name already in use is refused rather than merged", () => {
-  // Nothing records which rows came from where, so a merge cannot be undone.
-  // All three are checked: another account's profile, a live player who is not
-  // this one, and any name in the archive, which carries no account at all.
-  const refusals = adopt.split('return "taken"').length - 1;
-  assert.equal(refusals, 3, `expected three refusals, found ${refusals}`);
+test("a name with a record behind it is refused, an empty duplicate is absorbed", () => {
+  // The refusals are what protect a stranger: Minecraft names get recycled, so
+  // a career filed under the name this account holds today may belong to
+  // whoever held it before. Another account's profile, any name in the archive,
+  // and a live row that has actually played are all still refused.
   assert.ok(adopt.includes("ne(minecraftProfiles.uuid, uuid)"), "another account's name is not checked");
+  assert.ok(adopt.includes("if (await hasPlayed(otherPlayer.id)) return \"taken\""), "a live row that has played is no longer refused");
+
+  // The archive is checked before the live row, because absorbing a row is
+  // only safe once the name is known to carry no record at all.
   assert.ok(
-    adopt.indexOf('return "taken"') < adopt.indexOf("await db.update(table)"),
+    adopt.indexOf("for (const { table, column } of NAMED) {") < adopt.indexOf("hasPlayed(otherPlayer.id)"),
+    "a live row is absorbed before the archive has been checked for that name",
+  );
+
+  // And nothing is moved until every one of those checks has run.
+  assert.ok(
+    adopt.lastIndexOf('return "taken"') < adopt.indexOf("await db.update(table)"),
     "rows are moved before the name is checked to be free",
+  );
+});
+
+test("absorbing a duplicate keeps the career and takes the club", () => {
+  // The surviving row is the one holding the career; the shell's club comes
+  // across because the roster bot is what the league believes about rosters.
+  const absorb = adopt.slice(adopt.indexOf("hasPlayed(otherPlayer.id)"), adopt.indexOf("for (const { table, column } of NAMED) {", adopt.indexOf("hasPlayed(otherPlayer.id)")));
+  assert.ok(absorb.includes("teamId: otherPlayer.teamId"), "the club is left behind on the row being deleted");
+  assert.ok(absorb.includes("rosterMoves).set({ playerId: mine.id })"), "his moves are dropped with the shell");
+  assert.ok(absorb.includes("delete(players)"), "the duplicate row is left in the pool");
+  assert.ok(
+    absorb.indexOf("update(rosterMoves)") < absorb.indexOf("delete(players)"),
+    "the row is deleted before the moves that point at it are repointed",
+  );
+});
+
+test("a second profile row for the same account is merged, not collided with", () => {
+  // player_name is the primary key, so renaming onto a row this same account
+  // already holds would throw rather than merge.
+  assert.ok(
+    adopt.includes("eq(minecraftProfiles.playerName, to), eq(minecraftProfiles.uuid, uuid)"),
+    "the account's own duplicate profile row is not cleared before the rename",
   );
 });
 
 test("only a name Mojang could have issued is written", () => {
   assert.match(adopt, /\w\{3,16\}/, "any string at all can be written to five tables");
+});
+
+test("renaming moves one profile row, not every name the account holds", () => {
+  // One account legitimately holds two site names, because each competition
+  // filed a man under whatever he used there - that pair is what joins a split
+  // career together. Matching on the uuid alone set both rows to the same
+  // string, and player_name is the primary key, so the push threw a UNIQUE
+  // constraint and the bot could only report "That already exists".
+  const update = adopt.slice(adopt.indexOf("update(minecraftProfiles)"));
+  assert.ok(
+    update.includes("eq(minecraftProfiles.playerName, from)"),
+    "the rename still matches every row holding this account",
+  );
+});
+
+test("a constraint failure says which constraint, somewhere", () => {
+  const errors = readFileSync("app/api-errors.ts", "utf8");
+  // The tidy answer goes to the caller and the detail goes to the log. It used
+  // to go nowhere, which left a 409 naming no row, column or table.
+  assert.ok(errors.includes("console.error(text)"), "a constraint failure is still thrown away unlogged");
+  assert.ok(
+    errors.indexOf("console.error(text)") < errors.indexOf("status: 409"),
+    "the detail is logged only after the response has returned",
+  );
 });

@@ -1465,6 +1465,31 @@ export async function getPlayerGameLog(playerName: string | string[]) {
  * imported roster row carries either, so this is usually null and the profile
  * simply omits the line rather than showing an empty one.
  */
+/**
+ * The live player row for a name, and the club they are on.
+ *
+ * A man signed this morning has no archive at all - the archive is written
+ * when a game is published, so a player who has not played yet appears in no
+ * historical table. The career page used to look only there and answer "no
+ * such player" for somebody the roster bot had signed an hour earlier, which
+ * reads as the site being broken rather than as a career that has not started.
+ */
+export async function getLivePlayerByName(playerName: string) {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      id: players.id,
+      displayName: players.displayName,
+      status: players.status,
+      teamName: teams.name,
+    })
+    .from(players)
+    .leftJoin(teams, eq(teams.id, players.teamId))
+    .where(eq(players.displayName, playerName))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function getPlayerRosterIdentity(playerName: string) {
   const db = getDb();
   const [row] = await db

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getAccountNames, getLeagues, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions, getProfilesFor } from "@/db/queries";
-import { PageShell } from "@/app/SiteNav";
+import { getAccountNames, getLeagues, getLivePlayerByName, getPlayerGameLog, getPlayerHistoricalStats, getPlayerRosterIdentity, getPrimaryPositions, getProfilesFor } from "@/db/queries";
+import { EmptyState, PageShell } from "@/app/SiteNav";
 import { BackButton } from "@/app/BackButton";
 import { PlayerHead } from "@/app/PlayerHead";
 import { PlayerLeagues, type LeagueRecord } from "@/app/[league]/players/PlayerLeagues";
@@ -37,15 +37,21 @@ export default async function HistoricalPlayerPage({
   // and split by league below - two queries for the pair rather than two each.
   const names = await getAccountNames(name);
 
-  const [allHistory, allGames, profiles, allLeagues] = await Promise.all([
+  const [allHistory, allGames, profiles, allLeagues, live] = await Promise.all([
     getPlayerHistoricalStats(names),
     getPlayerGameLog(names),
     // One head is drawn on this page - his. Reading all 600-odd profiles for
     // it was the single most wasteful query on the site.
     getProfilesFor([name]),
     getLeagues(),
+    getLivePlayerByName(name),
   ]);
-  if (allHistory.length === 0) notFound();
+  // Only a name that is nobody at all is a 404. A player signed this morning
+  // has no archive - that is written when a game is published - so asking the
+  // archive alone turned every new signing into "no such player" until the
+  // first time they batted. An empty career is a career that has not started,
+  // and the page says so.
+  if (allHistory.length === 0 && !live) notFound();
 
   // One record per competition, in the leagues' own order, so a player who
   // came up through the MCBA opens on the MBL - the senior competition is the
@@ -82,6 +88,10 @@ export default async function HistoricalPlayerPage({
   const seasonCount = new Set(history.map((row) => row.seasonId)).size;
   // The team they most recently appeared for leads the header.
   const latest = [...history].sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))[0];
+  // A player with no archive yet still belongs to a club, and that is the only
+  // thing the page can say about him - so the live roster fills the header
+  // when the archive has nothing to put there.
+  const clubName = latest?.teamName ?? live?.teamName ?? null;
 
   // The number comes from the archive, which recorded one for almost nobody.
   // The position is the one they have played most in scored games, so it fills
@@ -106,9 +116,9 @@ export default async function HistoricalPlayerPage({
         <div className="relative -mx-4 -mt-5 mb-6 overflow-hidden border-b border-slate-800/80 bg-slate-900/40 px-4 py-6 sm:-mx-6 sm:px-6">
           {/* The club's crest, large and nearly invisible, so the header
               belongs to a team without competing with the player's own head. */}
-          {latest?.teamName && (
+          {clubName && (
             <TeamLogo
-              teamName={latest.teamName}
+              teamName={clubName}
               className="pointer-events-none absolute -right-6 -top-10 h-56 w-56 opacity-[0.06]"
             />
           )}
@@ -128,10 +138,10 @@ export default async function HistoricalPlayerPage({
                   played as <span className="font-semibold text-slate-300">{name}</span>
                 </p>
               )}
-              {latest?.teamName && (
+              {clubName && (
                 <span className="mt-1.5 flex items-center gap-2 text-sm text-slate-300">
-                  <TeamLogo teamName={latest.teamName} className="h-5 w-5" />
-                  {latest.teamName}
+                  <TeamLogo teamName={clubName} className="h-5 w-5" />
+                  {clubName}
                 </span>
               )}
             </div>
@@ -146,12 +156,20 @@ export default async function HistoricalPlayerPage({
                 seasons already on the page. It answers the question the page
                 is opened with - how good are they - before anyone reads a
                 table. */}
-            <CareerLine totals={careerTotals(history, records[0]?.inningsPerGame ?? ERA_INNINGS)} />
+            {history.length > 0 && (
+              <CareerLine totals={careerTotals(history, records[0]?.inningsPerGame ?? ERA_INNINGS)} />
+            )}
           </div>
         </div>
       }
     >
-      <PlayerLeagues records={records} />
+      {records.length === 0 ? (
+        <EmptyState>
+          No games yet. Statistics appear here once a game they have played in is published.
+        </EmptyState>
+      ) : (
+        <PlayerLeagues records={records} />
+      )}
     </PageShell>
   );
 }

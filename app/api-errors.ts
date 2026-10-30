@@ -18,6 +18,14 @@ export function apiError(error: unknown, duplicateMessage = "That already exists
   const messages = errorChain(error);
   const text = messages.join(" | ");
 
+  // Logged as well as answered. A constraint failure used to return its tidy
+  // message and throw the rest away, which left the caller holding "That
+  // already exists" about a push that named no row, no column and no table -
+  // true, useless, and unanswerable without guessing. The reader gets the
+  // short answer and `wrangler tail` gets the constraint.
+  if (text.includes("UNIQUE constraint") || text.includes("FOREIGN KEY constraint")) {
+    console.error(text);
+  }
   if (text.includes("UNIQUE constraint")) {
     return Response.json({ error: duplicateMessage }, { status: 409 });
   }

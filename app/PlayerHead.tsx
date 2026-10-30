@@ -19,7 +19,19 @@
  *
  * Players with no resolved account fall back to a neutral block, so a missing
  * mapping reads as "unknown player" rather than a broken image.
+ *
+ * A player with no account on file but a name that Mojang could have issued is
+ * asked for by name instead, through `/api/head/by-name`. That route looks the
+ * account up, writes it down and redirects here, so the first page anybody
+ * loads him on is what files his account - and every page after that uses his
+ * uuid like anyone else's. It is the way into the six-hourly refresh for a
+ * player who could not otherwise reach it, because that refresh is keyed by a
+ * uuid he has not got. The alternative was a migration per player, and two had
+ * to be written before this existed.
  */
+
+/** A Minecraft name, so a nickname from the archive is not sent to the relay. */
+const MINECRAFT_NAME = /^\w{3,16}$/;
 export function PlayerHead({
   uuid,
   name,
@@ -33,7 +45,10 @@ export function PlayerHead({
 }) {
   const box = `shrink-0 rounded-sm ${className}`;
 
-  if (!uuid) {
+  // No account and no name worth asking about: the MCBA's hand-typed
+  // nicknames and the Discord names from Season VI and earlier are not
+  // usernames and never will be, so they get the block rather than a lookup.
+  if (!uuid && !(name && MINECRAFT_NAME.test(name))) {
     return (
       <span
         aria-hidden
@@ -43,7 +58,9 @@ export function PlayerHead({
     );
   }
 
-  const src = `/api/head/${uuid}`;
+  const src = uuid
+    ? `/api/head/${uuid}`
+    : `/api/head/by-name/${encodeURIComponent(name as string)}`;
   const layer = (column: number) =>
     ({
       position: "absolute",

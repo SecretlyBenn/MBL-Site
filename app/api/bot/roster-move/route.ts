@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { adoptCurrentName } from "@/db/adopt-name";
 import { logAudit } from "@/db/audit";
 import { lookupAccounts } from "@/db/minecraft";
-import { leagues, players, rosterMoves, teams, users, ROSTER_MOVE_TYPES, type RosterMoveType } from "@/db/schema";
+import { leagues, minecraftProfiles, players, rosterMoves, teams, users, ROSTER_MOVE_TYPES, type RosterMoveType } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
 
 /**
@@ -65,6 +65,9 @@ export function clubNamed(botName: string, clubs: { id: number; name: string; le
 }
 
 export async function POST(request: Request) {
+  // Outside the try so a failure can say who the push was about. The bot
+  // writes that answer into a Discord channel for somebody to act on.
+  let ign: string | undefined;
   try {
     const expected = (env as unknown as { BOT_SECRET?: string }).BOT_SECRET;
     if (!expected) {
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
     }
 
     const payload = (await request.json()) as BotMove;
-    const ign = payload.ign?.trim();
+    ign = payload.ign?.trim();
     if (!ign) {
       return Response.json({ error: "ign is required" }, { status: 400 });
     }
@@ -183,9 +186,15 @@ export async function POST(request: Request) {
     // same terms, which is the behaviour wanted here too: a name that
     // already belongs to somebody else leaves him where he is rather than
     // welding two careers together.
+    // Held outside the block below because a signing that turns out to be a
+    // brand new player wants the same answer: the account was already asked
+    // for here, and throwing it away left every new man on the site with no
+    // head and no account on file.
+    let account: { uuid: string; name: string } | undefined;
+
     if (!player) {
       const { found } = await lookupAccounts([ign]);
-      const account = found.get(ign.toLowerCase());
+      account = found.get(ign.toLowerCase());
       if (account && (await adoptCurrentName(account.uuid, account.name)) === "renamed") {
         [player] = await db
           .select()
@@ -212,6 +221,65 @@ export async function POST(request: Request) {
           status: "FREE_AGENT",
         })
         .returning();
+    }
+
+    // Every push is another chance to put an account on file, not only the one
+    // that creates the player.
+    //
+    // The lookup above happens once, at the moment a row is created, and if it
+    // comes back empty - the relay busy, Mojang refusing, a timeout - the
+    // player is created anyway, because a signing must not fail over a head.
+    // Nothing ever asked again. `/api/head/[uuid]` is what keeps an account
+    // current and notices a rename, and it is keyed by the uuid, so a player
+    // with no row has no way back into the one mechanism that would fix him:
+    // he stays a grey square until somebody writes a migration. That is how
+    // PhantomKirk ended up needing one, and he was not special - any signing
+    // whose single lookup happened to miss would have.
+    //
+    // Asking here costs one request to a relay, and only for a player who has
+    // no account on file at all, which after the first push about him is
+    // nobody.
+    const [onFile] = await db
+      .select({ name: minecraftProfiles.playerName })
+      .from(minecraftProfiles)
+      .where(eq(minecraftProfiles.playerName, player.displayName));
+
+    if (!onFile) {
+      const name = player.displayName;
+      const resolved = account ?? (await lookupAccounts([name])).found.get(name.toLowerCase());
+      if (resolved) {
+        // The account may already be on file under the name he went by
+        // before, which is a rename that split him in two. `adoptCurrentName`
+        // merges that rather than refusing it now, and the row it keeps is
+        // whichever one holds his career - which can be a different row from
+        // the one resolved above, so he is read again before his id is used
+        // for the move below.
+        if ((await adoptCurrentName(resolved.uuid, name)) === "renamed") {
+          [player] = await db.select().from(players).where(eq(players.displayName, name));
+        } else {
+          await db
+            .insert(minecraftProfiles)
+            .values({
+              playerName: name,
+              uuid: resolved.uuid,
+              currentName: resolved.name,
+              source: "mojang",
+            })
+            // A name already on file is left exactly as it is. This is the one
+            // place a wrong answer would be hard to spot, so it never
+            // overwrites.
+            .onConflictDoNothing();
+        }
+      }
+    }
+
+    // Only reachable if the merge above kept a row under a name this push did
+    // not ask about, which would mean the account disagrees with itself.
+    if (!player) {
+      return Response.json(
+        { error: `${ign} could not be resolved on this site. Nothing was changed.` },
+        { status: 409 },
+      );
     }
 
     const { teamId, status } = settle(payload.action, player, club);
@@ -250,7 +318,13 @@ export async function POST(request: Request) {
 
     return Response.json({ move, playerId: player.id }, { status: 201 });
   } catch (error) {
-    return apiError(error);
+    // Named, because the bot writes this answer straight into a Discord
+    // channel where somebody has to act on it. "That already exists" about an
+    // unnamed row told whoever read it nothing at all.
+    return apiError(
+      error,
+      `Could not record that move for ${ign ?? "that player"}: this site already holds a row that collides with it. Nothing was changed.`,
+    );
   }
 }
 
