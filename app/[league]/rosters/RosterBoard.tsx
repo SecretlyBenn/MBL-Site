@@ -62,12 +62,21 @@ export function RosterBoard({
             {sentDown.length > 0 && ` · ${sentDown.length} sent down`}
           </p>
         </div>
-        <label className="ui-field-label w-full sm:w-56">
+        {/* Wide enough for the longest club name on the site to be read in
+            full - "Philadelphia Panthers" - so the shrinking below is only
+            ever the safety net on a narrow window. */}
+        <label className="ui-field-label w-full sm:w-72">
           Club
+          {/* The label is pinned to a fixed width, so the control has to take
+              what is left of it rather than its own content width: a club
+              named "Philadelphia Panthers" is wider than the box and pushed
+              the dropdown out through the side of the card. min-w-0 is the
+              half that does the work - without it a flex item will not shrink
+              below the longest option and the overflow comes straight back. */}
           <select
             value={clubId}
             onChange={(event) => setClubId(Number(event.target.value))}
-            className="ui-select"
+            className="ui-select min-w-0 flex-1"
           >
             {clubs.map((row) => (
               <option key={row.id} value={row.id}>
