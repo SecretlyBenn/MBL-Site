@@ -139,6 +139,14 @@ way, and the second run left him with two wins in a season he pitched one. Set
 values rather than adding to them, delete before you insert, and the retry is
 free.
 
+**Before anything irreversible, take a snapshot**: `node scripts/backup-db.mjs`
+writes a checked, compressed dump to a OneDrive folder. D1's own Time Travel
+already covers the last 30 days and needs nothing from anybody, so the
+snapshots are for going back further and for losing the account itself.
+`docs/backup-and-restore.md` is the runbook for both, including why a narrow
+mistake is almost always better fixed with a migration than by rolling the
+whole league back past every signing since.
+
 Locally the same database is a SQLite file under
 `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite` (the largest one).
 It holds a partial copy of production, so a page can render empty locally and

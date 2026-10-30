@@ -44,3 +44,7 @@ next-env.d.ts
 # typescript build cache
 *.tsbuildinfo
 .dev.vars
+
+# Database snapshots are kept outside the repository.
+*.sql.gz
+*.sql.rejected
