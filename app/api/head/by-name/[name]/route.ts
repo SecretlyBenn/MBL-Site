@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { adoptCurrentName } from "@/db/adopt-name";
 import { lookupAccounts } from "@/db/minecraft";
-import { minecraftProfiles } from "@/db/schema";
+import { historicalPlayerStats, minecraftProfiles, players } from "@/db/schema";
 
 /**
  * A head for a player whose account this site has not got on file.
@@ -85,6 +85,32 @@ export async function GET(_request: Request, context: { params: Promise<{ name: 
     .from(minecraftProfiles)
     .where(eq(minecraftProfiles.playerName, name));
   if (known) return toHead(known.uuid);
+
+  // Only somebody this site has heard of.
+  //
+  // This route is public, unauthenticated, and writes a row when it resolves a
+  // name - so without this it is an invitation to feed it real Minecraft
+  // usernames and have the site file a profile for each one, which spends the
+  // day's D1 writes and fills the table with people who have never played
+  // here. The player pool is everybody who has ever played (0099 filled it
+  // from the archive), so a name that is not in it is not a name this site
+  // ever needs a head for.
+  // The live pool first, because that is one indexed row for almost everybody
+  // and covers every current player. The archive second, and only when the
+  // pool misses: a handful of names appear in a season without ever having
+  // been given a live row, and they are still the league's own men.
+  const [inPool] = await db
+    .select({ name: players.displayName })
+    .from(players)
+    .where(eq(players.displayName, name));
+  if (!inPool) {
+    const [played] = await db
+      .select({ name: historicalPlayerStats.playerName })
+      .from(historicalPlayerStats)
+      .where(eq(historicalPlayerStats.playerName, name))
+      .limit(1);
+    if (!played) return nothing();
+  }
 
   let account: { uuid: string; name: string } | undefined;
   try {

@@ -82,3 +82,19 @@ test("an unresolvable name answers with nothing, and is not asked again soon", (
   const busy = byName.slice(byName.indexOf("} catch {"), byName.indexOf("if (!account)"));
   assert.ok(busy.includes("max-age=300"), "a busy relay is cached as though it were an answer");
 });
+
+test("the public head route only asks about names this site knows", () => {
+  const byName = readFileSync("app/api/head/by-name/[name]/route.ts", "utf8");
+
+  // It is public, unauthenticated, and writes a row when it resolves a name.
+  // Without this it is an invitation to feed it real Minecraft usernames and
+  // have the site file a profile for each: it spends the day's D1 writes and
+  // fills the table with people who have never played here.
+  assert.ok(byName.includes("from(players)"), "any name at all reaches the relay and a write");
+  assert.ok(byName.includes("from(historicalPlayerStats)"), "a man who played but has no live row loses his head");
+  assert.ok(
+    // The call, not the import at the top of the file.
+    byName.indexOf("from(players)") < byName.indexOf("lookupAccounts([name])"),
+    "the name is sent to the relay before it is known to be one of ours",
+  );
+});
