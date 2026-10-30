@@ -5,8 +5,9 @@ a Minecraft baseball league. Read this before changing anything.
 
 ## What this is
 
-- `mbl-site` is the Worker. It is live at <https://mbl-site.benmerlin11.workers.dev>.
-- `mbl-site-db` is the D1 database, id `367d7104-bb21-4f11-bf01-2338213f1ac8`.
+- `mbl-site` is the Worker. It is live at <https://mbl-site.mbljavabaseball.workers.dev>,
+  in the league's own Cloudflare account.
+- `mbl-site-db` is the D1 database, id `6cbca09f-19d3-424f-8b5c-ae86a3ae5eee`.
 - Next.js is built for Workers by **vinext**, not by `@cloudflare/next-on-pages`.
 - The league is real and the data is live. Seasons IV-XII are published history
   that people read; there is no staging copy of it.
@@ -80,21 +81,50 @@ to. **Do not add a root `wrangler.jsonc`** - it bound D1 twice and broke the
 deploy. `package.json` has no deploy script on purpose; the league's owner
 declined one.
 
-The Cloudflare login on this machine can reach two accounts: the one the site
-runs in (`b690333da05f8e1aea40b7e68f6ff519`, the owner's personal account) and
-the league's own (`38532e1647aeaa4803a5457a769f8087`, which holds
-minecraftbaseball.com and is where the site is meant to end up). Wrangler will
-not guess between them, so anything that talks to the API needs the account
-named - a deploy takes it from the stamped config, and a D1 command needs it in
-the environment. `D1_DATABASE_ID` and `CLOUDFLARE_ACCOUNT_ID` both override the
-defaults in `scripts/apply-d1-binding.mjs`, which is how the site will move.
+The Cloudflare login on this machine can reach two accounts, and the site has
+already moved between them. It **runs in the league's own**
+(`38532e1647aeaa4803a5457a769f8087`, which holds minecraftbaseball.com), with
+D1 `6cbca09f-19d3-424f-8b5c-ae86a3ae5eee`. The owner's personal account
+(`b690333da05f8e1aea40b7e68f6ff519`, D1
+`367d7104-bb21-4f11-bf01-2338213f1ac8`) still holds a copy, and
+`scripts/apply-d1-binding.mjs` defaults to the league's pair, so the three
+commands above need nothing in the environment.
+
+**That copy is not a spare.** It stopped receiving live roster rows when the
+site moved, so its `players` table is missing every signing the Discord bot
+has pushed since - but its archive is kept level, because migrations are
+applied to both so that a future export cannot resurrect a problem already
+fixed. A migration touching only the archive can be applied to both as-is. One
+that points a live row at another live row cannot: the missing player fails a
+foreign key and D1 rolls back the whole file, taking the archive changes with
+it. Guard those statements with
+`EXISTS (SELECT 1 FROM players WHERE id = ...)` so the copy does the archive
+work and skips the rest - `drizzle/0115` is the pattern.
+
+Wrangler will not guess between the two accounts, so anything that talks to
+the API needs the account named: a deploy takes it from the stamped config, and
+a D1 command needs `CLOUDFLARE_ACCOUNT_ID` in the environment. `D1_DATABASE_ID`
+and `CLOUDFLARE_ACCOUNT_ID` override the script's defaults, which is how the
+site moved and how it would move again. Both are re-stamped on every run, so
+running the script twice is safe; it used to replace the database id only while
+it was still the build's placeholder, which meant a bare run followed by an
+overridden one left the right account beside the wrong database and deployed
+without complaining.
+
+**A secret needs the config too.** There is no root wrangler config, so
+`wrangler secret put` has no Worker to talk to on its own - point it at the
+stamped one, which carries the account as well:
+
+```bash
+npx --no-install wrangler secret put PLUGIN_SECRET --config dist/server/wrangler.json
+```
 
 ## The database
 
 Run SQL against production with:
 
 ```bash
-CLOUDFLARE_ACCOUNT_ID=b690333da05f8e1aea40b7e68f6ff519 npx --no-install wrangler d1 execute mbl-site-db --remote --command "SELECT 1"
+CLOUDFLARE_ACCOUNT_ID=38532e1647aeaa4803a5457a769f8087 npx --no-install wrangler d1 execute mbl-site-db --remote --command "SELECT 1"
 ```
 
 Use `--file drizzle/00NN_name.sql` for anything longer. `--file` prints only a
@@ -196,12 +226,13 @@ Rules learned the hard way:
 
 ## Cloudflare limits
 
-The Worker is on the **free plan** and the owner has not bought the $5/month
-Workers Paid plan.
+The Worker is on the **Workers Paid plan** as of 2026-10-29. That raises the
+CPU allowance from 10ms per request to 30 seconds and removes the daily D1 read
+cap, and it closed the longest-running problem the site had.
 
-**The free plan allows 10ms of CPU per request. Every page here uses more than
-that** - measured from `wrangler tail` on 2026-10-16, with a 32-request run
-against the four heaviest pages:
+**Read the history before deciding something here is cheap enough.** On the
+free plan every page used more than its whole allowance - measured from
+`wrangler tail` on 2026-10-16 over a 32-request run:
 
 | page | CPU | wall |
 | --- | --- | --- |
@@ -213,26 +244,27 @@ against the four heaviest pages:
 | `/mcba/statistics/batting` | 55-158ms | 333ms |
 
 Every one of those answered `ok`, which is why an earlier version of this
-section concluded the ceiling had been raised and 1102 was behind us. That was
-the wrong conclusion from the right measurements: Cloudflare does not kill
-every request that goes over, so the site runs four to twenty times over its
-budget and is only occasionally refused. A reader reported being resource
-limited on a roster page on 2026-10-16, on a day the whole site read 110,000
-D1 rows - 2% of that quota - so it was not the database.
+section concluded the ceiling had been raised. It had not: Cloudflare does not
+kill every request that goes over, so the site ran four to twenty times over
+its budget and was only occasionally refused. A reader did report being
+resource limited on a roster page. **None of that is a constraint any more**,
+but the shape of it still is - those are the pages that cost the most, and
+they are where a new query will hurt first.
 
-**The spikes are cold starts.** In the same run the first four requests
-averaged 139ms and the remaining 28 averaged 74ms, with the worst at 203ms.
-A fresh isolate pays for parsing the bundle - `dist/server/index.js` alone is
-1.5MB - and charges it as CPU on whichever request arrives first. A site with
-one reader hits cold isolates constantly, so **low traffic makes this worse,
-not better**, which is the opposite of what anyone expects.
+**The spikes were cold starts**, and still are. In that run the first four
+requests averaged 139ms and the remaining 28 averaged 74ms. A fresh isolate
+pays for parsing the bundle - `dist/server/index.js` alone is 1.5MB - and
+charges it as CPU on whichever request arrives first, so **low traffic makes
+this worse, not better**, which is the opposite of what anyone expects. It no
+longer breaks anything; it is still the reason a page can feel slow to the
+first reader after a quiet hour. Caching published archive pages at the edge
+would cut how often the Worker runs at all.
 
-Nothing reasonable gets a Next.js page that renders a 90KB table out of a
-database down to 10ms. The $5/month plan allows 30 seconds per request by
-default and removes the daily D1 read cap at the same time; it belongs on the
-launch-day list with the domain and the OAuth redirects. Caching published
-archive pages at the edge would cut how often the Worker runs at all, which
-reduces how often this is rolled, but the first view of any page still pays.
+What is still metered: **D1 writes**, at 100,000 rows a day, which a careless
+migration can spend; and the archive is large enough that a correlated
+subquery over it reads tens of thousands of rows per page. The 100-parameter
+cap per statement and the 5-term cap on compound SELECTs are D1's own and have
+nothing to do with the plan.
 
 Measure before believing any number here: `wrangler tail --format json`
 reports `cpuTime` and `wallTime` per request, and `wrangler d1 insights`
@@ -253,6 +285,27 @@ reports rows read per query without spending any.
   writes the new name into `minecraft_profiles.current_name` and then moves the
   player onto it everywhere, through `adoptCurrentName` in `db/adopt-name.ts`.
   Nothing needs a cron or an admin.
+- **That self-healing is keyed by the uuid, so a player with no account on file
+  cannot reach it**, and he is the one who needs it. The thing that must
+  therefore never be a single attempt is filing the account, and there are now
+  two ways in. `/api/bot/roster-move` asks the relay for any player it touches
+  who has no profile row, not only one it is creating: the lookup at creation
+  can come back empty - relay busy, Mojang refusing, a timeout - and a signing
+  is never failed over a head, so without a second chance that player stays a
+  grey square. `drizzle/0117`'s PhantomKirk was exactly that and nothing else;
+  he was not a special case, just the one whose lookup happened to miss.
+- **`/api/head/by-name/[name]` is the other way in, and it needs nobody at
+  all.** `PlayerHead` points there when it has a name and no uuid; the route
+  looks the account up, writes it down and redirects to the ordinary head, so
+  the first page anybody loads him on is what files his account and every page
+  after that uses his uuid. The cost is bounded because it can only happen once
+  per player. It asks only about a name Mojang could have issued, which keeps
+  the MCBA's hand-typed nicknames and every pre-Season-VII Discord name away
+  from the relay, and an unresolvable name answers with one transparent pixel
+  cached for a week rather than a 404 - a broken-image icon in the middle of a
+  roster is worse than a blank, and a default skin would be a stranger's face.
+  A relay that is merely busy is cached for five minutes instead, so a bad
+  minute does not become a bad week.
 - **A player appears under the name they go by today, in every season.** This
   reversed an earlier rule that the stat tables keep the name used at the time
   because that is what the season's own screenshots say. That rule was never
@@ -261,11 +314,24 @@ reports rows read per query without spending any.
   another, neither page showing the whole career, and the half with no profile
   row showing a blank head. `drizzle/0091` moved 349 names onto their account's
   current name and `adoptCurrentName` keeps it that way.
-- **Moving a name onto a name that already exists is a merge, not a rename**,
-  and the automatic path refuses it for the same reason `/api/players/rename`
-  does: nothing records which rows came from where, so no later edit can
-  separate them. Refusing leaves a player under a stale name, which is wrong
-  but recoverable.
+- **Moving a name onto a name that already exists used to be refused outright.
+  `adoptCurrentName` now absorbs an empty duplicate and still refuses anything
+  with a record behind it.** Refusing everything was right about the danger and
+  wrong about the common case: a player who renames and is then signed under
+  the new name gets a second, empty `players` row from the roster bot, and
+  refusing left him as two people - career and account under the old name, club
+  under the new one, grey square for a head. That happened twice in one week
+  (`drizzle/0115`, `0117`) and each time took a hand-written migration, which is
+  the thing that function exists to avoid. So a shell is absorbed, because
+  joining nothing to something cannot lose anybody's record: its club comes
+  across, its roster moves are repointed, the row holding the career survives.
+  A name carrying an archive line, another account's profile, or a live row that
+  has actually played is still refused, and that refusal is the one that
+  matters - **Minecraft names get recycled**, so a career filed under the name
+  this account holds today may belong to whoever held it before, and welding a
+  stranger's seasons on is the damage no later edit could undo. `hasPlayed` in
+  `db/adopt-name.ts` is that line. `/api/players/rename` still refuses every
+  case, because an admin typing a name is not Mojang reporting one.
 - **Umpires and owners type nicknames into lineups.** The MCBA's seasons were
   entered by hand on MyStatsOnline, and whoever typed them often put in what
   somebody is called rather than their username - `Zeke` for `Z3K3__`, `CJ` for
@@ -434,8 +500,10 @@ Rules that are easy to break:
   recompute afterwards is a no-op - worth keeping to, because the alternative
   leaves the archive disagreeing with itself until somebody clicks Recompute.
 - minecraftbaseball.com is not pointed at this site yet. The contact address is
-  now in `app/site.ts`. The domain, the Workers Paid plan and the Discord OAuth
-  redirect URLs are all waiting on the owner for launch day.
+  now in `app/site.ts`, whose `url` is the workers.dev address the site is
+  actually served from - pointing the domain at the Worker is a one-line change
+  there. The domain and the Discord OAuth redirect URLs are what is left of the
+  launch-day list; the Workers Paid plan was bought on 2026-10-29.
 - The MCBA has nine live clubs and 161 live players (0059, 0060, 0061), all
   taken from MCBA XIV. It has no fixtures or GMs yet.
 - **The MiBL is a status, not a second club.** The Coyotes (MIBL) are a live
