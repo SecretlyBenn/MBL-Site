@@ -8,7 +8,8 @@ import {
   getAvatarsFor,
   clubOf,
 } from "@/db/queries";
-import { BATTING, FIELDING, PITCHING, format, perGameLabels, type Board } from "../boards";
+import { BATTING, FIELDING, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
+import { WorstToggle } from "../WorstToggle";
 import { SeasonSelect } from "../SeasonSelect";
 import { LeaderBoard, type LeaderRow } from "./LeaderBoard";
 import { leagueFrom } from "../../league";
@@ -73,11 +74,16 @@ export default async function LeadersPage({
   searchParams,
 }: {
   params: Promise<{ league: string }>;
-  searchParams: Promise<{ season?: string }>;
+  searchParams: Promise<{ season?: string; worst?: string }>;
 }) {
   const league = await leagueFrom(params);
   const seasons = await getHistoricalSeasons(league.id);
-  const requested = (await searchParams).season;
+  const asked = await searchParams;
+  const requested = asked.season;
+  // The boards read from the other end. Only the rate boards have another end
+  // worth reading, so the rest are left out rather than reversed: the fewest
+  // home runs in a season is not a record, it is whoever turned up once.
+  const showWorst = asked.worst === "1";
   const season = seasons.find((row) => String(row.id) === requested) ?? seasons[0];
   if (!season) {
     return (
@@ -134,33 +140,36 @@ export default async function LeadersPage({
   const teamIds = Object.fromEntries(standings.map((team) => [team.name, team.id]));
 
   const group = (boards: Board[], all: Row[], qualified: Row[]) =>
-    boards.map((board) => ({
+    (showWorst ? boards.filter(reversible).map(worst) : boards).map((board) => ({
       board,
       rows: build(board, board.qualified ? qualified : all, teamIds, avatars),
     }));
 
   const sections = [
     {
-      title: "Batting leaders",
+      title: showWorst ? "Batting, worst first" : "Batting leaders",
       meta: `Rate stats need 1.5 plate appearances a game - ${minPlateAppearances(longest)} over ${longest}`,
       boards: group(BATTING, batters, qualifiedBatters),
     },
     {
-      title: "Pitching leaders",
+      title: showWorst ? "Pitching, worst first" : "Pitching leaders",
       meta: `ERA, WHIP and the per-six boards need an inning a game - ${minInningsPitched(longest)} over ${longest}`,
       boards: group(perGameLabels(PITCHING, league.inningsPerGame), pitchers, qualifiedPitchers),
     },
     {
-      title: "Fielding leaders",
+      title: showWorst ? "Fielding, worst first" : "Fielding leaders",
       meta: "No assists are scored in this league, so these two are the whole of a fielder's record",
       boards: group(FIELDING, fielders, fielders),
     },
-  ];
+    // A section with nothing in it is a heading over blank space. Fielding has
+    // no rate board, so it has nothing to show worst first.
+  ].filter((section) => section.boards.length > 0);
 
   return (
     <PageShell wide title="Leaders" subtitle={`${season.name} statistical leaders`}>
-      <div className="mb-6">
+      <div className="mb-6 flex flex-wrap items-end gap-4">
         <SeasonSelect seasons={seasons} selected={String(season.id)} />
+        <WorstToggle worst={showWorst} />
       </div>
       <div className="space-y-6">
         {sections.map((section) => (

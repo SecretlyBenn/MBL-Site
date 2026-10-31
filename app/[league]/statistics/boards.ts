@@ -28,13 +28,42 @@ export type Board = {
    * minimum would leave the board saying somebody else did.
    */
   qualified?: boolean;
+  /**
+   * What this board is called upside down, for the pages that show the worst
+   * qualified season rather than the best.
+   *
+   * Only a rate has one. The bottom of a counting board is not a record, it
+   * is a list of men who barely played: the fewest at-bats in a season is
+   * whoever turned up once, and the fewest games started is a man who started
+   * none. So a board is reversible exactly when somebody has written down
+   * what its other end is called, which is the same eight boards that need a
+   * qualifying minimum - and for the same reason, because a rate is the only
+   * thing that stays meaningful when you read it from the wrong end.
+   */
+  worstLabel?: string;
 };
 
+/** Whether this board is worth reading from the bottom. */
+export function reversible(board: Board): boolean {
+  return board.worstLabel !== undefined;
+}
+
+/**
+ * The same board, worst first.
+ *
+ * Only the direction changes. The qualifying minimum stays exactly as it was,
+ * which is the whole point: the worst batting average anybody has ever had is
+ * not a man who went nought for two, it is a man who played the season.
+ */
+export function worst(board: Board): Board {
+  return { ...board, label: board.worstLabel ?? board.label, ascending: !board.ascending };
+}
+
 export const BATTING: Board[] = [
-  { key: "battingAverage", label: "Batting average", unit: "AVG", rate: true, qualified: true },
-  { key: "onBasePct", label: "On-base percentage", unit: "OBP", rate: true, qualified: true },
-  { key: "sluggingPct", label: "Slugging", unit: "SLG", rate: true, qualified: true },
-  { key: "ops", label: "OPS", unit: "OPS", rate: true, qualified: true },
+  { key: "battingAverage", label: "Batting average", unit: "AVG", rate: true, qualified: true, worstLabel: "Lowest batting average" },
+  { key: "onBasePct", label: "On-base percentage", unit: "OBP", rate: true, qualified: true, worstLabel: "Lowest on-base percentage" },
+  { key: "sluggingPct", label: "Slugging", unit: "SLG", rate: true, qualified: true, worstLabel: "Lowest slugging" },
+  { key: "ops", label: "OPS", unit: "OPS", rate: true, qualified: true, worstLabel: "Lowest OPS" },
   { key: "hits", label: "Hits", unit: "H" },
   { key: "homeRuns", label: "Home runs", unit: "HR" },
   { key: "rbis", label: "RBI", unit: "RBI" },
@@ -45,6 +74,7 @@ export const BATTING: Board[] = [
   { key: "walks", label: "Walks", unit: "BB" },
   { key: "stolenBases", label: "Stolen bases", unit: "SB" },
   { key: "plateAppearances", label: "Plate appearances", unit: "PA" },
+  { key: "atBats", label: "At bats", unit: "AB" },
   // The ones nobody wants to lead. They are still records - somebody did
   // strike out more times in a season than anyone else ever has - and a
   // leaderboard that only shows the flattering half of the box score is
@@ -55,16 +85,17 @@ export const BATTING: Board[] = [
 ];
 
 export const PITCHING: Board[] = [
-  { key: "era", label: "ERA", unit: "ERA", ascending: true, decimals: 2, qualified: true },
-  { key: "whip", label: "WHIP", unit: "WHIP", ascending: true, decimals: 2, qualified: true },
+  { key: "era", label: "ERA", unit: "ERA", ascending: true, decimals: 2, qualified: true, worstLabel: "Highest ERA" },
+  { key: "whip", label: "WHIP", unit: "WHIP", ascending: true, decimals: 2, qualified: true, worstLabel: "Highest WHIP" },
   {
     key: "strikeoutsPerGame",
     label: "Strikeouts per 6",
     unit: "SO/6",
     decimals: 2,
     qualified: true,
+    worstLabel: "Fewest strikeouts per 6",
   },
-  { key: "walksPerGame", label: "Fewest walks per 6", unit: "BB/6", ascending: true, decimals: 2, qualified: true },
+  { key: "walksPerGame", label: "Fewest walks per 6", unit: "BB/6", ascending: true, decimals: 2, qualified: true, worstLabel: "Most walks per 6" },
   { key: "strikeoutsPitched", label: "Strikeouts", unit: "SO" },
   { key: "wins", label: "Wins", unit: "W" },
   { key: "saves", label: "Saves", unit: "SV" },
@@ -102,6 +133,7 @@ export function perGameLabels(boards: Board[], inningsPerGame: number): Board[] 
   return boards.map((board) => ({
     ...board,
     label: board.label.replace(" per 6", ` per ${inningsPerGame}`),
+    worstLabel: board.worstLabel?.replace(" per 6", ` per ${inningsPerGame}`),
     unit: board.unit.replace("/6", `/${inningsPerGame}`),
   }));
 }

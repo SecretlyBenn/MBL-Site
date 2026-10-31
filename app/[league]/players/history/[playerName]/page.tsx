@@ -88,10 +88,20 @@ export default async function HistoricalPlayerPage({
   const seasonCount = new Set(history.map((row) => row.seasonId)).size;
   // The team they most recently appeared for leads the header.
   const latest = [...history].sort((a, b) => (b.sortOrder ?? 0) - (a.sortOrder ?? 0))[0];
-  // A player with no archive yet still belongs to a club, and that is the only
-  // thing the page can say about him - so the live roster fills the header
-  // when the archive has nothing to put there.
-  const clubName = latest?.teamName ?? live?.teamName ?? null;
+  // The club he is at now, which is the live roster's answer and not the
+  // archive's.
+  //
+  // This used to lead with the archive, which names the club he finished his
+  // last recorded season with - so a man traded in the winter, or halfway
+  // through the season being played, was introduced under the club he left.
+  // The archive is still right about every season in the table below; it is
+  // just not the answer to "who does he play for".
+  //
+  // A live row with no club is a free agent, and the honest thing there is to
+  // say nothing rather than name the last club he wore. Only a player the live
+  // side has never heard of falls back to the archive, and for him the last
+  // club he played for is all there is.
+  const clubName = live ? live.teamName : (latest?.teamName ?? null);
 
   // The number comes from the archive, which recorded one for almost nobody.
   // The position is the one they have played most in scored games, so it fills

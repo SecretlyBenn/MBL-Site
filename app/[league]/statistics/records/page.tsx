@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { clubOf, getAvatarsFor, getLeagueClubGames, getLeagueSeasonTotals, type SeasonTotalRow } from "@/db/queries";
 import { minInningsPitched, minPlateAppearances } from "@/app/scoring";
-import { BATTING, FIELDING, PITCHING, format, perGameLabels, type Board } from "../boards";
+import { BATTING, FIELDING, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
+import { WorstToggle } from "../WorstToggle";
 import { LeaderBoard, type LeaderRow } from "../leaders/LeaderBoard";
 import { leagueFrom } from "../../league";
 
@@ -68,8 +69,18 @@ function build(board: Board, rows: SeasonTotalRow[], prefix: string): LeaderRow[
     }));
 }
 
-export default async function RecordsPage({ params }: { params: Promise<{ league: string }> }) {
+export default async function RecordsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ league: string }>;
+  searchParams: Promise<{ worst?: string }>;
+}) {
   const league = await leagueFrom(params);
+  // Only the rate boards have another end worth reading, so the counting
+  // boards are left out rather than reversed. The fewest at-bats anybody ever
+  // had in a season is a man who turned up once, which is not a record.
+  const showWorst = (await searchParams).worst === "1";
   const [totals, clubGames] = await Promise.all([
     getLeagueSeasonTotals(league.id),
     getLeagueClubGames(league.id),
@@ -114,24 +125,27 @@ export default async function RecordsPage({ params }: { params: Promise<{ league
       board,
       rows: build(board, board.qualified ? qualified : all, `${league.abbreviation} `),
     }));
+  const facing = (boards: Board[]) => (showWorst ? boards.filter(reversible).map(worst) : boards);
 
   const sections = [
     {
-      title: "Batting records",
+      title: showWorst ? "Batting, worst first" : "Batting records",
       meta: "Rate records need 1.5 plate appearances for every game that player's club played",
-      boards: group(BATTING, batters, qualifiedBatters),
+      boards: group(facing(BATTING), batters, qualifiedBatters),
     },
     {
-      title: "Pitching records",
+      title: showWorst ? "Pitching, worst first" : "Pitching records",
       meta: "ERA, WHIP and the per-six boards need an inning for every game that player's club played",
-      boards: group(perGameLabels(PITCHING, league.inningsPerGame), pitchers, qualifiedPitchers),
+      boards: group(facing(perGameLabels(PITCHING, league.inningsPerGame)), pitchers, qualifiedPitchers),
     },
     {
-      title: "Fielding records",
+      title: showWorst ? "Fielding, worst first" : "Fielding records",
       meta: "No assists are scored in this league, so these two are the whole of a fielder's record",
-      boards: group(FIELDING, fielders, fielders),
+      boards: group(facing(FIELDING), fielders, fielders),
     },
-  ];
+    // A heading over blank space is worse than no heading. Fielding has no
+    // rate board, so it has nothing to show worst first.
+  ].filter((section) => section.boards.length > 0);
 
   // Only the heads these boards will actually draw. Every season of the
   // archive is in memory here, and looking up a thousand names to show a
@@ -152,8 +166,15 @@ export default async function RecordsPage({ params }: { params: Promise<{ league
     <PageShell
       wide
       title="Records"
-      subtitle={`The best single seasons in ${league.abbreviation} history`}
+      subtitle={
+        showWorst
+          ? `The worst qualifying seasons in ${league.abbreviation} history`
+          : `The best single seasons in ${league.abbreviation} history`
+      }
     >
+      <div className="mb-6">
+        <WorstToggle worst={showWorst} />
+      </div>
       <div className="space-y-6">
         {sections.map((section) => (
           <section key={section.title}>

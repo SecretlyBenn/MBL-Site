@@ -244,7 +244,16 @@ export function PlayerProfile({
                     season.parts.map((part, index) => (
                       <tr key={`${season.seasonId}-${index}`} className="bg-slate-900/60 text-slate-400">
                         <td />
-                        <td className="pl-8 text-xs">{part.teamName}</td>
+                        <td className="pl-8 text-xs">
+                          {/* The crest, as on the season above it. A split
+                              season is read to find out which clubs, and two
+                              names in grey were the hardest part of the table
+                              to tell apart at a glance. */}
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <TeamLogo teamName={part.teamName} className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{part.teamName}</span>
+                          </span>
+                        </td>
                         {columns.map((column) => (
                           <td key={column.key} className="text-xs">{show(part[column.key], column)}</td>
                         ))}
