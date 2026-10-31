@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { clubOf, getAvatarsFor, getLeagueClubGames, getLeagueSeasonTotals, type SeasonTotalRow } from "@/db/queries";
-import { minInningsPitched, minPlateAppearances } from "@/app/scoring";
+import { REAL_SEASON_GAMES, minInningsPitched, minPlateAppearances, countsAsASeason } from "@/app/scoring";
 import { BATTING, FIELDING, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
 import { WorstToggle } from "../WorstToggle";
 import { LeaderBoard, type LeaderRow } from "../leaders/LeaderBoard";
@@ -111,8 +111,12 @@ export default async function RecordsPage({
     rows.filter((row) => {
       const games = clubGames.get(row.seasonId)?.get(clubOf(row.teamName));
       // A season with no club record behind it sets no bar rather than
-      // shutting everybody in it out.
-      return games === undefined || Number(row[key] ?? 0) >= bar(games);
+      // shutting everybody in it out. A club that played ten games or fewer is
+      // the other way round: it is a known short schedule, and a record set
+      // over a handful of games is not a record.
+      if (games === undefined) return true;
+      if (!countsAsASeason(games)) return false;
+      return Number(row[key] ?? 0) >= bar(games);
     });
 
   const qualifiedBatters = qualify(batters, minPlateAppearances, "plateAppearances");
@@ -130,12 +134,12 @@ export default async function RecordsPage({
   const sections = [
     {
       title: showWorst ? "Batting, worst first" : "Batting records",
-      meta: "Rate records need 1.5 plate appearances for every game that player's club played",
+      meta: `Rate records need 1.5 plate appearances for every game that player's club played, over a schedule of more than ${REAL_SEASON_GAMES}`,
       boards: group(facing(BATTING), batters, qualifiedBatters),
     },
     {
       title: showWorst ? "Pitching, worst first" : "Pitching records",
-      meta: "ERA, WHIP and the per-six boards need an inning for every game that player's club played",
+      meta: `ERA, WHIP and the per-six boards need an inning for every game that player's club played, over a schedule of more than ${REAL_SEASON_GAMES}`,
       boards: group(facing(perGameLabels(PITCHING, league.inningsPerGame)), pitchers, qualifiedPitchers),
     },
     {

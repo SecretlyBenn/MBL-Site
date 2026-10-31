@@ -453,3 +453,24 @@ export function minPlateAppearances(gamesInSeason: number): number {
 export function minInningsPitched(gamesInSeason: number): number {
   return Math.max(0, Math.ceil(gamesInSeason));
 }
+
+/**
+ * The shortest schedule that counts as a season played.
+ *
+ * A club that got through ten games or fewer did not play one: a late entry, a
+ * season abandoned, a playoff round. One and a half of nothing is a bar
+ * anybody clears, so those clubs used to hand out rate titles for four good
+ * at-bats, and in a career they let a stub season sit beside real ones.
+ * Nobody qualifies for a rate board on the strength of a club like that - his
+ * counting totals are still his, because a home run he hit is a home run he
+ * hit.
+ */
+export const REAL_SEASON_GAMES = 10;
+
+export function countsAsASeason(gamesInSeason: number): boolean {
+  // Nought is not a short schedule, it is no schedule: the off-season
+  // tournament keeps no standings at all, and shutting everybody in it out
+  // of its own rate boards would be reading the rule backwards. An unknown
+  // schedule sets a bar of nothing, which is what it did before this rule.
+  return gamesInSeason === 0 || gamesInSeason > REAL_SEASON_GAMES;
+}

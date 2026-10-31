@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { minInningsPitched, minPlateAppearances } from "../app/scoring.ts";
+import { REAL_SEASON_GAMES, minInningsPitched, minPlateAppearances, countsAsASeason } from "../app/scoring.ts";
 
 const leaders = readFileSync("app/[league]/statistics/leaders/page.tsx", "utf8");
 const records = readFileSync("app/[league]/statistics/records/page.tsx", "utf8");
@@ -58,11 +58,29 @@ test("a career is held to the sum of its seasons' bars", () => {
   const careerBar = seasons.reduce((total, games) => total + minPlateAppearances(games), 0);
   assert.equal(careerBar, 165);
   assert.ok(
-    leaders.includes("schedulesPlayed(row).reduce((total, games) => total + minimum(games), 0)"),
+    leaders.includes("counted.reduce<number>((total, games) => total + minimum(games ?? 0), 0)"),
     "the leaders page no longer sums a career's seasons",
   );
   assert.ok(
     leaders.includes("careerGames.get(row.playerName)"),
     "the career bar is not built from the seasons he actually played",
   );
+});
+
+test("a club that played ten games or fewer did not play a season", () => {
+  // A late entry, a season abandoned, a playoff round. One and a half of
+  // nothing is a bar anybody clears, so those used to hand out rate titles
+  // for four good at-bats.
+  assert.equal(REAL_SEASON_GAMES, 10);
+  assert.equal(countsAsASeason(10), false, "ten games is not a season");
+  assert.equal(countsAsASeason(11), true);
+  // Nought is no schedule rather than a short one: the off-season tournament
+  // keeps no standings, and its own rate boards must still rank somebody.
+  assert.equal(countsAsASeason(0), true);
+
+  // A career of nothing but short schedules has no bar it could clear, so it
+  // is left off the rate boards rather than let in on a bar of nought.
+  assert.ok(leaders.includes("if (counted.length === 0) return Infinity;"), "a stub career still qualifies");
+  assert.ok(leaders.includes("countsAsASeason"), "the leaders page does not know the rule");
+  assert.ok(records.includes("if (!countsAsASeason(games)) return false;"), "the records page does not know the rule");
 });
