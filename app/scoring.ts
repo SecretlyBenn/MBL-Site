@@ -409,3 +409,47 @@ export function perGame(
   if (!inningsPitched) return null;
   return ((count ?? 0) * inningsPerGame) / inningsPitched;
 }
+
+/**
+ * Plate appearances a batter needs per game for a season's rate boards.
+ *
+ * The bar used to be that season's own average at-bats, which sounds fair and
+ * is not: it moves with whoever turned out. A season where half the league
+ * played twice drags the average down until four good at-bats win a batting
+ * title, and a season of regulars pushes it up until a man who played most of
+ * the year is shut out. Neither has anything to do with how much baseball he
+ * actually played.
+ *
+ * One and a half per game is a rule nobody has to look up, and it is the same
+ * rule in every season whatever the league looked like that year. The real
+ * game has the same idea at 3.1 plate appearances per team game; this league
+ * plays six innings rather than nine and its clubs bat round more often, so
+ * the number is its own.
+ */
+export const PLATE_APPEARANCES_PER_GAME = 1.5;
+
+/**
+ * The bar for one season, from the number of games its clubs played.
+ *
+ * Rounded up, so the figure is a whole number of plate appearances and the
+ * rule reads the way it is written - MBL Season XII played 22, so it asks for
+ * 33. A season with no games recorded asks for nothing rather than shutting
+ * everybody out, which is what the off-season tournament looks like.
+ */
+export function minPlateAppearances(gamesInSeason: number): number {
+  return Math.ceil(PLATE_APPEARANCES_PER_GAME * Math.max(0, gamesInSeason));
+}
+
+/**
+ * The innings a pitcher needs for a season's rate boards.
+ *
+ * One for every game the season was played over, which is the real game's rule
+ * too. It applies to ERA, WHIP and the per-six figures and to nothing else: a
+ * save, a win, a complete game or a shutout is a thing that happened, and no
+ * number of innings makes it more or less true. Holding a closer to a
+ * starter's innings would empty the save board of the only men who collect
+ * them.
+ */
+export function minInningsPitched(gamesInSeason: number): number {
+  return Math.max(0, Math.ceil(gamesInSeason));
+}

@@ -13,7 +13,15 @@ import { useCurrentLeague, useLeagues } from "./Leagues";
  * with the one being read; one written with a slash is the same page whichever
  * league you came from - the staff portals and the policies.
  */
-export type NavGroup = { label: string; links: { href: string; label: string }[] };
+export type NavGroup = {
+  label: string;
+  /**
+   * `external` is a link that leaves the site, or a file. It is not given a
+   * league prefix, and it is rendered as a plain anchor: next/link has nothing
+   * to navigate to at the end of a download.
+   */
+  links: { href: string; label: string; external?: boolean }[];
+};
 
 export function NavLinks({ groups }: { groups: NavGroup[] }) {
   const league = useCurrentLeague();
@@ -21,7 +29,10 @@ export function NavLinks({ groups }: { groups: NavGroup[] }) {
   const within = (href: string) => (href.startsWith("/") ? href : `/${slug}/${href}`);
   const resolved = groups.map((group) => ({
     ...group,
-    links: group.links.map((link) => ({ ...link, href: within(link.href) })),
+    links: group.links.map((link) => ({
+      ...link,
+      href: link.external ? link.href : within(link.href),
+    })),
   }));
 
   return (
@@ -48,15 +59,19 @@ export function NavLinks({ groups }: { groups: NavGroup[] }) {
               </span>
             </button>
             <div className="invisible absolute left-0 z-30 min-w-56 translate-y-1 overflow-hidden rounded-lg border border-slate-800 bg-slate-900 p-1 opacity-0 shadow-2xl transition duration-150 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100">
-              {group.links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="block rounded-md px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white focus:bg-slate-800 focus:text-white focus:outline-none"
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {group.links.map((link) => {
+                const style =
+                  "block rounded-md px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800 hover:text-white focus:bg-slate-800 focus:text-white focus:outline-none";
+                return link.external ? (
+                  <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className={style}>
+                    {link.label}
+                  </a>
+                ) : (
+                  <Link key={link.href} href={link.href} className={style}>
+                    {link.label}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         ))}

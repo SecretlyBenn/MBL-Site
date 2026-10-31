@@ -3,6 +3,7 @@ import { MobileActionBar } from "./MobileActionBar";
 import { LeagueBrand, NavLinks } from "./NavLinks";
 import { SignInButton } from "./SignInButton";
 import { SiteFooter } from "./SiteFooter";
+import { SITE } from "./site";
 
 const GROUPS = [
   {
@@ -25,6 +26,17 @@ const GROUPS = [
       { href: "statistics/team-pitching", label: "Team Pitching Statistics" },
       { href: "statistics/leaders", label: "Leaders" },
       { href: "statistics/records", label: "Records" },
+    ],
+  },
+  {
+    // What a player needs to turn up and play, which is nothing to do with the
+    // league's own pages - one is a file and the other is Tebex's site, so
+    // both are marked external and leave the site rather than being given a
+    // league prefix.
+    label: "Play",
+    links: [
+      { href: SITE.modpackUrl, label: `Modpack — ${SITE.modpackVersion}`, external: true },
+      { href: SITE.storeUrl, label: "Cosmetics Store", external: true },
     ],
   },
   {

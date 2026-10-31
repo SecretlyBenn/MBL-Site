@@ -1654,3 +1654,45 @@ export async function getSeasonSummaries() {
     leaderWins: Math.max(0, summary.leaderWins),
   }));
 }
+
+/**
+ * How many games each club played, in each of a competition's seasons.
+ *
+ * The rate boards ask for a minimum worked out from this - one and a half
+ * plate appearances a game for a batter, an inning a game for a pitcher - and
+ * it is the club's own games rather than the season's, so a club that played
+ * a shorter schedule is judged on the games it actually had instead of
+ * against clubs who played more.
+ *
+ * `historical_teams` has no games column; a club's games are its wins plus its
+ * losses, which is how the standings page counts them too.
+ *
+ * Keyed by season and club name, because a season line names the club a
+ * player finished with and not its id.
+ */
+/** The suffix a traded player's line carries - "Harlem Jazz (+1)" - is not
+ * part of any club's name. */
+export function clubOf(teamName: string): string {
+  return teamName.replace(/ \(\+\d+\)$/, "");
+}
+
+export async function getLeagueClubGames(leagueId: number): Promise<Map<number, Map<string, number>>> {
+  const rows = await getDb()
+    .select({
+      seasonId: historicalTeams.seasonId,
+      name: historicalTeams.name,
+      wins: historicalTeams.wins,
+      losses: historicalTeams.losses,
+    })
+    .from(historicalTeams)
+    .innerJoin(historicalSeasons, eq(historicalSeasons.id, historicalTeams.seasonId))
+    .where(eq(historicalSeasons.leagueId, leagueId));
+
+  const bySeason = new Map<number, Map<string, number>>();
+  for (const row of rows) {
+    const clubs = bySeason.get(row.seasonId) ?? new Map<string, number>();
+    clubs.set(clubOf(row.name), (row.wins ?? 0) + (row.losses ?? 0));
+    bySeason.set(row.seasonId, clubs);
+  }
+  return bySeason;
+}

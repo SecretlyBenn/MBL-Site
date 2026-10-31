@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
-import { getAvatarsFor, getLeagueSeasonTotals, type SeasonTotalRow } from "@/db/queries";
+import { clubOf, getAvatarsFor, getLeagueClubGames, getLeagueSeasonTotals, type SeasonTotalRow } from "@/db/queries";
+import { minInningsPitched, minPlateAppearances } from "@/app/scoring";
 import { BATTING, FIELDING, PITCHING, format, perGameLabels, type Board } from "../boards";
 import { LeaderBoard, type LeaderRow } from "../leaders/LeaderBoard";
 import { leagueFrom } from "../../league";
@@ -69,7 +70,10 @@ function build(board: Board, rows: SeasonTotalRow[], prefix: string): LeaderRow[
 
 export default async function RecordsPage({ params }: { params: Promise<{ league: string }> }) {
   const league = await leagueFrom(params);
-  const totals = await getLeagueSeasonTotals(league.id);
+  const [totals, clubGames] = await Promise.all([
+    getLeagueSeasonTotals(league.id),
+    getLeagueClubGames(league.id),
+  ]);
 
   if (totals.length === 0) {
     return (
@@ -83,26 +87,27 @@ export default async function RecordsPage({ params }: { params: Promise<{ league
   const pitchers = totals.filter((row) => (row.inningsPitched ?? 0) > 0);
   const fielders = totals.filter((row) => ((row.putouts ?? 0) + (row.errors ?? 0)) > 0);
 
-  // Each season sets its own bar, the way its own leaderboard does. A single
-  // threshold across fifteen seasons would be the wrong one for most of them:
-  // the MCBA's early seasons were far shorter than its recent ones, so a flat
-  // minimum would either admit a four-at-bat .750 or shut out a whole era.
-  const qualify = (rows: SeasonTotalRow[], key: "atBats" | "inningsPitched") => {
-    const totalBySeason = new Map<number, { sum: number; count: number }>();
-    for (const row of rows) {
-      const seen = totalBySeason.get(row.seasonId) ?? { sum: 0, count: 0 };
-      seen.sum += Number(row[key] ?? 0);
-      seen.count += 1;
-      totalBySeason.set(row.seasonId, seen);
-    }
-    return rows.filter((row) => {
-      const seen = totalBySeason.get(row.seasonId);
-      return seen ? Number(row[key] ?? 0) >= seen.sum / Math.max(1, seen.count) : false;
+  // Each club's own schedule sets the bar for its players: one and a half
+  // plate appearances a game for a batter, an inning a game for a pitcher.
+  //
+  // It used to be that season's average at-bats, which moved with whoever
+  // turned out - a season where half the league played twice dragged it down
+  // until four good at-bats could hold a record. A flat number across fifteen
+  // seasons would be no better, because the MCBA's early seasons were a third
+  // the length of its recent ones. The club's own games are the one figure
+  // that means the same thing in every season.
+  const qualify = (rows: SeasonTotalRow[], bar: (games: number) => number, key: "plateAppearances" | "inningsPitched") =>
+    rows.filter((row) => {
+      const games = clubGames.get(row.seasonId)?.get(clubOf(row.teamName));
+      // A season with no club record behind it sets no bar rather than
+      // shutting everybody in it out.
+      return games === undefined || Number(row[key] ?? 0) >= bar(games);
     });
-  };
 
-  const qualifiedBatters = qualify(batters, "atBats");
-  const qualifiedPitchers = qualify(pitchers, "inningsPitched");
+  const qualifiedBatters = qualify(batters, minPlateAppearances, "plateAppearances");
+  // Only the four rate boards ask for innings. A save or a complete game is a
+  // thing that happened, and no number of innings makes it more true.
+  const qualifiedPitchers = qualify(pitchers, minInningsPitched, "inningsPitched");
 
   const group = (boards: Board[], all: SeasonTotalRow[], qualified: SeasonTotalRow[]) =>
     boards.map((board) => ({
@@ -113,12 +118,12 @@ export default async function RecordsPage({ params }: { params: Promise<{ league
   const sections = [
     {
       title: "Batting records",
-      meta: "Rate records need a qualifying season, judged against that season's own average",
+      meta: "Rate records need 1.5 plate appearances for every game that player's club played",
       boards: group(BATTING, batters, qualifiedBatters),
     },
     {
       title: "Pitching records",
-      meta: "Rate records need a qualifying season, judged against that season's own average",
+      meta: "ERA, WHIP and the per-six boards need an inning for every game that player's club played",
       boards: group(perGameLabels(PITCHING, league.inningsPerGame), pitchers, qualifiedPitchers),
     },
     {

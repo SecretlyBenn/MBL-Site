@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
+import { minInningsPitched, minPlateAppearances } from "@/app/scoring";
 import {
   getHistoricalSeasons,
   getHistoricalSeasonStandings,
   getIndividualHistoricalStats,
   getAvatarsFor,
+  clubOf,
 } from "@/db/queries";
 import { BATTING, FIELDING, PITCHING, format, perGameLabels, type Board } from "../boards";
 import { SeasonSelect } from "../SeasonSelect";
@@ -96,15 +98,39 @@ export default async function LeadersPage({
   const batters = rows.filter((row) => (row.atBats ?? 0) > 0);
   const pitchers = rows.filter((row) => (row.inningsPitched ?? 0) > 0);
   const fielders = rows.filter((row) => ((row.putouts ?? 0) + (row.errors ?? 0)) > 0);
-  const averageAtBats =
-    batters.reduce((sum, row) => sum + Number(row.atBats ?? 0), 0) / Math.max(1, batters.length);
-  const averageInnings =
-    pitchers.reduce((sum, row) => sum + Number(row.inningsPitched ?? 0), 0) /
-    Math.max(1, pitchers.length);
-  const qualifiedBatters = batters.filter((row) => Number(row.atBats ?? 0) >= averageAtBats);
-  const qualifiedPitchers = pitchers.filter(
-    (row) => Number(row.inningsPitched ?? 0) >= averageInnings,
+  // One and a half plate appearances for every game his own club played, and
+  // an inning for every one of them for a pitcher.
+  //
+  // The bar used to be the season's own average at-bats, which moved with
+  // whoever turned out: a season where half the league played twice dragged it
+  // down until four good at-bats could win a batting title, and a season of
+  // regulars pushed it up until a man who played most of the year was shut
+  // out. Neither had anything to do with how much baseball he played.
+  //
+  // It is his club's games rather than the season's, so a club that played a
+  // shorter schedule - a forfeited week, a late entry - is judged on the games
+  // it actually had rather than against clubs who played more.
+  const gamesByClub = new Map(
+    standings.map((team) => [team.name, (team.wins ?? 0) + (team.losses ?? 0)]),
   );
+  // A traded player's line is filed under the club he finished with, and that
+  // name carries how many others he turned out for. The club is the name
+  // underneath it.
+  const clubGames = (teamName: string) => gamesByClub.get(clubOf(teamName)) ?? 0;
+  const qualifiedBatters = batters.filter(
+    (row) => Number(row.plateAppearances ?? 0) >= minPlateAppearances(clubGames(row.teamName)),
+  );
+  // Only the four rate boards ask for innings - ERA, WHIP and the two per-six
+  // figures. A save or a complete game is a thing that happened, and no number
+  // of innings makes it more true; a closer would never reach a starter's bar
+  // and his saves are not worth less for it.
+  const qualifiedPitchers = pitchers.filter(
+    (row) => Number(row.inningsPitched ?? 0) >= minInningsPitched(clubGames(row.teamName)),
+  );
+  // The longest schedule any club played, which is what the headings quote:
+  // every club in a normal season played it, and a note cannot name a
+  // different figure for each one.
+  const longest = Math.max(0, ...gamesByClub.values());
   const teamIds = Object.fromEntries(standings.map((team) => [team.name, team.id]));
 
   const group = (boards: Board[], all: Row[], qualified: Row[]) =>
@@ -116,12 +142,12 @@ export default async function LeadersPage({
   const sections = [
     {
       title: "Batting leaders",
-      meta: `Rate stats need ${averageAtBats.toFixed(1)} at bats (league average)`,
+      meta: `Rate stats need 1.5 plate appearances a game - ${minPlateAppearances(longest)} over ${longest}`,
       boards: group(BATTING, batters, qualifiedBatters),
     },
     {
       title: "Pitching leaders",
-      meta: `Rate stats need ${averageInnings.toFixed(1)} innings pitched (league average)`,
+      meta: `ERA, WHIP and the per-six boards need an inning a game - ${minInningsPitched(longest)} over ${longest}`,
       boards: group(perGameLabels(PITCHING, league.inningsPerGame), pitchers, qualifiedPitchers),
     },
     {

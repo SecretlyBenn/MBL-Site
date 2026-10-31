@@ -4,7 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
 
-type Group = { label: string; links: readonly { href: string; label: string }[] };
+/** `external` matches NavGroup: a link that leaves the site, or a file. */
+type Group = {
+  label: string;
+  links: readonly { href: string; label: string; external?: boolean }[];
+};
 
 /**
  * Navigation for screens too narrow for the bar - phones and tablets.
@@ -85,9 +89,21 @@ export function MobileMenu({ groups }: { groups: readonly Group[] }) {
                 {group.label}
               </p>
               {group.links.map((link) => (
-                <Link key={link.href} href={link.href} className={linkClass(link.href)}>
-                  {link.label}
-                </Link>
+                link.external ? (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={linkClass(link.href)}
+                  >
+                    {link.label}
+                  </a>
+                ) : (
+                  <Link key={link.href} href={link.href} className={linkClass(link.href)}>
+                    {link.label}
+                  </Link>
+                )
               ))}
             </div>
           ))}
