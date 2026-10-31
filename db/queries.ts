@@ -1696,3 +1696,53 @@ export async function getLeagueClubGames(leagueId: number): Promise<Map<number, 
   }
   return bySeason;
 }
+
+/**
+ * Every season a player turned out in, with how many games the club he
+ * finished that season with played.
+ *
+ * It is what a career qualifying bar is built from: the sum of each of those
+ * seasons' own bars, so an all-time rate board asks a man who played five
+ * seasons for five seasons' worth of work and a man who played one for one.
+ * Judging a career by a single season's bar would put a three-at-bat
+ * September at the top of the all-time batting average, which is the thing
+ * the qualifying rule exists to stop.
+ *
+ * A player who turned out for two clubs in a season counts that season once,
+ * under the club he ended it with - the same club his season line is filed
+ * under. Where nothing is flagged, the longer schedule is taken, which asks
+ * slightly more of him rather than slightly less.
+ */
+export async function getCareerClubGames(leagueId: number): Promise<Map<string, number[]>> {
+  const rows = await getDb()
+    .select({
+      playerName: historicalPlayerStats.playerName,
+      seasonId: historicalPlayerStats.seasonId,
+      endedHere: historicalPlayerStats.isSeasonEndTeam,
+      wins: historicalTeams.wins,
+      losses: historicalTeams.losses,
+    })
+    .from(historicalPlayerStats)
+    .innerJoin(historicalTeams, eq(historicalTeams.id, historicalPlayerStats.historicalTeamId))
+    .innerJoin(historicalSeasons, eq(historicalSeasons.id, historicalPlayerStats.seasonId))
+    .where(eq(historicalSeasons.leagueId, leagueId));
+
+  const bySeason = new Map<string, Map<number, { games: number; flagged: boolean }>>();
+  for (const row of rows) {
+    const games = (row.wins ?? 0) + (row.losses ?? 0);
+    const seasons = bySeason.get(row.playerName) ?? new Map();
+    const held = seasons.get(row.seasonId);
+    // The flagged club wins outright; between two unflagged ones the longer
+    // schedule wins.
+    if (!held || (row.endedHere && !held.flagged) || (!held.flagged && games > held.games)) {
+      seasons.set(row.seasonId, { games, flagged: Boolean(row.endedHere) });
+    }
+    bySeason.set(row.playerName, seasons);
+  }
+
+  const careers = new Map<string, number[]>();
+  for (const [playerName, seasons] of bySeason) {
+    careers.set(playerName, [...seasons.values()].map((season) => season.games));
+  }
+  return careers;
+}

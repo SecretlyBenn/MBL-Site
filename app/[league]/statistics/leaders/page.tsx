@@ -6,6 +6,7 @@ import {
   getHistoricalSeasonStandings,
   getIndividualHistoricalStats,
   getAvatarsFor,
+  getCareerClubGames,
   clubOf,
 } from "@/db/queries";
 import { BATTING, FIELDING, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
@@ -84,8 +85,11 @@ export default async function LeadersPage({
   // worth reading, so the rest are left out rather than reversed: the fewest
   // home runs in a season is not a record, it is whoever turned up once.
   const showWorst = asked.worst === "1";
-  const season = seasons.find((row) => String(row.id) === requested) ?? seasons[0];
-  if (!season) {
+  // "Career" is a season in the dropdown, the way it is on the batting and
+  // pitching tables: every season added together, with no standings behind it.
+  const career = requested === "career";
+  const season = career ? null : (seasons.find((row) => String(row.id) === requested) ?? seasons[0]);
+  if (!career && !season) {
     return (
       <PageShell title="Leaders">
         <EmptyState>No seasons are available.</EmptyState>
@@ -93,9 +97,10 @@ export default async function LeadersPage({
     );
   }
 
-  const [rows, standings] = await Promise.all([
-    getIndividualHistoricalStats(season.id),
-    getHistoricalSeasonStandings(season.id),
+  const [rows, standings, careerGames] = await Promise.all([
+    getIndividualHistoricalStats(season?.id, league.id),
+    season ? getHistoricalSeasonStandings(season.id) : Promise.resolve([]),
+    career ? getCareerClubGames(league.id) : Promise.resolve(null),
   ]);
   // Only the heads this season's boards can draw. The profile table holds
   // every player the league has ever had, and grows with each new one.
@@ -123,15 +128,21 @@ export default async function LeadersPage({
   // name carries how many others he turned out for. The club is the name
   // underneath it.
   const clubGames = (teamName: string) => gamesByClub.get(clubOf(teamName)) ?? 0;
+  // A career is held to the sum of its seasons' bars, so five seasons ask for
+  // five seasons' worth of work. One season is simply itself.
+  const schedulesPlayed = (row: Row): number[] =>
+    careerGames ? (careerGames.get(row.playerName) ?? []) : [clubGames(row.teamName)];
+  const bar = (row: Row, minimum: (games: number) => number) =>
+    schedulesPlayed(row).reduce((total, games) => total + minimum(games), 0);
   const qualifiedBatters = batters.filter(
-    (row) => Number(row.plateAppearances ?? 0) >= minPlateAppearances(clubGames(row.teamName)),
+    (row) => Number(row.plateAppearances ?? 0) >= bar(row, minPlateAppearances),
   );
   // Only the four rate boards ask for innings - ERA, WHIP and the two per-six
   // figures. A save or a complete game is a thing that happened, and no number
   // of innings makes it more true; a closer would never reach a starter's bar
   // and his saves are not worth less for it.
   const qualifiedPitchers = pitchers.filter(
-    (row) => Number(row.inningsPitched ?? 0) >= minInningsPitched(clubGames(row.teamName)),
+    (row) => Number(row.inningsPitched ?? 0) >= bar(row, minInningsPitched),
   );
   // The longest schedule any club played, which is what the headings quote:
   // every club in a normal season played it, and a note cannot name a
@@ -148,12 +159,16 @@ export default async function LeadersPage({
   const sections = [
     {
       title: showWorst ? "Batting, worst first" : "Batting leaders",
-      meta: `Rate stats need 1.5 plate appearances a game - ${minPlateAppearances(longest)} over ${longest}`,
+      meta: career
+        ? "Rate stats need 1.5 plate appearances a game, in every season he played"
+        : `Rate stats need 1.5 plate appearances a game - ${minPlateAppearances(longest)} over ${longest}`,
       boards: group(BATTING, batters, qualifiedBatters),
     },
     {
       title: showWorst ? "Pitching, worst first" : "Pitching leaders",
-      meta: `ERA, WHIP and the per-six boards need an inning a game - ${minInningsPitched(longest)} over ${longest}`,
+      meta: career
+        ? "ERA, WHIP and the per-six boards need an inning a game, in every season he played"
+        : `ERA, WHIP and the per-six boards need an inning a game - ${minInningsPitched(longest)} over ${longest}`,
       boards: group(perGameLabels(PITCHING, league.inningsPerGame), pitchers, qualifiedPitchers),
     },
     {
@@ -166,9 +181,9 @@ export default async function LeadersPage({
   ].filter((section) => section.boards.length > 0);
 
   return (
-    <PageShell wide title="Leaders" subtitle={`${season.name} statistical leaders`}>
+    <PageShell wide title="Leaders" subtitle={`${season ? season.name : "Career"} statistical leaders`}>
       <div className="mb-6 flex flex-wrap items-end gap-4">
-        <SeasonSelect seasons={seasons} selected={String(season.id)} />
+        <SeasonSelect seasons={seasons} selected={season ? String(season.id) : "career"} career />
         <WorstToggle worst={showWorst} />
       </div>
       <div className="space-y-6">
@@ -182,7 +197,7 @@ export default async function LeadersPage({
                   label={board.label}
                   unit={board.unit}
                   rows={boardRows}
-                  seasonId={season.id}
+                  seasonId={season?.id ?? 0}
                 />
               ))}
             </div>

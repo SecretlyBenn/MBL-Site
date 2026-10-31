@@ -49,3 +49,20 @@ test("only the rate boards ask for a minimum", () => {
     assert.ok(board.includes("qualified: true"), `${rate} takes anybody with one good inning`);
   }
 });
+
+test("a career is held to the sum of its seasons' bars", () => {
+  // Five seasons of 22 games ask for five times a season's 33, not 33 once.
+  // Judging a career by one season's bar would put a three-at-bat September
+  // at the top of the all-time batting average.
+  const seasons = [22, 22, 22, 22, 22];
+  const careerBar = seasons.reduce((total, games) => total + minPlateAppearances(games), 0);
+  assert.equal(careerBar, 165);
+  assert.ok(
+    leaders.includes("schedulesPlayed(row).reduce((total, games) => total + minimum(games), 0)"),
+    "the leaders page no longer sums a career's seasons",
+  );
+  assert.ok(
+    leaders.includes("careerGames.get(row.playerName)"),
+    "the career bar is not built from the seasons he actually played",
+  );
+});
