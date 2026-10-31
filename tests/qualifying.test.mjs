@@ -58,7 +58,7 @@ test("a career is held to the sum of its seasons' bars", () => {
   const careerBar = seasons.reduce((total, games) => total + minPlateAppearances(games), 0);
   assert.equal(careerBar, 165);
   assert.ok(
-    leaders.includes("counted.reduce<number>((total, games) => total + minimum(games ?? 0), 0)"),
+    leaders.includes("counted.reduce((total, games) => total + minimum(games), 0)"),
     "the leaders page no longer sums a career's seasons",
   );
   assert.ok(
@@ -81,6 +81,14 @@ test("a club that played ten games or fewer did not play a season", () => {
   // A career of nothing but short schedules has no bar it could clear, so it
   // is left off the rate boards rather than let in on a bar of nought.
   assert.ok(leaders.includes("if (counted.length === 0) return Infinity;"), "a stub career still qualifies");
-  assert.ok(leaders.includes("countsAsASeason"), "the leaders page does not know the rule");
   assert.ok(records.includes("if (!countsAsASeason(games)) return false;"), "the records page does not know the rule");
+
+  // A whole season that was short is still that season - the MCBA's early
+  // years ran seven games and every playoff round is a handful - so nothing
+  // is taken off anybody on their own season's page. The rule is for the club
+  // that played four while the rest of its season played twenty.
+  assert.ok(
+    leaders.includes("!countsAsASeason(games) && !wholeSeasonWasShort"),
+    "a seven-game season loses its own rate boards",
+  );
 });

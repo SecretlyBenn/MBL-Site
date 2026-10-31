@@ -131,17 +131,32 @@ export default async function LeadersPage({
   // benefit of the doubt stays with the player: a club nobody can count is not
   // the same as a club that played four games.
   const clubGames = (teamName: string) => gamesByClub.get(clubOf(teamName));
+  // The longest schedule any club played, which is what the headings quote:
+  // every club in a normal season played it, and a note cannot name a
+  // different figure for each one.
+  const longest = Math.max(0, ...gamesByClub.values());
+  // A whole season that was short is still that season. The MCBA's early years
+  // ran seven games and every playoff round is a handful, and the men in them
+  // were not loafing, so nothing is taken off them on their own season's page.
+  const wholeSeasonWasShort = !countsAsASeason(longest);
   // A career is held to the sum of its seasons' bars, so five seasons ask for
   // five seasons' worth of work. One season is simply itself.
-  const schedulesPlayed = (row: Row): (number | undefined)[] =>
-    careerGames ? (careerGames.get(row.playerName) ?? []) : [clubGames(row.teamName)];
   const bar = (row: Row, minimum: (games: number) => number) => {
-    const counted = schedulesPlayed(row).filter(
-      (games) => games === undefined || countsAsASeason(games),
-    );
-    // Nothing he played counts as a season, so there is no bar he could clear.
+    if (!careerGames) {
+      const games = clubGames(row.teamName);
+      // A club that played ten games or fewer did not play a season - unless
+      // nobody else in this one did either, in which case this was the season.
+      // What the rule is really for is the club that played four while the rest
+      // of its own season played twenty: a late entry, or a club that folded.
+      if (games !== undefined && !countsAsASeason(games) && !wholeSeasonWasShort) return Infinity;
+      return minimum(games ?? 0);
+    }
+    // A career has no season of its own to be judged against, so a short
+    // schedule is simply left out of the reckoning: it asks nothing of him and
+    // a career made of nothing else has no bar it could clear.
+    const counted = (careerGames.get(row.playerName) ?? []).filter(countsAsASeason);
     if (counted.length === 0) return Infinity;
-    return counted.reduce<number>((total, games) => total + minimum(games ?? 0), 0);
+    return counted.reduce((total, games) => total + minimum(games), 0);
   };
   const qualifiedBatters = batters.filter(
     (row) => Number(row.plateAppearances ?? 0) >= bar(row, minPlateAppearances),
@@ -153,13 +168,6 @@ export default async function LeadersPage({
   const qualifiedPitchers = pitchers.filter(
     (row) => Number(row.inningsPitched ?? 0) >= bar(row, minInningsPitched),
   );
-  // The longest schedule any club played, which is what the headings quote:
-  // every club in a normal season played it, and a note cannot name a
-  // different figure for each one.
-  const longest = Math.max(0, ...gamesByClub.values());
-  // A playoff round, or a season abandoned: the rate boards will be empty, and
-  // a heading that still quotes a bar nobody is held to would be a lie.
-  const shortSeason = !career && !countsAsASeason(longest);
   const teamIds = Object.fromEntries(standings.map((team) => [team.name, team.id]));
 
   const group = (boards: Board[], all: Row[], qualified: Row[]) =>
@@ -173,18 +181,14 @@ export default async function LeadersPage({
       title: showWorst ? "Batting, worst first" : "Batting leaders",
       meta: career
         ? `Rate stats need 1.5 plate appearances a game, in every season he played over ${REAL_SEASON_GAMES} games`
-        : shortSeason
-          ? `No club here played more than ${REAL_SEASON_GAMES} games, so the rate boards have nobody to rank`
-          : `Rate stats need 1.5 plate appearances a game - ${minPlateAppearances(longest)} over ${longest}`,
+        : `Rate stats need 1.5 plate appearances a game - ${minPlateAppearances(longest)} over ${longest}`,
       boards: group(BATTING, batters, qualifiedBatters),
     },
     {
       title: showWorst ? "Pitching, worst first" : "Pitching leaders",
       meta: career
         ? `ERA, WHIP and the per-six boards need an inning a game, in every season he played over ${REAL_SEASON_GAMES} games`
-        : shortSeason
-          ? `No club here played more than ${REAL_SEASON_GAMES} games, so the rate boards have nobody to rank`
-          : `ERA, WHIP and the per-six boards need an inning a game - ${minInningsPitched(longest)} over ${longest}`,
+        : `ERA, WHIP and the per-six boards need an inning a game - ${minInningsPitched(longest)} over ${longest}`,
       boards: group(perGameLabels(PITCHING, league.inningsPerGame), pitchers, qualifiedPitchers),
     },
     {
