@@ -67,8 +67,28 @@ deleting it. An export cut short by a dropped connection is still a file, and
 a file is exactly what a backup looks like until the day somebody needs it.
 
 **Run it before anything irreversible** - a migration that deletes, a
-recompute, a season rollover - and otherwise often enough that losing
-everything since the last one would be bearable.
+recompute, a season rollover.
+
+Otherwise it runs itself. A Windows scheduled task called **MBL database
+snapshot** runs `scripts/backup-db.cmd` at 6pm daily on the league owner's
+machine, which starts in the repository and appends everything the run said to
+`backup-log.txt` in the backups folder. A snapshot that quietly stopped working
+a month ago looks exactly like a working one until the day it is needed, so the
+log sits beside the dumps rather than in Task Scheduler, where nobody would
+think to look.
+
+It only runs while that machine is awake and signed in - no password is stored
+for it - but `StartWhenAvailable` means a day the laptop was shut at six is
+caught up when it next starts rather than skipped. To see when it last ran, or
+change the hour:
+
+```powershell
+Get-ScheduledTaskInfo -TaskName "MBL database snapshot"
+Unregister-ScheduledTask -TaskName "MBL database snapshot"
+```
+
+Re-registering it on another machine is the one command in
+`scripts/backup-db.cmd`'s own comment, with the path to that checkout.
 
 Restoring from one is deliberately not a single command, because it is not
 something to do by accident. The dump is a full schema and every row, so it
@@ -97,6 +117,10 @@ this is three commands instead of one. `SELECT COUNT(*)` on
   credentials live only on the Worker, and Cloudflare will not show them back
   to you. Losing the account means setting new ones and updating the bot and
   the plugin to match. Keep them wherever the league keeps its passwords.
+  `PLUGIN_SECRET` is the one exception, because the plugin has to know it too:
+  it is `site-secret:` in `jumbotron.yml` on the game server, which is where to
+  read it if nobody remembers it. The others exist nowhere but the Worker, so
+  there is nothing to read them back from - a lost one is replaced, not found.
 - **Team logos and news images** are rows in the database, so they are covered
   by both of the above. There is no file storage to back up separately.
 - **The Discord bot's DynamoDB**, which is what the league actually believes
