@@ -1,0 +1,23 @@
+# Watches the dependencies so that nobody has to remember to.
+#
+# `npm audit` has caught real advisories here - six of them, one critical, all
+# in Next - but only on the days somebody thought to run it. An advisory
+# published the day after that is not noticed until the next time, and the gap
+# between the two has been weeks.
+#
+# Weekly rather than daily, and grouped into one pull request rather than one
+# per package, because this league has one maintainer: fifteen open pull
+# requests is the same as none. Major versions are left out of the group so
+# that a breaking upgrade arrives on its own and gets read, which is how the
+# Next 16 upgrade should have come in.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      everything-small:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
