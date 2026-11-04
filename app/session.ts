@@ -81,17 +81,24 @@ export async function decodeSession(token: string | undefined): Promise<Session 
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
 
-  // Verify before parsing: the payload is attacker-supplied until the signature
-  // says otherwise.
-  const valid = await crypto.subtle.verify(
-    "HMAC",
-    await key(),
-    fromBase64Url(signature),
-    encoder.encode(payload),
-  );
-  if (!valid) return null;
-
+  // Everything from here is inside the try because a cookie is not just
+  // unsigned or expired, it can be malformed: a value that is not base64url at
+  // all makes the decoding throw rather than fail the signature check. That
+  // used to escape, and an exception on the way in is a 500 on every page the
+  // reader loads, with the bad cookie still in their browser and no way to
+  // clear it. A cookie this site cannot read must mean "not signed in", which
+  // is the one answer they can recover from by signing in again.
   try {
+    // Verify before parsing: the payload is attacker-supplied until the
+    // signature says otherwise.
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      await key(),
+      fromBase64Url(signature),
+      encoder.encode(payload),
+    );
+    if (!valid) return null;
+
     const session = JSON.parse(new TextDecoder().decode(fromBase64Url(payload))) as Session;
     if (!session.discordId || session.expiresAt * 1000 < Date.now()) return null;
     return session;
