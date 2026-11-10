@@ -363,21 +363,26 @@ test("site furniture stays off both kinds of board", () => {
 });
 
 test("a home run graphic is fitted to the board, not drawn at its own size", () => {
-  // max-height and max-width only ever shrink a picture. Artwork smaller than
-  // the cap was therefore drawn at its own pixel size - a 300px gif came out
-  // 300px across on a screen the size of a wall, which is why nothing anybody
-  // uploaded ever looked the right size. Driving the height and letting the
-  // width follow scales a small one up as well as a large one down.
-  const call = (board.match(/\{event \?[\s\S]*?\) : null\}/) ?? [""])[0];
-  assert.ok(call.includes("object-contain"), "artwork is no longer fitted, so it can be stretched");
-  assert.ok(/h-\[[0-9.]+vh\] w-auto/.test(call), "artwork is capped rather than sized, so a small gif stays small");
+  // Two mistakes, one after the other. max-height and max-width only ever
+  // shrink a picture, so artwork smaller than the cap was drawn at its own
+  // pixel size - a 300px gif came out 300px across on a screen the size of a
+  // wall. Sizing it instead fixed that but kept the cap at a fraction of the
+  // height, which left a postage stamp in a black field. A call takes the
+  // whole board.
+  // Up to the preview badge, because the call itself contains a `) : null}`
+  // of its own and a lazy match stops at the artwork instead of the word.
+  const call = (board.match(/\{event \?[\s\S]*?\{preview \?/) ?? [""])[0];
+  assert.ok(call.includes("h-full w-full object-contain"), "artwork no longer fills the board");
   assert.ok(
-    !/\bmax-h-\[[0-9.]+vh\] (max-)?w-/.test(call),
+    !/max-h-\[[0-9.]+vh\]/.test(call),
     "artwork is back to a max-height, which cannot scale a small picture up",
   );
+  assert.ok(
+    call.includes("object-contain"),
+    "artwork is no longer fitted, so a gif can be stretched to the screen",
+  );
 
-  // Stacked, the picture and the word need about three hundred pixels. A
-  // ribbon is under two hundred tall, so on that shape they go side by side
-  // and each gets the whole height.
-  assert.ok(/ribbon \? "flex-row/.test(call), "a call still stacks on a ribbon, where there is no room to");
+  // The word sits over the foot of the picture rather than taking a row of its
+  // own, because that row is what there was no height for on a ribbon.
+  assert.ok(/event\.image \? "bottom-/.test(call), "the word takes a row from the artwork again");
 });

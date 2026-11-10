@@ -466,20 +466,20 @@ export function Jumbotron({
       )}
 
       {event ? (
-        // A call goes across a ribbon and down everything else. Stacked, the
-        // graphic and the word need about three hundred pixels, and a ribbon is
-        // under two hundred tall - so on that shape the picture was squeezed to
-        // a stamp and the word drawn larger than the screen. Side by side they
-        // both get the whole height, which is the only dimension a ribbon is
-        // short of. Sizes are in vh here rather than in units because this
-        // covers the board instead of stacking with it, and `object-contain`
-        // keeps whatever proportions the artwork was made at - a graphic is
-        // never stretched to fit, only fitted.
+        // A call takes the whole board. The artwork used to be stacked above
+        // the word and capped at a fraction of the height, which on a screen
+        // the size of a wall left a postage stamp in the middle of a black
+        // field - and stacking cost height a ribbon does not have. So the
+        // picture fills the board and the word sits over the foot of it.
+        //
+        // `object-contain` is what keeps that honest: the artwork is fitted to
+        // the board, never stretched to it, so whatever proportions it was made
+        // at are the proportions it is shown at and the rest is let through to
+        // the dark behind. That is why there is no shape of gif that comes out
+        // distorted, only ones that leave bands at the sides.
         <div
           key={event.id}
-          className={`absolute inset-0 flex items-center justify-center bg-slate-950/85 ${
-            ribbon ? "flex-row gap-[3vw]" : "flex-col gap-[calc(var(--u)*3)]"
-          }`}
+          className="absolute inset-0 bg-slate-950/85"
           style={{ animation: `boardEvent ${EVENT_MS}ms ease-out forwards` }}
         >
           {event.image ? (
@@ -489,21 +489,20 @@ export function Jumbotron({
                 autoPlay
                 muted
                 playsInline
-                className={ribbon ? "h-[76vh] w-auto max-w-[40vw] object-contain" : "h-[45vh] w-auto max-w-[60vw] object-contain"}
+                className="absolute inset-0 h-full w-full object-contain"
               />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={event.image}
-                alt=""
-                className={ribbon ? "h-[76vh] w-auto max-w-[40vw] object-contain" : "h-[45vh] w-auto max-w-[60vw] object-contain"}
-              />
+              <img src={event.image} alt="" className="absolute inset-0 h-full w-full object-contain" />
             )
           ) : null}
           <div
-            className={`text-center font-black uppercase leading-none tracking-tight ${
-              ribbon ? "text-[length:calc(var(--u)*4)]" : "text-[length:calc(var(--u)*14)]"
-            }`}
+            className={`absolute inset-x-0 text-center font-black uppercase leading-none tracking-tight ${
+              // Over the foot of the artwork when there is some, because taking
+              // a row for itself is what shrank the picture. Across the middle
+              // when the call has none, where there is nothing to sit on.
+              event.image ? "bottom-[calc(var(--u)*2)]" : "top-1/2 -translate-y-1/2"
+            } ${ribbon ? "text-[length:calc(var(--u)*4)]" : "text-[length:calc(var(--u)*14)]"}`}
             style={{ color: view.battingColor ?? "#ffffff", textShadow: "0 0 3vh rgba(0,0,0,0.9)" }}
           >
             {event.label}
