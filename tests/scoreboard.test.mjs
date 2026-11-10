@@ -361,3 +361,23 @@ test("site furniture stays off both kinds of board", () => {
   const offBoard = readFileSync("app/OffBoard.tsx", "utf8");
   assert.match(offBoard, /scoreboard\|scorebug/, "a cookie banner over a broadcast");
 });
+
+test("a home run graphic is fitted to the board, not drawn at its own size", () => {
+  // max-height and max-width only ever shrink a picture. Artwork smaller than
+  // the cap was therefore drawn at its own pixel size - a 300px gif came out
+  // 300px across on a screen the size of a wall, which is why nothing anybody
+  // uploaded ever looked the right size. Driving the height and letting the
+  // width follow scales a small one up as well as a large one down.
+  const call = (board.match(/\{event \?[\s\S]*?\) : null\}/) ?? [""])[0];
+  assert.ok(call.includes("object-contain"), "artwork is no longer fitted, so it can be stretched");
+  assert.ok(/h-\[[0-9.]+vh\] w-auto/.test(call), "artwork is capped rather than sized, so a small gif stays small");
+  assert.ok(
+    !/\bmax-h-\[[0-9.]+vh\] (max-)?w-/.test(call),
+    "artwork is back to a max-height, which cannot scale a small picture up",
+  );
+
+  // Stacked, the picture and the word need about three hundred pixels. A
+  // ribbon is under two hundred tall, so on that shape they go side by side
+  // and each gets the whole height.
+  assert.ok(/ribbon \? "flex-row/.test(call), "a call still stacks on a ribbon, where there is no room to");
+});

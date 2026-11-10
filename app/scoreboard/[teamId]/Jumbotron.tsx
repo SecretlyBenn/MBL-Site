@@ -466,9 +466,20 @@ export function Jumbotron({
       )}
 
       {event ? (
+        // A call goes across a ribbon and down everything else. Stacked, the
+        // graphic and the word need about three hundred pixels, and a ribbon is
+        // under two hundred tall - so on that shape the picture was squeezed to
+        // a stamp and the word drawn larger than the screen. Side by side they
+        // both get the whole height, which is the only dimension a ribbon is
+        // short of. Sizes are in vh here rather than in units because this
+        // covers the board instead of stacking with it, and `object-contain`
+        // keeps whatever proportions the artwork was made at - a graphic is
+        // never stretched to fit, only fitted.
         <div
           key={event.id}
-          className="absolute inset-0 flex flex-col items-center justify-center gap-[calc(var(--u)*3)] bg-slate-950/85"
+          className={`absolute inset-0 flex items-center justify-center bg-slate-950/85 ${
+            ribbon ? "flex-row gap-[3vw]" : "flex-col gap-[calc(var(--u)*3)]"
+          }`}
           style={{ animation: `boardEvent ${EVENT_MS}ms ease-out forwards` }}
         >
           {event.image ? (
@@ -478,15 +489,21 @@ export function Jumbotron({
                 autoPlay
                 muted
                 playsInline
-                className="max-h-[45vh] max-w-[60vw] object-contain"
+                className={ribbon ? "h-[76vh] w-auto max-w-[40vw] object-contain" : "h-[45vh] w-auto max-w-[60vw] object-contain"}
               />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={event.image} alt="" className="max-h-[45vh] max-w-[60vw] object-contain" />
+              <img
+                src={event.image}
+                alt=""
+                className={ribbon ? "h-[76vh] w-auto max-w-[40vw] object-contain" : "h-[45vh] w-auto max-w-[60vw] object-contain"}
+              />
             )
           ) : null}
           <div
-            className="text-center text-[length:calc(var(--u)*14)] font-black uppercase leading-none tracking-tight"
+            className={`text-center font-black uppercase leading-none tracking-tight ${
+              ribbon ? "text-[length:calc(var(--u)*4)]" : "text-[length:calc(var(--u)*14)]"
+            }`}
             style={{ color: view.battingColor ?? "#ffffff", textShadow: "0 0 3vh rgba(0,0,0,0.9)" }}
           >
             {event.label}
