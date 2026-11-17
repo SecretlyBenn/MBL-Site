@@ -956,6 +956,46 @@ export const drafts = sqliteTable("drafts", {
   name: text("name").notNull(),
   rounds: integer("rounds").notNull(),
   mode: text("mode").notNull().default("STRAIGHT"),
+  // How long a club has to pick, in seconds. Null is no clock. Running out
+  // does nothing - it is there so everybody can see who is holding the draft
+  // up, not to pick for them.
+  pickSeconds: integer("pick_seconds"),
+  // When an admin started it. Null means nobody can pick yet, and it is where
+  // the first pick's clock counts from.
+  startedAt: text("started_at"),
+  signupsOpen: integer("signups_open", { mode: "boolean" }).notNull().default(false),
+  // ALL is everybody the competition could draft; SIGNUPS is only the players
+  // who put their names down.
+  poolSource: text("pool_source").notNull().default("ALL"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// A round that may only take one competition's players. A round with no row
+// here takes anybody, which is every round of a draft nobody has split.
+export const draftRounds = sqliteTable("draft_rounds", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  draftId: integer("draft_id")
+    .notNull()
+    .references(() => drafts.id),
+  round: integer("round").notNull(),
+  leagueId: integer("league_id")
+    .notNull()
+    .references(() => leagues.id),
+});
+
+// Who has put their name down. A Discord account and nothing else: the people
+// signing up are players, and the site has no accounts for them. It has no
+// Discord id for a player either, so the sign-up keeps the name they gave and
+// the player it matched, and leaves the match empty rather than inventing one.
+export const draftSignups = sqliteTable("draft_signups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  draftId: integer("draft_id")
+    .notNull()
+    .references(() => drafts.id),
+  discordId: text("discord_id").notNull(),
+  discordName: text("discord_name").notNull(),
+  typedName: text("typed_name").notNull(),
+  playerId: integer("player_id").references(() => players.id),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

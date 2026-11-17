@@ -1,8 +1,8 @@
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { placeDraftedPlayer, removeDraftedPlayer } from "@/db/draft";
-import { draftPicks, drafts, leagues, players, teams } from "@/db/schema";
+import { getRoundLeagues, placeDraftedPlayer, removeDraftedPlayer } from "@/db/draft";
+import { draftPicks, draftSignups, drafts, leagues, players, teams } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
 import { hasRole, requireRoleForApi } from "@/app/roles";
 
@@ -21,6 +21,12 @@ async function onTheClockFor(draftId: number) {
 
   const league = await db.query.leagues.findFirst({ where: eq(leagues.id, draft.leagueId) });
   if (!league) return { error: "That draft's competition is gone.", status: 409 } as const;
+
+  // Nobody picks before an admin starts it. A board is usually set up days
+  // ahead, and without this the first club could draft the night it appears.
+  if (!draft.startedAt) {
+    return { error: "This draft has not started yet.", status: 409 } as const;
+  }
 
   const [pick] = await db
     .select()
@@ -48,7 +54,7 @@ export async function POST(request: Request) {
     if ("error" in found) {
       return Response.json({ error: found.error }, { status: found.status });
     }
-    const { league, pick } = found;
+    const { draft, league, pick } = found;
 
     const db = getDb();
     const club = await db.query.teams.findFirst({ where: eq(teams.id, pick.teamId) });
@@ -71,6 +77,33 @@ export async function POST(request: Request) {
         { error: `${player.displayName} is already on a club.` },
         { status: 400 },
       );
+    }
+
+    // A round tied to one competition takes only that competition's players.
+    // Checked here and not only by what the picker offers, because the picker
+    // is a convenience and this is the rule.
+    const roundLeague = (await getRoundLeagues(draftId)).get(pick.round);
+    if (roundLeague !== undefined && player.leagueId !== roundLeague) {
+      const only = await db.query.leagues.findFirst({ where: eq(leagues.id, roundLeague) });
+      return Response.json(
+        { error: `Round ${pick.round} takes ${only?.name ?? "another competition"}'s players.` },
+        { status: 400 },
+      );
+    }
+
+    // A draft run off its sign-ups takes nobody else, however they were found.
+    if (draft.poolSource === "SIGNUPS") {
+      const signed = await db
+        .select({ id: draftSignups.id })
+        .from(draftSignups)
+        .where(and(eq(draftSignups.draftId, draftId), eq(draftSignups.playerId, playerId)))
+        .limit(1);
+      if (signed.length === 0) {
+        return Response.json(
+          { error: `${player.displayName} did not sign up for this draft.` },
+          { status: 400 },
+        );
+      }
     }
 
     // Written against the slot still being empty, so two clicks arriving

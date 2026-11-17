@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type League = { id: number; name: string; slug: string };
+type League = { id: number; name: string; slug: string; abbreviation: string };
 type Team = { id: number; name: string; leagueId: number | null };
 type Draft = {
   id: number;
@@ -13,6 +13,12 @@ type Draft = {
   rounds: number;
   mode: "STRAIGHT" | "SNAKE";
   teamIds: number[];
+  pickSeconds: number | null;
+  startedAt: string | null;
+  signupsOpen: boolean;
+  poolSource: "ALL" | "SIGNUPS";
+  /** Round number to the competition it may take players from. */
+  roundLeagues: Record<string, number>;
 };
 
 /**
@@ -50,6 +56,16 @@ export function DraftForm({
   const [rounds, setRounds] = useState(String(draft?.rounds ?? 10));
   const [mode, setMode] = useState<"STRAIGHT" | "SNAKE">(draft?.mode ?? "STRAIGHT");
   const [order, setOrder] = useState<number[]>(draft?.teamIds ?? []);
+  // Minutes on screen, seconds in the database: nobody sets a pick clock in
+  // seconds, and nobody wants to read one in minutes-and-a-bit.
+  const [clockMinutes, setClockMinutes] = useState(
+    draft?.pickSeconds ? String(Math.round(draft.pickSeconds / 60)) : "",
+  );
+  const [poolSource, setPoolSource] = useState<"ALL" | "SIGNUPS">(draft?.poolSource ?? "ALL");
+  const [signupsOpen, setSignupsOpen] = useState(draft?.signupsOpen ?? false);
+  const [roundLeagues, setRoundLeagues] = useState<Record<string, number>>(
+    draft?.roundLeagues ?? {},
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -87,6 +103,10 @@ export function DraftForm({
           rounds: Number(rounds),
           mode,
           teamIds: order,
+          pickSeconds: clockMinutes.trim() === "" ? null : Math.round(Number(clockMinutes) * 60),
+          poolSource,
+          signupsOpen,
+          roundLeagues,
         }),
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
@@ -105,13 +125,13 @@ export function DraftForm({
     }
   }
 
-  async function act(path: string, body: object, ask: string) {
+  async function act(path: string, body: object, ask: string, method: "POST" | "DELETE" = "DELETE") {
     if (!confirm(ask)) return;
     setBusy(true);
     setError("");
     try {
       const response = await fetch(path, {
-        method: "DELETE",
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -135,7 +155,31 @@ export function DraftForm({
           <span className="text-xs text-slate-400">{status}</span>
           <span className="text-xs text-slate-500">
             {draft.mode === "SNAKE" ? "Snake" : "Straight"} · {draft.rounds} rounds
+            {draft.pickSeconds ? ` · ${Math.round(draft.pickSeconds / 60)} min a pick` : " · no clock"}
+            {draft.poolSource === "SIGNUPS" ? " · sign-ups only" : ""}
+            {draft.signupsOpen ? " · sign-ups open" : ""}
           </span>
+          {!draft.startedAt ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                act(
+                  "/api/drafts/start",
+                  { id: draft.id },
+                  "Start the draft? Clubs can pick from now, sign-ups close, and the first pick's clock starts.",
+                  "POST",
+                )
+              }
+              className="ui-button-primary !px-3 !py-1 text-xs"
+            >
+              Start the draft
+            </button>
+          ) : (
+            <span className="rounded-md border border-emerald-800/60 bg-emerald-950/30 px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300">
+              Running
+            </span>
+          )}
           {boardHref && (
             <Link href={boardHref} className="ui-button !px-3 !py-1 text-xs">
               Board
@@ -218,6 +262,84 @@ export function DraftForm({
             <option value="SNAKE">Snake — order turns round each round</option>
           </select>
         </label>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Minutes a pick
+          <input
+            type="number"
+            min={1}
+            max={60}
+            placeholder="none"
+            className="ui-input w-28 font-normal normal-case tracking-normal"
+            value={clockMinutes}
+            onChange={(event) => setClockMinutes(event.target.value)}
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Pool
+          <select
+            className="ui-select font-normal normal-case tracking-normal"
+            value={poolSource}
+            onChange={(event) => setPoolSource(event.target.value as "ALL" | "SIGNUPS")}
+          >
+            <option value="ALL">Everybody the competition can draft</option>
+            <option value="SIGNUPS">Only the players who signed up</option>
+          </select>
+        </label>
+
+        <label className="flex items-end gap-2 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          <input
+            type="checkbox"
+            checked={signupsOpen}
+            onChange={(event) => setSignupsOpen(event.target.checked)}
+            className="h-4 w-4 accent-sky-500"
+          />
+          Sign-ups open
+        </label>
+      </div>
+
+      {/* A round can be set aside for one competition's players, which is what
+          an off-season tournament wants when it is drawing on two. Left as
+          anybody, a round takes whoever is in the pool. */}
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Rounds
+        </span>
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: Math.min(Number(rounds) || 0, 40) }, (_, index) => index + 1).map(
+            (round) => (
+              <label
+                key={round}
+                className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs"
+              >
+                <span className="font-bold text-slate-500">R{round}</span>
+                <select
+                  aria-label={`Competition for round ${round}`}
+                  className="bg-transparent text-xs text-slate-200 outline-none"
+                  value={roundLeagues[round] ?? ""}
+                  onChange={(event) => {
+                    const next = { ...roundLeagues };
+                    if (event.target.value === "") delete next[round];
+                    else next[round] = Number(event.target.value);
+                    setRoundLeagues(next);
+                  }}
+                >
+                  <option value="">Anybody</option>
+                  {leagues
+                    .filter((option) => option.id !== leagueId)
+                    .map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.abbreviation}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            ),
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">

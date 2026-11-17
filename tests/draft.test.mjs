@@ -120,3 +120,95 @@ test("a tournament's picks borrow players rather than moving them", () => {
     "a tournament pick writes to players",
   );
 });
+
+const start = readFileSync("app/api/drafts/start/route.ts", "utf8");
+const signup = readFileSync("app/api/drafts/signup/route.ts", "utf8");
+const button = readFileSync("app/[league]/draft/PickButton.tsx", "utf8");
+const board = readFileSync("app/[league]/draft/page.tsx", "utf8");
+
+test("nobody picks before an admin starts the draft", () => {
+  // A board is set up days ahead; without this the first club could draft the
+  // night it appears.
+  assert.ok(picks.includes("if (!draft.startedAt)"), "a draft can be picked before it starts");
+  assert.ok(start.includes('requireRoleForApi(["ADMIN"])'), "anybody can start a draft");
+  // Sign-ups close as it starts, so the pool is not moving underneath it.
+  assert.ok(start.includes("signupsOpen: false"), "sign-ups stay open once the draft is running");
+});
+
+test("un-starting is refused once anybody has picked", () => {
+  const fn = start.slice(start.indexOf("export async function DELETE"));
+  assert.ok(fn.includes("isNotNull(draftPicks.playerId)"), "a draft with picks can be un-started");
+});
+
+test("a GM only ever picks for their own club", () => {
+  // The page decides what is worth drawing; this is the rule.
+  assert.ok(picks.includes("user.teamId !== pick.teamId"), "a GM can pick for another club");
+  assert.ok(
+    board.includes('hasRole(user, "GM") && user?.teamId === clock?.teamId'),
+    "the board offers the pool to a GM whose club is not up",
+  );
+  // An admin may still pick for whoever is up, and is told plainly that is
+  // what they are doing.
+  assert.ok(board.includes("as an admin, not as their GM"), "an admin is not told whose pick it is");
+});
+
+test("picking asks a second time, with the name in the question", () => {
+  // A browser's confirm box is one return key from being agreed to, and "are
+  // you sure?" does nothing about the real mistake, which is clicking the row
+  // above the one you meant.
+  assert.ok(button.includes("asking"), "there is no second step");
+  assert.ok(button.includes("Yes, draft ${playerName}"), "the confirmation does not name the player");
+  assert.ok(!button.includes("confirm("), "it still uses the browser's dialog");
+});
+
+test("a round tied to a competition takes only its players", () => {
+  assert.ok(picks.includes("getRoundLeagues(draftId)"), "the round's competition is not checked");
+  assert.ok(
+    picks.includes("player.leagueId !== roundLeague"),
+    "a player from another competition is accepted",
+  );
+  // A man with no competition is left out of such a round rather than let
+  // into every one of them.
+  assert.ok(draft.includes("round.leagueId === null ? undefined"), "the restriction is not applied");
+});
+
+test("a draft run off its sign-ups takes nobody else", () => {
+  assert.ok(picks.includes('draft.poolSource === "SIGNUPS"'), "the pool source is ignored on a pick");
+  assert.ok(
+    draft.includes("innerJoin(players, eq(players.id, draftSignups.playerId))"),
+    "an unmatched sign-up is draftable, which would mean inventing the player",
+  );
+});
+
+test("signing up needs a Discord account and nothing else", () => {
+  // The people signing up are players, and the site has never had accounts
+  // for them - requiring a league role would mean nobody could sign up.
+  assert.ok(signup.includes("await getSession()"), "sign-ups ask for a league role");
+  assert.ok(!signup.match(/requireRoleForApi\(\["GM"/), "sign-ups are gated behind a club");
+  assert.ok(signup.includes("rateLimit("), "the form can be filled in a thousand times");
+  assert.ok(signup.includes("signupsOpen"), "sign-ups are accepted after they close");
+});
+
+test("a sign-up that matches nobody is recorded rather than invented", () => {
+  // A typo would otherwise open a second career for somebody who already has
+  // one, which is the mistake the archive is hardest to undo.
+  assert.ok(signup.includes("playerId: player?.id ?? null"), "an unmatched name creates a player");
+  assert.ok(!signup.includes("insert(players)"), "signing up can create a player row");
+});
+
+test("withdrawing takes your own name off, not somebody else's", () => {
+  const fn = signup.slice(signup.indexOf("export async function DELETE"));
+  assert.ok(
+    fn.includes("eq(draftSignups.discordId, session.discordId)"),
+    "a withdrawal is found by an id in the request",
+  );
+});
+
+test("the clock is worked out rather than stored", () => {
+  // A pick taken back has to put the clock back with it, and a column would
+  // have to remember to.
+  const fn = draft.slice(draft.indexOf("export function deadlineFor"));
+  const body = fn.slice(0, fn.indexOf("\n}"));
+  assert.ok(body.includes("Math.max"), "the clock does not count from the later of the two");
+  assert.ok(body.includes("!draft.pickSeconds || !draft.startedAt"), "a draft with no clock gets one");
+});

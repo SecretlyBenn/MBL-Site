@@ -1,6 +1,15 @@
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "./index";
-import { draftPicks, drafts, players, rosterMoves, rosterSpots, teams } from "./schema";
+import {
+  draftPicks,
+  draftRounds,
+  draftSignups,
+  drafts,
+  players,
+  rosterMoves,
+  rosterSpots,
+  teams,
+} from "./schema";
 import { draftSlots, type DraftMode } from "./draft-order";
 
 export { draftSlots } from "./draft-order";
@@ -99,8 +108,9 @@ export async function layOutPicks(
  * whole budget.
  */
 export async function draftablePlayers(
-  draftId: number,
+  draft: { id: number; poolSource: string },
   league: { id: number; isTournament: boolean },
+  round: { round: number; leagueId: number | null },
   search: string,
   limit = 25,
 ) {
@@ -108,31 +118,119 @@ export async function draftablePlayers(
   const gone = await db
     .select({ playerId: draftPicks.playerId })
     .from(draftPicks)
-    .where(and(eq(draftPicks.draftId, draftId), sql`${draftPicks.playerId} IS NOT NULL`));
+    .where(and(eq(draftPicks.draftId, draft.id), sql`${draftPicks.playerId} IS NOT NULL`));
   const taken = new Set(gone.map((pick) => pick.playerId as number));
 
   // A tournament draws on everybody who has played here, because it borrows
   // its players rather than owning them. A competition's own draft draws on
   // its free agents - a man already on one of its clubs is not available, and
   // one belonging to the other competition never was.
-  const pool = league.isTournament
+  const base = league.isTournament
     ? sql`1 = 1`
     : and(
         isNull(players.teamId),
         sql`(${players.leagueId} IS NULL OR ${players.leagueId} = ${league.id})`,
       );
 
-  // Already drafted is settled here rather than in a NOT IN, which would bind
-  // one parameter per player taken and run into D1's hundred-parameter ceiling
-  // partway through any draft worth holding. Asking for the shortfall as well
-  // keeps the list from arriving short.
+  // A round tied to one competition takes only that competition's players.
+  // A man with no competition at all is left out of such a round rather than
+  // let into every one of them: the point of splitting the rounds is that
+  // each is somebody's, and an unfiled player is nobody's.
+  const roundOnly =
+    round.leagueId === null ? undefined : eq(players.leagueId, round.leagueId);
+
+  // Already drafted is settled in JavaScript rather than in a NOT IN, which
+  // would bind one parameter per player taken and run into D1's hundred-
+  // parameter ceiling partway through any draft worth holding. Asking for the
+  // shortfall as well keeps the list from arriving short.
+  const needle = sql`${players.displayName} LIKE ${`%${search.trim()}%`}`;
+
+  if (draft.poolSource === "SIGNUPS") {
+    // Only the players who put their names down, and only the sign-ups an
+    // admin has matched to somebody - an unmatched one is a name nobody has
+    // identified yet, and drafting it would mean inventing the player.
+    const rows = await db
+      .select({ id: players.id, displayName: players.displayName })
+      .from(draftSignups)
+      .innerJoin(players, eq(players.id, draftSignups.playerId))
+      .where(and(eq(draftSignups.draftId, draft.id), needle, roundOnly))
+      .orderBy(asc(players.displayName))
+      .limit(limit + taken.size);
+    return rows.filter((row) => !taken.has(row.id)).slice(0, limit);
+  }
+
   const rows = await db
     .select({ id: players.id, displayName: players.displayName })
     .from(players)
-    .where(and(sql`${players.displayName} LIKE ${`%${search.trim()}%`}`, pool))
+    .where(and(needle, base, roundOnly))
     .orderBy(asc(players.displayName))
     .limit(limit + taken.size);
   return rows.filter((row) => !taken.has(row.id)).slice(0, limit);
+}
+
+/** Which competition each round is restricted to, by round number. */
+export async function getRoundLeagues(draftId: number) {
+  const rows = await getDb()
+    .select({ round: draftRounds.round, leagueId: draftRounds.leagueId })
+    .from(draftRounds)
+    .where(eq(draftRounds.draftId, draftId));
+  return new Map(rows.map((row) => [row.round, row.leagueId]));
+}
+
+/**
+ * Replaces which competition each round is tied to.
+ *
+ * A round left out of `byRound` goes back to taking anybody, so this is the
+ * whole picture each time rather than a set of changes - the same shape the
+ * roles and the competitions an account covers are written in.
+ */
+export async function setRoundLeagues(draftId: number, byRound: Map<number, number>) {
+  const db = getDb();
+  await db.delete(draftRounds).where(eq(draftRounds.draftId, draftId));
+  const rows = [...byRound.entries()].map(([round, leagueId]) => ({ draftId, round, leagueId }));
+  // Three bound parameters a row against D1's hundred, so thirty at a time.
+  for (let index = 0; index < rows.length; index += 30) {
+    await db.insert(draftRounds).values(rows.slice(index, index + 30));
+  }
+}
+
+/** Everybody who has put their name down, newest last, with who they matched. */
+export async function getSignups(draftId: number) {
+  return getDb()
+    .select({
+      id: draftSignups.id,
+      discordId: draftSignups.discordId,
+      discordName: draftSignups.discordName,
+      typedName: draftSignups.typedName,
+      playerId: draftSignups.playerId,
+      playerName: players.displayName,
+      createdAt: draftSignups.createdAt,
+    })
+    .from(draftSignups)
+    .leftJoin(players, eq(players.id, draftSignups.playerId))
+    .where(eq(draftSignups.draftId, draftId))
+    .orderBy(asc(draftSignups.createdAt));
+}
+
+/**
+ * When the pick on the clock runs out, or null if this draft has no clock.
+ *
+ * Counted from whichever came last: the moment the draft was started, or the
+ * moment the pick before this one was made. Worked out here rather than kept
+ * in a column, so a pick taken back puts the clock back with it and nothing
+ * has to remember to.
+ */
+export function deadlineFor(
+  draft: { pickSeconds: number | null; startedAt: string | null },
+  lastMadeAt: string | null,
+): string | null {
+  if (!draft.pickSeconds || !draft.startedAt) return null;
+  const from = Math.max(
+    Date.parse(draft.startedAt.replace(" ", "T") + (draft.startedAt.endsWith("Z") ? "" : "Z")),
+    lastMadeAt ? Date.parse(lastMadeAt) : 0,
+  );
+  if (!Number.isFinite(from)) return null;
+  return new Date(from + draft.pickSeconds * 1000).toISOString();
 }
 
 /** Whether these ids are all clubs of this competition. */

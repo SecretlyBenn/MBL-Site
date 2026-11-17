@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { asc, desc } from "drizzle-orm";
 import { getDb } from "@/db";
-import { getBoard, onTheClock } from "@/db/draft";
+import { getBoard, getRoundLeagues, getSignups, onTheClock } from "@/db/draft";
 import { drafts, teams } from "@/db/schema";
 import { getLeagues } from "@/db/queries";
 import { requireRole } from "@/app/roles";
 import { EmptyState, SectionHeader } from "@/app/SiteNav";
 import { DraftForm } from "./DraftForm";
+import { SignupList } from "./SignupList";
 
 export const metadata: Metadata = { title: "Draft" };
 export const dynamic = "force-dynamic";
@@ -35,7 +36,12 @@ export default async function AdminDraftPage() {
   // Each draft's order and how far it has got. A handful of drafts of a couple
   // of hundred picks each, read once for the page rather than once per row.
   const boards = await Promise.all(
-    held.map(async (draft) => ({ draft, board: await getBoard(draft.id) })),
+    held.map(async (draft) => ({
+      draft,
+      board: await getBoard(draft.id),
+      roundLeagues: await getRoundLeagues(draft.id),
+      signups: draft.poolSource === "SIGNUPS" || draft.signupsOpen ? await getSignups(draft.id) : [],
+    })),
   );
 
   return (
@@ -51,7 +57,7 @@ export default async function AdminDraftPage() {
           <EmptyState>No drafts yet.</EmptyState>
         ) : (
           <ul className="flex flex-col gap-3">
-            {boards.map(({ draft, board }) => {
+            {boards.map(({ draft, board, roundLeagues, signups }) => {
               const clock = onTheClock(board);
               const made = board.filter((pick) => pick.playerId !== null);
               const league = allLeagues.find((row) => row.id === draft.leagueId);
@@ -72,6 +78,11 @@ export default async function AdminDraftPage() {
                       rounds: draft.rounds,
                       mode: draft.mode as "STRAIGHT" | "SNAKE",
                       teamIds: order,
+                      pickSeconds: draft.pickSeconds,
+                      startedAt: draft.startedAt,
+                      signupsOpen: draft.signupsOpen,
+                      poolSource: draft.poolSource as "ALL" | "SIGNUPS",
+                      roundLeagues: Object.fromEntries(roundLeagues),
                     }}
                     status={
                       clock
@@ -85,6 +96,7 @@ export default async function AdminDraftPage() {
                     }
                     boardHref={league ? `/${league.slug}/draft?draft=${draft.id}` : null}
                   />
+                  {signups.length > 0 && <SignupList draftId={draft.id} signups={signups} />}
                 </li>
               );
             })}
