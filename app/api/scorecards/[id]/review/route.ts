@@ -36,6 +36,21 @@ export async function POST(
       );
     }
 
+    // Sending a game back has to say why. The umpire who scored it is being
+    // asked to open it again and find something, and "returned" on its own
+    // does not tell them what. Reopening an approved game is the same question
+    // with more at stake: its stats come off the public site the moment it
+    // happens, and the note is the only record anybody has of what was wrong
+    // with a game that had already been signed off. Checked here and not only
+    // on the button, because a disabled button is not a check.
+    const note = payload.note?.trim();
+    if (payload.decision !== "APPROVE" && !note) {
+      return Response.json(
+        { error: "Say why the game is going back - the umpire has to know what to look for." },
+        { status: 400 },
+      );
+    }
+
     const db = getDb();
     const scorecard = await db.query.scorecards.findFirst({
       where: eq(scorecards.id, scorecardId),
@@ -110,7 +125,7 @@ export async function POST(
       .set({
         status: newStatus,
         reviewedByUserId: leagueUser.id,
-        reviewNote: payload.note ?? null,
+        reviewNote: note ?? null,
         reviewedAt: new Date().toISOString(),
       })
       .where(eq(scorecards.id, scorecardId));
@@ -120,7 +135,7 @@ export async function POST(
       action: `scorecard.${payload.decision.toLowerCase()}`,
       entityType: "scorecard",
       entityId: scorecardId,
-      detail: { note: payload.note ?? null },
+      detail: { note: note ?? null },
     });
 
     return Response.json({ ok: true, status: newStatus });

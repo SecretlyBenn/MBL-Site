@@ -29,3 +29,25 @@ test("returning a game takes the fixture out of the review queue", () => {
 test("a returned card can be submitted for review again", () => {
   assert.ok(finish.includes('scorecard.status !== "RETURNED"'));
 });
+
+test("a game cannot be sent back without saying why", () => {
+  // The umpire who scored it is being asked to open it up and find something,
+  // and "returned" on its own does not tell them what. Reopening an approved
+  // game is the same question with the stats coming off the site as well, so
+  // the note is the only record of what was wrong with it.
+  assert.ok(
+    review.includes('payload.decision !== "APPROVE" && !note'),
+    "returning or reopening still accepts an empty reason",
+  );
+  assert.ok(review.includes("payload.note?.trim()"), "whitespace counts as a reason");
+  assert.ok(/status: 400/.test(review), "an empty reason is not refused");
+
+  // And not only on the button, which is a courtesy rather than a check.
+  const actions = readFileSync("app/head-umpire/ReviewActions.tsx", "utf8");
+  assert.equal(
+    (actions.match(/disabled=\{busy \|\| !note\.trim\(\)\}/g) ?? []).length,
+    2,
+    "one of the two send-back buttons can still be pressed with nothing typed",
+  );
+  assert.ok(!actions.includes("(optional)"), "reopening still calls the reason optional");
+});

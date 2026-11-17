@@ -52,13 +52,13 @@ export function ReviewActions({
       <div className="space-y-2">
         <input
           className="ui-select w-full"
-          placeholder="Reason (optional)"
+          placeholder="Reason for sending it back"
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !note.trim()}
           onClick={() => review("REOPEN")}
           className="rounded-md border border-rose-800 px-3 py-1.5 text-sm font-semibold text-rose-300 transition-colors hover:bg-rose-950/40 disabled:opacity-50"
         >
@@ -73,7 +73,7 @@ export function ReviewActions({
     <div className="space-y-2">
       <input
         className="ui-select w-full"
-        placeholder="Note (required if returning)"
+        placeholder="Reason for sending it back"
         value={note}
         onChange={(event) => setNote(event.target.value)}
       />
@@ -88,7 +88,7 @@ export function ReviewActions({
         </button>
         <button
           type="button"
-          disabled={busy || !note}
+          disabled={busy || !note.trim()}
           onClick={() => review("RETURN")}
           className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-amber-500 disabled:opacity-50"
         >
