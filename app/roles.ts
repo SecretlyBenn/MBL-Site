@@ -30,6 +30,38 @@ export function hasAnyRole(user: { roles: Role[] } | null | undefined, roles: Ro
 }
 
 /**
+ * The competitions an account may write news for, or null for all of them.
+ *
+ * This needs no new role. `users.league_id` is already the competition an
+ * official's roles cover, with null meaning both, and the admin page already
+ * offers that picker for a WRITER - so an MBL writer is a WRITER whose league
+ * is the MBL, an MCBA writer is one whose league is the MCBA, and a writer
+ * trusted with both is one with no league at all. What was missing is that the
+ * newsroom ignored it and stamped every article with whichever competition
+ * happened to be first in the table.
+ *
+ * An admin may write for any of them, because the wider role wins where two
+ * disagree - the same rule `assertMayArrange` follows for a head umpire who
+ * also runs a club.
+ *
+ * Null rather than a list of every league, so a competition added to the table
+ * tomorrow is writable without anybody remembering this function exists.
+ */
+export function writableLeagues(user: { roles: Role[]; leagueId: number | null }): number[] | null {
+  if (hasRole(user, "ADMIN") || user.leagueId === null) return null;
+  return [user.leagueId];
+}
+
+/** Whether this account may file an article under this competition. */
+export function mayWriteFor(
+  user: { roles: Role[]; leagueId: number | null },
+  leagueId: number,
+): boolean {
+  const allowed = writableLeagues(user);
+  return allowed === null || allowed.includes(leagueId);
+}
+
+/**
  * The roles written out for a page heading: "gm · umpire".
  *
  * Ordered by ROLES rather than by whatever order they came back in, so the

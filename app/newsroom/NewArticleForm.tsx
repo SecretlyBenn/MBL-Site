@@ -8,10 +8,16 @@ import { useState } from "react";
  *
  * Only a headline to begin with: the piece is created as a draft and opens in
  * the editor, so writing starts one click after the idea.
+ *
+ * The competition is asked for only when the writer covers more than one. A
+ * writer who covers the MCBA alone has nothing to decide, and a choice with
+ * one option in it is a question that wastes their time - so they get a line
+ * saying where it is going instead.
  */
-export function NewArticleForm() {
+export function NewArticleForm({ leagues }: { leagues: { id: number; name: string }[] }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
+  const [leagueId, setLeagueId] = useState<number | undefined>(leagues[0]?.id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,7 +29,7 @@ export function NewArticleForm() {
       const response = await fetch("/api/news", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
+        body: JSON.stringify({ title, leagueId }),
       });
       const data = (await response.json().catch(() => ({}))) as {
         error?: string;
@@ -54,6 +60,24 @@ export function NewArticleForm() {
         className="ui-input w-full"
         required
       />
+      {leagues.length > 1 ? (
+        <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Competition
+          <select
+            value={leagueId ?? ""}
+            onChange={(event) => setLeagueId(Number(event.target.value))}
+            className="ui-input w-full font-normal normal-case tracking-normal"
+          >
+            {leagues.map((league) => (
+              <option key={league.id} value={league.id}>
+                {league.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : leagues.length === 1 ? (
+        <p className="text-xs text-slate-400">Filed under {leagues[0].name}.</p>
+      ) : null}
       <button type="submit" disabled={busy || !title.trim()} className="ui-button-primary self-start">
         {busy ? "Starting…" : "Start writing"}
       </button>

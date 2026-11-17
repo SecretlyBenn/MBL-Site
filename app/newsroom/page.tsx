@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAllArticles, getArticlesByAuthor } from "@/db/news";
-import { describeRoles, hasRole, requireRole } from "@/app/roles";
+import { describeRoles, hasRole, requireRole, writableLeagues } from "@/app/roles";
+import { getLeagues } from "@/db/queries";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { NewArticleForm } from "./NewArticleForm";
 
@@ -17,6 +18,12 @@ export const dynamic = "force-dynamic";
 export default async function NewsroomPage() {
   const user = await requireRole(["ADMIN", "WRITER"], "/newsroom");
   const articles = hasRole(user, "ADMIN") ? await getAllArticles() : await getArticlesByAuthor(user.id);
+  // The competitions this writer covers. A writer scoped to one gets no
+  // choice and no question; the API checks the answer either way.
+  const allowed = writableLeagues(user);
+  const leagues = (await getLeagues()).filter(
+    (league) => allowed === null || allowed.includes(league.id),
+  );
   const drafts = articles.filter((article) => article.status !== "PUBLISHED");
   const published = articles.filter((article) => article.status === "PUBLISHED");
 
@@ -63,7 +70,7 @@ export default async function NewsroomPage() {
           </section>
         </div>
         <aside className="flex flex-col gap-4">
-          <NewArticleForm />
+          <NewArticleForm leagues={leagues} />
           <div className="ui-card p-4 text-xs leading-relaxed text-slate-400">
             <p className="mb-2 text-sm font-bold uppercase tracking-wider text-slate-200">
               Writing an article

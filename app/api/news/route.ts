@@ -4,7 +4,7 @@ import { logAudit } from "@/db/audit";
 import { slugify } from "@/db/news";
 import { newsArticles, newsComments, newsImages, newsLikes } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
-import { hasRole, requireRoleForApi, type LeagueUser } from "@/app/roles";
+import { hasRole, mayWriteFor, requireRoleForApi, writableLeagues, type LeagueUser } from "@/app/roles";
 import { getLeagues } from "@/db/queries";
 
 /**
@@ -27,11 +27,31 @@ const MAX_BODY = 40000;
 export async function POST(request: Request) {
   try {
     const user = await requireRoleForApi(["ADMIN", "WRITER"]);
-    const payload = (await request.json()) as { title?: string };
+    const payload = (await request.json()) as { title?: string; leagueId?: number };
     const title = payload.title?.trim();
     if (!title) return Response.json({ error: "Give the article a headline." }, { status: 400 });
     if (title.length > MAX_TITLE) {
       return Response.json({ error: "That headline is too long." }, { status: 400 });
+    }
+
+    // Which competition the article belongs to. Asked for by the newsroom when
+    // the writer covers more than one; otherwise it is simply the one they
+    // cover. Checked here rather than trusted, because the form is not the only
+    // thing that can post to this route.
+    const leagues = await getLeagues();
+    const asked = Number(payload.leagueId);
+    const allowed = writableLeagues(user);
+    const leagueId = leagues.some((league) => league.id === asked)
+      ? asked
+      : (allowed?.[0] ?? leagues[0]?.id);
+    if (leagueId === undefined) {
+      return Response.json({ error: "No competition to file this under." }, { status: 400 });
+    }
+    if (!mayWriteFor(user, leagueId)) {
+      return Response.json(
+        { error: "You do not write for that competition." },
+        { status: 403 },
+      );
     }
 
     const db = getDb();
@@ -49,10 +69,7 @@ export async function POST(request: Request) {
         authorUserId: user.id,
         authorName: user.displayName,
         status: "DRAFT",
-        // The newsroom sits outside the leagues, so an article starts in the
-        // first one. Every writer the site has today is the MBL's; when a
-        // writer's role carries a league, this takes it from there.
-        leagueId: (await getLeagues())[0]?.id,
+        leagueId,
       })
       .returning();
 
@@ -61,7 +78,7 @@ export async function POST(request: Request) {
       action: "news.create",
       entityType: "news",
       entityId: article.id,
-      detail: { title },
+      detail: { title, leagueId },
     });
     return Response.json({ article }, { status: 201 });
   } catch (error) {
