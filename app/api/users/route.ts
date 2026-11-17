@@ -181,6 +181,23 @@ export async function POST(request: Request) {
     }
 
     const db = getDb();
+
+    // An account the league already has. Discord ids are unique, so without
+    // this the insert fails on the constraint and the admin is shown the whole
+    // failed statement - columns, placeholders and parameters - which says
+    // nothing about what they did or what to do instead. The usual reason for
+    // typing somebody in twice is wanting to change what they hold, and that
+    // is done by opening them in the list rather than adding them again.
+    const already = await db.query.users.findFirst({ where: eq(users.discordId, discordId) });
+    if (already) {
+      return Response.json(
+        {
+          error: `${already.displayName} already has a league account. Open them in the list below to change their roles.`,
+        },
+        { status: 409 },
+      );
+    }
+
     const [user] = await db
       .insert(users)
       .values({

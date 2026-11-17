@@ -118,3 +118,23 @@ test("the migration keeps every existing account's access", () => {
   );
   assert.ok(migration.includes("CREATE UNIQUE INDEX"), "one account could hold a role twice");
 });
+
+test("an account the league already has is named, not dumped as a failed query", () => {
+  // Discord ids are unique. Without a check the insert fails on the
+  // constraint and the admin is shown the whole statement - columns,
+  // placeholders and parameters - which says nothing about what they did.
+  const route = readFileSync("app/api/users/route.ts", "utf8");
+  const start = route.indexOf("export async function POST");
+  const next = route.indexOf("export async function", start + 1);
+  const body = route.slice(start, next === -1 ? undefined : next);
+
+  assert.ok(
+    body.includes("db.query.users.findFirst({ where: eq(users.discordId, discordId) })"),
+    "a Discord id that is already here is not looked for",
+  );
+  assert.ok(/status: 409/.test(body), "a duplicate account is not refused with a conflict");
+  assert.ok(
+    body.indexOf("already") < body.indexOf(".insert(users)"),
+    "the check runs after the insert, so the constraint still throws first",
+  );
+});
