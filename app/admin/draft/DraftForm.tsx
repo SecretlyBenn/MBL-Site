@@ -11,7 +11,6 @@ type Draft = {
   leagueId: number;
   name: string;
   rounds: number;
-  mode: "STRAIGHT" | "SNAKE";
   teamIds: number[];
   pickSeconds: number | null;
   startedAt: string | null;
@@ -23,7 +22,7 @@ type Draft = {
   laidOut: boolean;
 };
 
-type Rule = { round: number; leagueId: number | null; reversed: boolean | null };
+type Rule = { round: number; leagueIds: number[]; reversed: boolean };
 
 /**
  * A draft's shape: which competition, how many rounds, straight or a snake,
@@ -61,7 +60,6 @@ export function DraftForm({
   // how many people sign up - the draft gets made and opened first, and this
   // is filled in once the league knows what it is working with.
   const [rounds, setRounds] = useState(draft?.rounds ? String(draft.rounds) : "");
-  const [mode, setMode] = useState<"STRAIGHT" | "SNAKE">(draft?.mode ?? "STRAIGHT");
   const [order, setOrder] = useState<number[]>(draft?.teamIds ?? []);
   // Minutes on screen, seconds in the database: nobody sets a pick clock in
   // seconds, and nobody wants to read one in minutes-and-a-bit.
@@ -98,11 +96,23 @@ export function DraftForm({
   /** Changes one thing about one round, leaving the rest of it alone. */
   function setRule(round: number, change: Partial<Rule>) {
     const next = new Map(rules);
-    const now = next.get(round) ?? { round, leagueId: null, reversed: null };
+    const now = next.get(round) ?? { round, leagueIds: [], reversed: false };
     const merged = { ...now, ...change };
-    if (merged.leagueId === null && merged.reversed === null) next.delete(round);
+    // A round doing nothing differently keeps no row: it runs the order as
+    // entered and takes anybody, which is what no row means.
+    if (merged.leagueIds.length === 0 && !merged.reversed) next.delete(round);
     else next.set(round, merged);
     setRules(next);
+  }
+
+  /** Adds or removes one competition from a round, leaving the rest alone. */
+  function toggleRoundLeague(round: number, leagueId: number) {
+    const held = rules.get(round)?.leagueIds ?? [];
+    setRule(round, {
+      leagueIds: held.includes(leagueId)
+        ? held.filter((id) => id !== leagueId)
+        : [...held, leagueId],
+    });
   }
 
   /** Lays the first few rounds over all of them, again and again. */
@@ -137,7 +147,6 @@ export function DraftForm({
           leagueId,
           name,
           rounds: Number(rounds),
-          mode,
           teamIds: order,
           pickSeconds: clockMinutes.trim() === "" ? null : Math.round(Number(clockMinutes) * 60),
           poolSource,
@@ -190,7 +199,7 @@ export function DraftForm({
           <span className="min-w-[10rem] flex-1 text-sm font-semibold text-slate-100">{draft.name}</span>
           <span className="text-xs text-slate-400">{status}</span>
           <span className="text-xs text-slate-500">
-            {draft.mode === "SNAKE" ? "Snake" : "Straight"} · {draft.rounds} rounds
+            {draft.rounds} rounds
             {draft.pickSeconds ? ` · ${Math.round(draft.pickSeconds / 60)} min a pick` : " · no clock"}
             {draft.poolSource === "SIGNUPS" ? " · sign-ups only" : ""}
             {draft.signupsOpen ? " · sign-ups open" : ""}
@@ -295,17 +304,6 @@ export function DraftForm({
           />
         </label>
 
-        <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Mode
-          <select
-            className="ui-select font-normal normal-case tracking-normal"
-            value={mode}
-            onChange={(event) => setMode(event.target.value as "STRAIGHT" | "SNAKE")}
-          >
-            <option value="STRAIGHT">Straight — same order every round</option>
-            <option value="SNAKE">Snake — order turns round each round</option>
-          </select>
-        </label>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -345,84 +343,101 @@ export function DraftForm({
         </label>
       </div>
 
-      {/* A round says whose players it takes and which way round it runs.
-          Both because neither mode describes what this league actually does -
-          four rounds of forward, reversed, reversed, forward, alternating
-          competitions, and then the same four again. Saying it round by round
-          covers that and covers whatever is used next; the repeat button is
-          what keeps it from being twenty dropdowns set by hand. */}
+      {/* Each round says what it does: which way round it runs, and whose
+          players it may take. Nothing sits above them - there is no
+          straight-or-snake setting any more, because a snake is only rounds
+          2, 4, 6 reversed and this league's pattern is neither. One place
+          decides the order, so there is nothing for a second one to disagree
+          with.
+
+          Which is why the repeat button stays. With nothing above the rounds,
+          a twenty-round snake would be ten dropdowns set one at a time;
+          setting the first few and laying them over the rest writes the
+          pattern once, where it can be read. */}
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Rounds
+            Each round
           </span>
-          <span className="flex items-center gap-1 text-xs text-slate-500">
-            Set the first
-            <input
-              type="number"
-              min={1}
-              max={Math.max(1, Number(rounds) || 1)}
-              value={cycle}
-              onChange={(event) => setCycle(event.target.value)}
-              className="ui-input !w-16 !py-0.5 text-xs"
-              aria-label="How many rounds to repeat"
-            />
-            then
-            <button type="button" onClick={repeat} className="ui-button !px-2 !py-0.5 text-xs">
-              repeat them
-            </button>
-          </span>
+          {everyRound.length > 0 && (
+            <span className="flex items-center gap-1 text-xs text-slate-500">
+              Set the first
+              <input
+                type="number"
+                min={1}
+                max={Math.max(1, everyRound.length)}
+                value={cycle}
+                onChange={(event) => setCycle(event.target.value)}
+                className="ui-input !w-16 !py-0.5 text-xs"
+                aria-label="How many rounds to repeat"
+              />
+              then
+              <button type="button" onClick={repeat} className="ui-button !px-2 !py-0.5 text-xs">
+                repeat them down the rest
+              </button>
+            </span>
+          )}
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {everyRound.map((round) => {
-            const rule = rules.get(round);
-            return (
-              <span
-                key={round}
-                className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs"
-              >
-                <span className="w-7 font-bold text-slate-500">R{round}</span>
-                <select
-                  aria-label={`Direction for round ${round}`}
-                  className="bg-transparent text-xs text-slate-200 outline-none"
-                  value={rule?.reversed === null || rule?.reversed === undefined ? "" : rule.reversed ? "R" : "F"}
-                  onChange={(event) =>
-                    setRule(round, {
-                      reversed:
-                        event.target.value === "" ? null : event.target.value === "R",
-                    })
-                  }
+
+        {everyRound.length === 0 ? (
+          <p className="text-xs text-slate-500">
+            Set how many rounds it runs and each one appears here.
+          </p>
+        ) : (
+          <ul className="flex flex-wrap gap-1.5">
+            {everyRound.map((round) => {
+              const rule = rules.get(round);
+              return (
+                <li
+                  key={round}
+                  className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs"
                 >
-                  <option value="">{mode === "SNAKE" ? "Snake" : "Straight"}</option>
-                  <option value="F">1 → {order.length || "n"}</option>
-                  <option value="R">{order.length || "n"} → 1</option>
-                </select>
-                <select
-                  aria-label={`Competition for round ${round}`}
-                  className="bg-transparent text-xs text-slate-200 outline-none"
-                  value={rule?.leagueId ?? ""}
-                  onChange={(event) =>
-                    setRule(round, {
-                      leagueId: event.target.value === "" ? null : Number(event.target.value),
-                    })
-                  }
-                >
-                  <option value="">Anybody</option>
-                  {/* The off-season tournament owns no players, so a round
-                      asking for its players would ask for nobody. */}
-                  {leagues
-                    .filter((option) => !option.isTournament)
-                    .map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.abbreviation}
-                      </option>
-                    ))}
-                </select>
-              </span>
-            );
-          })}
-        </div>
+                  <span className="w-7 font-bold text-slate-500">R{round}</span>
+                  <select
+                    aria-label={`Direction for round ${round}`}
+                    className="bg-transparent text-xs text-slate-200 outline-none"
+                    value={rule?.reversed ? "R" : "F"}
+                    onChange={(event) => setRule(round, { reversed: event.target.value === "R" })}
+                  >
+                    <option value="F">1 &rarr; {order.length || "n"}</option>
+                    <option value="R">{order.length || "n"} &rarr; 1</option>
+                  </select>
+                  {/* Chips rather than a picker, because a round can take more
+                      than one competition's players - both is an ordinary
+                      answer and a picker can only ever say one. None ticked
+                      takes anybody in the pool. The off-season tournament owns
+                      no players, so it is not offered. */}
+                  <span className="flex items-center gap-1">
+                    {leagues
+                      .filter((option) => !option.isTournament)
+                      .map((option) => {
+                        const on = rule?.leagueIds.includes(option.id) ?? false;
+                        return (
+                          <label
+                            key={option.id}
+                            title={`${option.name} players in round ${round}`}
+                            className={`cursor-pointer select-none rounded px-1.5 py-0.5 text-[11px] font-bold transition-colors ${
+                              on ? "bg-sky-600/30 text-sky-200" : "text-slate-600 hover:text-slate-400"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              onChange={() => toggleRoundLeague(round, option.id)}
+                              className="sr-only"
+                            />
+                            {option.abbreviation}
+                          </label>
+                        );
+                      })}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
+
 
       <div className="flex flex-col gap-2">
         <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">

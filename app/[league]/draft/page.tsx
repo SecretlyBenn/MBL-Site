@@ -71,7 +71,6 @@ export default async function DraftPage({
       id: drafts.id,
       name: drafts.name,
       rounds: drafts.rounds,
-      mode: drafts.mode,
       pickSeconds: drafts.pickSeconds,
       startedAt: drafts.startedAt,
       signupsOpen: drafts.signupsOpen,
@@ -128,14 +127,15 @@ export default async function DraftPage({
 
   // Which competition this round is for, if it is for one. The off-season
   // tournament borrows from both, and a round can be set aside for either.
-  const roundLeagueId = clock ? roundRules.get(clock.round)?.leagueId ?? null : null;
-  const roundLeague = allLeagues.find((row) => row.id === roundLeagueId);
+  // The competitions this round may take from. None named takes anybody.
+  const roundLeagueIds = clock ? roundRules.get(clock.round)?.leagueIds ?? [] : [];
+  const roundLeagues = allLeagues.filter((row) => roundLeagueIds.includes(row.id));
 
   const pool = mayPick
     ? await draftablePlayers(
         draft,
         league,
-        { round: clock!.round, leagueId: roundLeagueId },
+        { round: clock!.round, leagueIds: roundLeagueIds },
         find,
       )
     : [];
@@ -154,13 +154,8 @@ export default async function DraftPage({
   return (
     <PageShell
       title={draft.name}
-      // A draft nobody has arranged has no rounds and no mode worth printing:
-      // "Straight · 0 rounds" says something that is not true yet.
-      subtitle={
-        laidOut
-          ? `${league.name} · ${draft.mode === "SNAKE" ? "Snake" : "Straight"} · ${draft.rounds} rounds`
-          : league.name
-      }
+      // A draft nobody has arranged has no rounds worth printing.
+      subtitle={laidOut ? `${league.name} · ${draft.rounds} rounds` : league.name}
     >
       <div className="flex flex-col gap-6">
         {/* Who everybody is waiting on. The biggest thing on the page,
@@ -206,8 +201,11 @@ export default async function DraftPage({
                   </p>
                   <p className="text-sm font-semibold text-slate-400">
                     Round {clock.round} · pick {clock.overall} of {board.length}
-                    {roundLeague && (
-                      <span className="text-slate-500"> · {roundLeague.abbreviation} players only</span>
+                    {roundLeagues.length > 0 && (
+                      <span className="text-slate-500">
+                        {" "}
+                        · {roundLeagues.map((row) => row.abbreviation).join(" and ")} players only
+                      </span>
                     )}
                   </p>
                 </div>
@@ -292,9 +290,9 @@ export default async function DraftPage({
                 You are picking for {clock.teamName} as an admin, not as their GM.
               </p>
             )}
-            {roundLeague && (
+            {roundLeagues.length > 0 && (
               <p className="mb-3 text-xs text-slate-400">
-                This round takes {roundLeague.name} players only.
+                This round takes {roundLeagues.map((row) => row.name).join(" and ")} players only.
               </p>
             )}
             {/* A plain form, so the search works with no JavaScript and the

@@ -3,13 +3,11 @@ import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { clubsOf, layOutPicks, setRoundRules, type RoundRule } from "@/db/draft";
 import {
-  DRAFT_MODES,
   draftPicks,
   draftRounds,
   draftSignups,
   drafts,
   leagues,
-  type DraftMode,
 } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
 import { RoleError, requireRoleForApi } from "@/app/roles";
@@ -30,7 +28,6 @@ type DraftPayload = {
   leagueId?: number;
   name?: string;
   rounds?: number;
-  mode?: DraftMode;
   /** The clubs in the order they pick in the first round. */
   teamIds?: number[];
   /** Seconds a club has to pick, or null for no clock. */
@@ -39,7 +36,7 @@ type DraftPayload = {
   poolSource?: "ALL" | "SIGNUPS";
   signupsOpen?: boolean;
   /** What each round does differently: whose players, and which way round. */
-  rounds_?: { round: number; leagueId: number | null; reversed: boolean | null }[];
+  rounds_?: { round: number; leagueIds: number[]; reversed: boolean }[];
 };
 
 /** Half an hour a pick is already generous; past that it is a typo. */
@@ -76,12 +73,16 @@ async function settingsOf(payload: DraftPayload, rounds: number) {
   for (const rule of payload.rounds_ ?? []) {
     const round = Number(rule?.round);
     if (!Number.isInteger(round) || round < 1 || round > rounds) continue;
-    const leagueId = rule.leagueId === null || rule.leagueId === undefined ? null : Number(rule.leagueId);
-    if (leagueId !== null && !draftable.has(leagueId)) {
+    const asked = Array.isArray(rule.leagueIds) ? rule.leagueIds.map(Number) : [];
+    // Deduplicated and put in the competitions' own order, so two rounds
+    // naming the same pair are stored the same way round.
+    const leagueIds = known
+      .filter((row) => !row.isTournament && asked.includes(row.id))
+      .map((row) => row.id);
+    if (asked.some((id) => !draftable.has(id))) {
       return { error: "A round names a competition whose players cannot be drafted." };
     }
-    const reversed = rule.reversed === null || rule.reversed === undefined ? null : Boolean(rule.reversed);
-    rules.push({ round, leagueId, reversed });
+    rules.push({ round, leagueIds, reversed: Boolean(rule.reversed) });
   }
 
   return { pickSeconds, poolSource, signupsOpen: Boolean(payload.signupsOpen), rules };
@@ -101,11 +102,6 @@ async function settingsOf(payload: DraftPayload, rounds: number) {
  * clubs with no rounds, is somebody who meant to give both.
  */
 async function shapeOf(payload: DraftPayload, leagueId: number) {
-  const mode = payload.mode ?? "STRAIGHT";
-  if (!DRAFT_MODES.includes(mode)) {
-    return { error: "A draft is either straight or a snake." };
-  }
-
   const teamIds = Array.isArray(payload.teamIds)
     ? payload.teamIds.filter((id) => Number.isInteger(id))
     : [];
@@ -113,7 +109,7 @@ async function shapeOf(payload: DraftPayload, leagueId: number) {
   const rounds = Number.isInteger(asked) && asked > 0 ? asked : 0;
 
   if (rounds === 0 && teamIds.length === 0) {
-    return { rounds: 0, mode, teamIds: [] };
+    return { rounds: 0, teamIds: [] };
   }
   if (rounds < 1 || rounds > MAX_ROUNDS) {
     return { error: `A draft runs between 1 and ${MAX_ROUNDS} rounds.` };
@@ -132,7 +128,7 @@ async function shapeOf(payload: DraftPayload, leagueId: number) {
     return { error: "Those clubs are not all in this competition." };
   }
 
-  return { rounds, mode, teamIds };
+  return { rounds, teamIds };
 }
 
 export async function POST(request: Request) {
@@ -163,7 +159,6 @@ export async function POST(request: Request) {
         leagueId: league.id,
         name,
         rounds: shape.rounds,
-        mode: shape.mode,
         pickSeconds: settings.pickSeconds,
         poolSource: settings.poolSource,
         signupsOpen: settings.signupsOpen,
@@ -171,7 +166,7 @@ export async function POST(request: Request) {
       .returning();
 
     const reversedByRound = new Map(settings.rules.map((rule) => [rule.round, rule.reversed]));
-    await layOutPicks(draft.id, shape.teamIds, shape.rounds, shape.mode, reversedByRound);
+    await layOutPicks(draft.id, shape.teamIds, shape.rounds, reversedByRound);
     await setRoundRules(draft.id, settings.rules);
 
     await logAudit({
@@ -183,7 +178,6 @@ export async function POST(request: Request) {
         name,
         leagueId: league.id,
         rounds: shape.rounds,
-        mode: shape.mode,
         teams: shape.teamIds,
         pickSeconds: settings.pickSeconds,
         poolSource: settings.poolSource,
@@ -228,14 +222,13 @@ export async function PATCH(request: Request) {
       .set({
         name,
         rounds: shape.rounds,
-        mode: shape.mode,
         pickSeconds: settings.pickSeconds,
         poolSource: settings.poolSource,
         signupsOpen: settings.signupsOpen,
       })
       .where(eq(drafts.id, draft.id));
     const reversedByRound = new Map(settings.rules.map((rule) => [rule.round, rule.reversed]));
-    await layOutPicks(draft.id, shape.teamIds, shape.rounds, shape.mode, reversedByRound);
+    await layOutPicks(draft.id, shape.teamIds, shape.rounds, reversedByRound);
     await setRoundRules(draft.id, settings.rules);
 
     await logAudit({
@@ -246,7 +239,6 @@ export async function PATCH(request: Request) {
       detail: {
         name,
         rounds: shape.rounds,
-        mode: shape.mode,
         teams: shape.teamIds,
         pickSeconds: settings.pickSeconds,
         poolSource: settings.poolSource,

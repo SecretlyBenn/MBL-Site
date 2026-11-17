@@ -76,7 +76,6 @@ export default async function AdminDraftPage() {
                       leagueId: draft.leagueId,
                       name: draft.name,
                       rounds: draft.rounds,
-                      mode: draft.mode as "STRAIGHT" | "SNAKE",
                       teamIds: order,
                       pickSeconds: draft.pickSeconds,
                       startedAt: draft.startedAt,

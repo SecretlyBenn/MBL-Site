@@ -944,18 +944,15 @@ export const newsLikes = sqliteTable(
   (table) => [primaryKey({ columns: [table.articleId, table.discordId] })],
 );
 
-// The two modes live beside the function that is the whole difference between
-// them, which is kept free of imports so it can be tested on its own.
-export { DRAFT_MODES, type DraftMode } from "./draft-order";
-
 export const drafts = sqliteTable("drafts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   leagueId: integer("league_id")
     .notNull()
     .references(() => leagues.id),
   name: text("name").notNull(),
+  // Zero until the league knows how many it is running, which usually waits
+  // on the sign-ups.
   rounds: integer("rounds").notNull(),
-  mode: text("mode").notNull().default("STRAIGHT"),
   // How long a club has to pick, in seconds. Null is no clock. Running out
   // does nothing - it is there so everybody can see who is holding the draft
   // up, not to pick for them.
@@ -979,8 +976,12 @@ export const draftRounds = sqliteTable("draft_rounds", {
     .notNull()
     .references(() => drafts.id),
   round: integer("round").notNull(),
-  leagueId: integer("league_id").references(() => leagues.id),
-  // Null follows the mode; set, it overrules it for this round alone.
+  // The competitions this round may take players from, by id, comma
+  // separated. Empty takes anybody in the pool. A list in a column because a
+  // round is one thing with two facts about it, and a row per competition
+  // would put `reversed` in two places and let them disagree.
+  leagueIds: text("league_ids"),
+  // Which way round this round runs. Nothing said runs the order as entered.
   reversed: integer("reversed", { mode: "boolean" }),
 });
 

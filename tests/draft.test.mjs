@@ -13,14 +13,15 @@ const clubs = [10, 20, 30];
 const teamsIn = (slots, round) => slots.filter((slot) => slot.round === round).map((slot) => slot.teamId);
 
 test("a straight draft runs the same order every round", () => {
-  const slots = draftSlots(clubs, 3, "STRAIGHT");
+  const slots = draftSlots(clubs, 3);
   assert.deepEqual(teamsIn(slots, 1), [10, 20, 30]);
   assert.deepEqual(teamsIn(slots, 2), [10, 20, 30]);
   assert.deepEqual(teamsIn(slots, 3), [10, 20, 30]);
 });
 
 test("a snake turns the order round on the even rounds", () => {
-  const slots = draftSlots(clubs, 4, "SNAKE");
+  const snake = new Map([[2, true], [4, true]]);
+  const slots = draftSlots(clubs, 4, snake);
   assert.deepEqual(teamsIn(slots, 1), [10, 20, 30]);
   assert.deepEqual(teamsIn(slots, 2), [30, 20, 10]);
   assert.deepEqual(teamsIn(slots, 3), [10, 20, 30]);
@@ -31,12 +32,12 @@ test("a snake does not reverse the order it was given", () => {
   // Reversing in place would turn every later round the wrong way round, and
   // the first round of the next draft laid out from the same list.
   const order = [10, 20, 30];
-  draftSlots(order, 4, "SNAKE");
+  draftSlots(order, 4, new Map([[2, true], [4, true]]));
   assert.deepEqual(order, [10, 20, 30]);
 });
 
 test("picks are numbered straight through, from one", () => {
-  const slots = draftSlots(clubs, 5, "SNAKE");
+  const slots = draftSlots(clubs, 5, new Map([[2, true], [4, true]]));
   assert.equal(slots.length, 15);
   assert.deepEqual(
     slots.map((slot) => slot.overall),
@@ -45,20 +46,23 @@ test("picks are numbered straight through, from one", () => {
 });
 
 test("every club gets one pick a round, whatever the mode", () => {
-  for (const mode of ["STRAIGHT", "SNAKE"]) {
-    const slots = draftSlots(clubs, 6, mode);
+  for (const [what, pattern] of [
+    ["straight", undefined],
+    ["snake", new Map([[2, true], [4, true], [6, true]])],
+  ]) {
+    const slots = draftSlots(clubs, 6, pattern);
     for (const club of clubs) {
       assert.equal(
         slots.filter((slot) => slot.teamId === club).length,
         6,
-        `${club} does not get six picks in a ${mode} draft`,
+        `${club} does not get six picks in a ${what} draft`,
       );
     }
   }
 });
 
 test("no rounds is no picks rather than an error", () => {
-  assert.deepEqual(draftSlots(clubs, 0, "STRAIGHT"), []);
+  assert.deepEqual(draftSlots(clubs, 0), []);
 });
 
 const draft = readFileSync("db/draft.ts", "utf8");
@@ -163,14 +167,15 @@ test("picking asks a second time, with the name in the question", () => {
 });
 
 test("a round tied to a competition takes only its players", () => {
-  assert.ok(picks.includes("getRoundRules(draftId)"), "the round's competition is not checked");
+  assert.ok(picks.includes("getRoundRules(draftId)"), "the round's competitions are not checked");
   assert.ok(
-    picks.includes("player.leagueId !== roundLeague"),
+    picks.includes("!roundLeagues.includes(player.leagueId)"),
     "a player from another competition is accepted",
   );
-  // A man with no competition is left out of such a round rather than let
-  // into every one of them.
-  assert.ok(draft.includes("round.leagueId === null ? undefined"), "the restriction is not applied");
+  // A round can name more than one - both is an ordinary answer - and a man
+  // with no competition at all is left out of a round that names any.
+  assert.ok(draft.includes("inArray(players.leagueId, round.leagueIds)"), "only one is applied");
+  assert.ok(draft.includes("round.leagueIds.length === 0"), "the restriction is not optional");
 });
 
 test("a draft run off its sign-ups takes nobody else", () => {
@@ -232,7 +237,7 @@ test("a round can run whichever way the league says, whatever the mode", () => {
     [3, true],
     [4, false],
   ]);
-  const slots = draftSlots(four, 4, "STRAIGHT", pattern);
+  const slots = draftSlots(four, 4, pattern);
   const inRound = (round) =>
     slots.filter((slot) => slot.round === round).map((slot) => slot.teamId);
   assert.deepEqual(inRound(1), [10, 20, 30, 40]);
@@ -241,30 +246,14 @@ test("a round can run whichever way the league says, whatever the mode", () => {
   assert.deepEqual(inRound(4), [10, 20, 30, 40]);
 });
 
-test("a round that says nothing still follows the mode", () => {
-  // Only round 3 is overruled; the rest snake as they always did.
-  const slots = draftSlots(four, 4, "SNAKE", new Map([[3, true]]));
+test("a round that says nothing runs the order as it was entered", () => {
+  // There is no mode above the rounds any more, so nothing said is forward.
+  const slots = draftSlots(four, 3, new Map([[2, true]]));
   const inRound = (round) =>
     slots.filter((slot) => slot.round === round).map((slot) => slot.teamId);
   assert.deepEqual(inRound(1), [10, 20, 30, 40]);
   assert.deepEqual(inRound(2), [40, 30, 20, 10]);
-  assert.deepEqual(inRound(3), [40, 30, 20, 10], "the override was ignored");
-  assert.deepEqual(inRound(4), [40, 30, 20, 10], "round 4 stopped following the snake");
-});
-
-test("a null in the pattern is not the same as false", () => {
-  // Null means "whatever the mode says"; false means "as entered". A round
-  // explicitly set forward in a snake has to stay forward.
-  const asMode = draftSlots(four, 2, "SNAKE", new Map([[2, null]]));
-  const forced = draftSlots(four, 2, "SNAKE", new Map([[2, false]]));
-  assert.deepEqual(
-    asMode.filter((slot) => slot.round === 2).map((slot) => slot.teamId),
-    [40, 30, 20, 10],
-  );
-  assert.deepEqual(
-    forced.filter((slot) => slot.round === 2).map((slot) => slot.teamId),
-    [10, 20, 30, 40],
-  );
+  assert.deepEqual(inRound(3), [10, 20, 30, 40], "a round carried the one before it");
 });
 
 test("the first few rounds repeat across the rest", () => {
@@ -285,11 +274,12 @@ test("a tournament's players are never a round's pool", () => {
   // It owns no players, so a round asking for them asks for a set that cannot
   // have anybody in it - which looks like an empty pool, not a mistake.
   assert.ok(
-    setup.includes("known.filter((row) => !row.isTournament)"),
+    setup.includes("!row.isTournament"),
     "a round can be pointed at a competition that owns no players",
   );
   assert.ok(
-    // Loosely, because this file is CRLF on the machine it is written on.
+    // Loosely, because this file is CRLF on the machine it is written on.
+
     /leagues[\s\S]{0,40}?[.]filter[(][(]option[)] => !option[.]isTournament[)]/.test(adminForm),
     "the admin page offers the tournament as a round's competition",
   );
@@ -354,4 +344,34 @@ test("an unarranged draft cannot be started", () => {
 test("a draft with no picks is not a finished one", () => {
   assert.ok(board.includes("const laidOut = board.length > 0"), "the two are not told apart");
   assert.ok(board.includes("Not arranged yet"), "an unarranged draft says the draft is over");
+});
+
+test("a round can take more than one competition's players", () => {
+  // Both is an ordinary answer for an off-season tournament drawing on two
+  // leagues, and a picker could only ever have said one.
+  assert.ok(
+    adminForm.includes("toggleRoundLeague(round, option.id)"),
+    "the round's competitions are still one choice",
+  );
+  assert.ok(setup.includes("asked.includes(row.id)"), "a round can only be given one competition");
+  // Stored in the competitions' own order, so two rounds naming the same pair
+  // are written the same way round.
+  assert.ok(
+    /const leagueIds = known[^;]*[.]filter/.test(setup),
+    "the ids are stored however they arrived",
+  );
+});
+
+test("nothing sits above the rounds deciding the order", () => {
+  // A mode and a per-round direction are two places the same question is
+  // answered from, and they can disagree.
+  const order = readFileSync("db/draft-order.ts", "utf8");
+  assert.ok(!order.includes("DRAFT_MODES"), "the mode is still a setting");
+  assert.ok(!order.includes("SNAKE"), "draftSlots still knows about snakes");
+  assert.ok(!adminForm.includes("setMode"), "the admin page still offers a mode");
+  assert.ok(
+    readFileSync("db/schema.ts", "utf8").split("export const drafts")[1].split("});")[0]
+      .includes('text("mode")') === false,
+    "the drafts table still carries a mode",
+  );
 });
