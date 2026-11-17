@@ -27,21 +27,3 @@ export function draftSlots(
   }
   return slots;
 }
-
-/**
- * The first `first.length` rounds, laid over all of them again and again.
- *
- * What the admin page's repeat button does, and the only shortcut there is now
- * that nothing sits above the rounds: a twenty-round snake would otherwise be
- * ten dropdowns set one at a time, and this league's four-round pattern would
- * be twenty. Setting the first few and repeating them is both quicker and
- * harder to get wrong, because the pattern is written once.
- */
-export function repeatRounds<T>(first: T[], rounds: number): Map<number, T> {
-  const out = new Map<number, T>();
-  if (first.length === 0) return out;
-  for (let round = 1; round <= rounds; round += 1) {
-    out.set(round, first[(round - 1) % first.length]);
-  }
-  return out;
-}

@@ -71,7 +71,6 @@ export function DraftForm({
   const [rules, setRules] = useState<Map<number, Rule>>(
     () => new Map((draft?.rounds_ ?? []).map((rule) => [rule.round, rule])),
   );
-  const [cycle, setCycle] = useState("4");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -113,18 +112,6 @@ export function DraftForm({
         ? held.filter((id) => id !== leagueId)
         : [...held, leagueId],
     });
-  }
-
-  /** Lays the first few rounds over all of them, again and again. */
-  function repeat() {
-    const size = Math.max(1, Math.min(Number(cycle) || 1, everyRound.length));
-    const first = everyRound.slice(0, size).map((round) => rules.get(round) ?? null);
-    const next = new Map<number, Rule>();
-    for (const round of everyRound) {
-      const from = first[(round - 1) % size];
-      if (from) next.set(round, { ...from, round });
-    }
-    setRules(next);
   }
 
   function move(index: number, by: number) {
@@ -348,36 +335,11 @@ export function DraftForm({
           straight-or-snake setting any more, because a snake is only rounds
           2, 4, 6 reversed and this league's pattern is neither. One place
           decides the order, so there is nothing for a second one to disagree
-          with.
-
-          Which is why the repeat button stays. With nothing above the rounds,
-          a twenty-round snake would be ten dropdowns set one at a time;
-          setting the first few and laying them over the rest writes the
-          pattern once, where it can be read. */}
+          with. */}
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-            Each round
-          </span>
-          {everyRound.length > 0 && (
-            <span className="flex items-center gap-1 text-xs text-slate-500">
-              Set the first
-              <input
-                type="number"
-                min={1}
-                max={Math.max(1, everyRound.length)}
-                value={cycle}
-                onChange={(event) => setCycle(event.target.value)}
-                className="ui-input !w-16 !py-0.5 text-xs"
-                aria-label="How many rounds to repeat"
-              />
-              then
-              <button type="button" onClick={repeat} className="ui-button !px-2 !py-0.5 text-xs">
-                repeat them down the rest
-              </button>
-            </span>
-          )}
-        </div>
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+          Each round
+        </span>
 
         {everyRound.length === 0 ? (
           <p className="text-xs text-slate-500">

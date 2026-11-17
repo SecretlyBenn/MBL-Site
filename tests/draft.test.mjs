@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { draftSlots, repeatRounds } from "../db/draft-order.ts";
+import { draftSlots } from "../db/draft-order.ts";
 
 /**
  * The order is written down once, when the draft is made, and read back as it
@@ -256,17 +256,6 @@ test("a round that says nothing runs the order as it was entered", () => {
   assert.deepEqual(inRound(3), [10, 20, 30, 40], "a round carried the one before it");
 });
 
-test("the first few rounds repeat across the rest", () => {
-  // Twenty dropdowns set by hand is twenty chances to set one wrong.
-  const cycle = repeatRounds(["F", "R", "R", "F"], 10);
-  assert.deepEqual(
-    [...cycle.values()],
-    ["F", "R", "R", "F", "F", "R", "R", "F", "F", "R"],
-  );
-  assert.equal(cycle.get(5), "F", "the cycle does not start again at round 5");
-  assert.deepEqual([...repeatRounds([], 5).values()], [], "repeating nothing is not nothing");
-});
-
 const signupForm = readFileSync("app/[league]/draft/SignUpForm.tsx", "utf8");
 const adminForm = readFileSync("app/admin/draft/DraftForm.tsx", "utf8");
 
@@ -356,9 +345,12 @@ test("a round can take more than one competition's players", () => {
   assert.ok(setup.includes("asked.includes(row.id)"), "a round can only be given one competition");
   // Stored in the competitions' own order, so two rounds naming the same pair
   // are written the same way round.
-  assert.ok(
-    /const leagueIds = known[^;]*[.]filter/.test(setup),
-    "the ids are stored however they arrived",
+  assert.ok(
+
+    /const leagueIds = known[^;]*[.]filter/.test(setup),
+
+    "the ids are stored however they arrived",
+
   );
 });
 

@@ -12,7 +12,7 @@ import {
 } from "./schema";
 import { draftSlots } from "./draft-order";
 
-export { draftSlots, repeatRounds } from "./draft-order";
+export { draftSlots } from "./draft-order";
 
 /**
  * The draft.
