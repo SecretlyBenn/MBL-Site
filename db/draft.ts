@@ -34,6 +34,7 @@ export async function getBoard(draftId: number) {
       teamId: draftPicks.teamId,
       teamName: teams.name,
       teamAbbreviation: teams.abbreviation,
+      teamColor: teams.color,
       playerId: draftPicks.playerId,
       playerName: players.displayName,
       madeAt: draftPicks.madeAt,
