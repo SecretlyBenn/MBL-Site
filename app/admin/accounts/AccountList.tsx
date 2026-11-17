@@ -10,7 +10,7 @@ type Account = {
   discordId: string;
   roles: Role[];
   teamId: number | null;
-  leagueId: number | null;
+  leagueIds: number[];
 };
 
 /**
@@ -32,7 +32,7 @@ export function AccountList({
 }: {
   accounts: Account[];
   teams: { id: number; name: string }[];
-  leagues: { id: number; name: string }[];
+  leagues: { id: number; name: string; abbreviation: string }[];
 }) {
   const [query, setQuery] = useState("");
 

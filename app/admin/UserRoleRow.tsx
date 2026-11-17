@@ -4,8 +4,12 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ROLES, type Role } from "@/db/schema";
 
-/** The roles narrowed to one competition; the others cover both. */
+/** The roles narrowed to a competition; the others cover the lot. */
 const SCOPED: Role[] = ["UMPIRE", "HEAD_UMPIRE", "WRITER"];
+
+/** Whether two sets of ids hold the same ids, in whatever order. */
+const same = (a: number[], b: number[]) =>
+  a.length === b.length && a.every((id) => b.includes(id));
 
 function roleLabel(role: Role) {
   return role.replace("_", " ").toLowerCase();
@@ -41,38 +45,51 @@ export function UserRoleRow({
     discordId: string;
     roles: Role[];
     teamId: number | null;
-    leagueId: number | null;
+    leagueIds: number[];
   };
   teams: { id: number; name: string }[];
-  leagues: { id: number; name: string }[];
+  leagues: { id: number; name: string; abbreviation: string }[];
 }) {
   const router = useRouter();
+  const everyLeague = leagues.map((option) => option.id);
   const [open, setOpen] = useState(false);
   const [displayName, setDisplayName] = useState(user.displayName);
   const [roles, setRoles] = useState<Role[]>(user.roles);
   const [teamId, setTeamId] = useState<number | "">(user.teamId ?? "");
-  const [leagueId, setLeagueId] = useState<number | "">(user.leagueId ?? "");
+  // No rows stored means every competition, so that is what the boxes show:
+  // all of them ticked. Unticking one is how somebody gets narrowed, which
+  // reads the same way round as the thing it is describing.
+  const [leagueIds, setLeagueIds] = useState<number[]>(
+    user.leagueIds.length === 0 ? everyLeague : user.leagueIds,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [signedOut, setSignedOut] = useState(false);
 
-  // A GM's competition comes from the club they manage, and an admin runs
-  // both, so the picker appears only when a role with no club of its own is
-  // held.
+  // A GM's competition comes from the club they manage, and an admin runs the
+  // lot, so the boxes appear only when a role with no club of its own is held.
   const isGm = roles.includes("GM");
   const scopedByLeague = roles.some((held) => SCOPED.includes(held));
-  const league = scopedByLeague ? leagueId || null : null;
 
   const sameRoles =
     roles.length === user.roles.length && roles.every((held) => user.roles.includes(held));
+  // Compared as it will be stored, so ticking all three on somebody who
+  // already covers everything does not look like a change.
+  const sameLeagues = same(
+    scopedByLeague && !same(leagueIds, everyLeague) ? leagueIds : [],
+    user.leagueIds,
+  );
 
   const name = displayName.trim();
   const changed =
     name !== user.displayName ||
     !sameRoles ||
     (teamId || null) !== user.teamId ||
-    league !== user.leagueId;
+    !sameLeagues;
   const needsTeam = isGm && !teamId;
+  // Nothing ticked is not "all of them" - that is all of them ticked. An
+  // account that covers nothing would hold a role it can never use.
+  const needsLeague = scopedByLeague && leagueIds.length === 0;
   // Nothing ticked would leave the account with no access at all. That is a
   // thing to do deliberately, by removing the account, not by mis-clicking here.
   const needsRole = roles.length === 0;
@@ -82,12 +99,17 @@ export function UserRoleRow({
       held.includes(role) ? held.filter((other) => other !== role) : [...held, role],
     );
 
+  const toggleLeague = (id: number) =>
+    setLeagueIds((held) =>
+      held.includes(id) ? held.filter((other) => other !== id) : [...held, id],
+    );
+
   /** Throws away whatever was staged and closes, so Cancel really does cancel. */
   function close() {
     setDisplayName(user.displayName);
     setRoles(user.roles);
     setTeamId(user.teamId ?? "");
-    setLeagueId(user.leagueId ?? "");
+    setLeagueIds(user.leagueIds.length === 0 ? everyLeague : user.leagueIds);
     setError("");
     setOpen(false);
   }
@@ -99,7 +121,15 @@ export function UserRoleRow({
       const response = await fetch("/api/users", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, roles, teamId: teamId || null, leagueId: league, displayName: name }),
+        body: JSON.stringify({
+          userId: user.id,
+          roles,
+          teamId: teamId || null,
+          // What is ticked, every id and all. The route decides that all of
+          // them means all of them, rather than this form deciding it twice.
+          leagueIds: scopedByLeague ? leagueIds : [],
+          displayName: name,
+        }),
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? `Request failed (${response.status})`);
@@ -145,7 +175,15 @@ export function UserRoleRow({
   }
 
   const club = teams.find((team) => team.id === user.teamId)?.name;
-  const scope = leagues.find((option) => option.id === user.leagueId)?.name;
+  // Abbreviated, because this column is a few characters wide and the college
+  // league's name is six words long.
+  const scope =
+    user.leagueIds.length === 0
+      ? "Every competition"
+      : leagues
+          .filter((option) => user.leagueIds.includes(option.id))
+          .map((option) => option.abbreviation)
+          .join(" · ");
 
   if (!open) {
     return (
@@ -175,7 +213,7 @@ export function UserRoleRow({
             check, so it reads down the right-hand side rather than hiding in
             a closed picker. */}
         <span className="min-w-[9rem] text-right text-xs text-slate-400">
-          {club ?? (scope ? scope : user.roles.some((held) => SCOPED.includes(held)) ? "Both leagues" : "")}
+          {club ?? (user.roles.some((held) => SCOPED.includes(held)) ? scope : "")}
         </span>
 
         <button
@@ -226,23 +264,36 @@ export function UserRoleRow({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        {/* Blank is both, which is what most officials are: the same people
-            call and review games in either competition. */}
+        {/* Boxes rather than a picker, because there are three competitions
+            now and a picker could only ever say one of them or all of them.
+            An umpire who calls MBL games and the off-season tournament but not
+            the college league is a sentence the old control could not write.
+            Same chips as the roles above, which is the same kind of choice. */}
         {scopedByLeague && (
-          <label className="flex items-center gap-2 text-xs text-slate-400">
+          <span className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
             Covers
-            <select
-              value={leagueId}
-              onChange={(event) => setLeagueId(Number(event.target.value) || "")}
-              aria-label={`League for ${user.displayName}`}
-              className="ui-select !py-1 text-xs"
-            >
-              <option value="">Both leagues</option>
+            <span className="flex flex-wrap items-center gap-1.5">
               {leagues.map((option) => (
-                <option key={option.id} value={option.id}>{option.name}</option>
+                <label
+                  key={option.id}
+                  title={option.name}
+                  className={`cursor-pointer select-none rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                    leagueIds.includes(option.id)
+                      ? "border-sky-500 bg-sky-600/20 text-sky-200"
+                      : "border-slate-700 text-slate-500 hover:border-slate-600"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={leagueIds.includes(option.id)}
+                    onChange={() => toggleLeague(option.id)}
+                    className="sr-only"
+                  />
+                  {option.abbreviation}
+                </label>
               ))}
-            </select>
-          </label>
+            </span>
+          </span>
         )}
 
         {/* Only a GM has a club, so the picker appears only when that is held. */}
@@ -278,7 +329,7 @@ export function UserRoleRow({
           <button
             type="button"
             onClick={save}
-            disabled={busy || !changed || needsTeam || needsRole || name === ""}
+            disabled={busy || !changed || needsTeam || needsRole || needsLeague || name === ""}
             className="ui-button-primary !px-3 !py-1 text-xs"
           >
             {busy ? "Saving…" : "Save"}
@@ -290,6 +341,11 @@ export function UserRoleRow({
           itself. */}
       {needsRole && <span className="text-xs text-amber-400">Tick at least one role, or remove the account.</span>}
       {needsTeam && <span className="text-xs text-amber-400">A general manager needs a club.</span>}
+      {needsLeague && (
+        <span className="text-xs text-amber-400">
+          Tick at least one competition. All of them is how someone covers everything.
+        </span>
+      )}
       {error && <span role="alert" className="text-xs text-rose-400">{error}</span>}
     </li>
   );

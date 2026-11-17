@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { rateLimit, sweepRateLimits } from "@/db/rate-limit";
-import { ROLES, userRoles, users, type Role } from "@/db/schema";
+import { ROLES, userLeagues, userRoles, users, type Role } from "@/db/schema";
 import { getSession } from "./session";
 
 export type LeagueUser = {
@@ -15,8 +15,12 @@ export type LeagueUser = {
    */
   roles: Role[];
   teamId: number | null;
-  /** The competition this account's roles cover, or null for both. */
-  leagueId: number | null;
+  /**
+   * The competitions this account's roles cover. Empty means every one of
+   * them, which is what most officials are - read it through `coveredLeagues`
+   * rather than testing it here.
+   */
+  leagueIds: number[];
 };
 
 /** Whether an account holds a role. Safe on a null user, which most callers have. */
@@ -30,35 +34,40 @@ export function hasAnyRole(user: { roles: Role[] } | null | undefined, roles: Ro
 }
 
 /**
- * The competitions an account may write news for, or null for all of them.
+ * The competitions an account's roles cover, or null for all of them.
  *
- * This needs no new role. `users.league_id` is already the competition an
- * official's roles cover, with null meaning both, and the admin page already
- * offers that picker for a WRITER - so an MBL writer is a WRITER whose league
- * is the MBL, an MCBA writer is one whose league is the MCBA, and a writer
- * trusted with both is one with no league at all. What was missing is that the
- * newsroom ignored it and stamped every article with whichever competition
- * happened to be first in the table.
+ * This is the one answer behind three questions: which games an umpire is
+ * shown, which cards a head umpire reviews, and which competitions a writer
+ * may file an article under. They were three copies of the same comparison,
+ * and the one in the newsroom was missing entirely - it stamped every article
+ * with whichever competition happened to be first in the table.
  *
- * An admin may write for any of them, because the wider role wins where two
- * disagree - the same rule `assertMayArrange` follows for a head umpire who
- * also runs a club.
+ * An admin covers all of them, because the wider role wins where two disagree
+ * - the same rule `assertMayArrange` follows for a head umpire who also runs a
+ * club.
  *
- * Null rather than a list of every league, so a competition added to the table
- * tomorrow is writable without anybody remembering this function exists.
+ * Null rather than a list of every competition, so one added to the table
+ * tomorrow is covered without anybody remembering this function exists.
  */
-export function writableLeagues(user: { roles: Role[]; leagueId: number | null }): number[] | null {
-  if (hasRole(user, "ADMIN") || user.leagueId === null) return null;
-  return [user.leagueId];
+export function coveredLeagues(user: { roles: Role[]; leagueIds: number[] }): number[] | null {
+  if (hasRole(user, "ADMIN") || user.leagueIds.length === 0) return null;
+  return user.leagueIds;
 }
 
-/** Whether this account may file an article under this competition. */
-export function mayWriteFor(
-  user: { roles: Role[]; leagueId: number | null },
-  leagueId: number,
+/**
+ * Whether this account's roles reach this competition.
+ *
+ * A club with no competition at all reaches nobody who is narrowed to one,
+ * which is the same answer the three separate checks gave: an unfiled club
+ * should not turn up in an MCBA umpire's list by default.
+ */
+export function covers(
+  user: { roles: Role[]; leagueIds: number[] },
+  leagueId: number | null | undefined,
 ): boolean {
-  const allowed = writableLeagues(user);
-  return allowed === null || allowed.includes(leagueId);
+  const allowed = coveredLeagues(user);
+  if (allowed === null) return true;
+  return leagueId != null && allowed.includes(leagueId);
 }
 
 /**
@@ -100,10 +109,16 @@ export async function getLeagueUser(): Promise<LeagueUser | null> {
   // An account with no roles is recognised but holds nothing. That is on
   // purpose: taking someone's last role should leave them with no access, not
   // drop them to some lesser default.
-  const held = await db
-    .select({ role: userRoles.role })
-    .from(userRoles)
-    .where(eq(userRoles.userId, row.id));
+  //
+  // Both sets at once: this runs on every page an official opens, and two
+  // round trips one after the other is one more than it needs.
+  const [held, covered] = await Promise.all([
+    db.select({ role: userRoles.role }).from(userRoles).where(eq(userRoles.userId, row.id)),
+    db
+      .select({ leagueId: userLeagues.leagueId })
+      .from(userLeagues)
+      .where(eq(userLeagues.userId, row.id)),
+  ]);
 
   return {
     id: row.id,
@@ -111,7 +126,7 @@ export async function getLeagueUser(): Promise<LeagueUser | null> {
     displayName: row.displayName,
     roles: held.map((entry) => entry.role as Role),
     teamId: row.teamId,
-    leagueId: row.leagueId,
+    leagueIds: covered.map((entry) => entry.leagueId),
   };
 }
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, historicalGames, historicalSeasons, scorecards, teams } from "@/db/schema";
-import { describeRoles, requireRole } from "@/app/roles";
+import { covers, describeRoles, requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { ScheduledGames, type Fixture } from "./ScheduledGames";
 import { seriesFor } from "@/app/season-series";
@@ -24,14 +24,13 @@ export default async function UmpirePage() {
   const allTeams = await db.select().from(teams).orderBy(teams.name);
   const teamById = new Map(allTeams.map((team) => [team.id, team]));
 
-  // An umpire tied to one competition is only shown that competition's games.
-  // Most are tied to neither, which means both - the same people call the MBL
-  // and the MCBA. A fixture whose two clubs somehow disagree shows up for both
-  // rather than for neither, so a game can always be reached by somebody.
+  // An umpire narrowed to some competitions is only shown those. Most cover
+  // all of them - the same people call the MBL and the MCBA. A fixture whose
+  // two clubs somehow disagree shows up for both rather than for neither, so a
+  // game can always be reached by somebody.
   const mine = (awayTeamId: number, homeTeamId: number) =>
-    leagueUser.leagueId == null ||
-    teamById.get(awayTeamId)?.leagueId === leagueUser.leagueId ||
-    teamById.get(homeTeamId)?.leagueId === leagueUser.leagueId;
+    covers(leagueUser, teamById.get(awayTeamId)?.leagueId) ||
+    covers(leagueUser, teamById.get(homeTeamId)?.leagueId);
 
   // Anything already being scored, so an umpire can pick up where they left off
   // - a dropped connection should not cost a game.

@@ -42,11 +42,10 @@ export const users = sqliteTable("users", {
   //
   // The club a GM manages. Only meaningful for an account holding GM.
   teamId: integer("team_id").references(() => teams.id),
-  // Which competition this account's role covers, for roles with no club of
-  // their own - an umpire, a head umpire, a writer. Null means both, which is
-  // the usual case: the same people officiate the MBL and the MCBA. A GM takes
-  // their league from the club they manage and ignores this.
-  leagueId: integer("league_id").references(() => leagues.id),
+  // Which competitions this account's roles cover is in `user_leagues`, not
+  // here. There is still a dead `league_id` column in the database because
+  // SQLite will not drop one carrying a foreign key; nothing reads it, and
+  // 0122 emptied it.
   // Bumped to sign this account out everywhere. A session cookie carries the
   // epoch it was issued under, and one from an older epoch stops being
   // accepted - the only way to end a session before it expires, since sessions
@@ -76,6 +75,24 @@ export const userRoles = sqliteTable("user_roles", {
     .notNull()
     .references(() => users.id),
   role: text("role").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// The competitions an account's roles cover, for the roles with no club of
+// their own - an umpire, a head umpire, a writer. A GM takes their competition
+// from the club they manage and has none of these rows.
+//
+// No rows means every competition, which is what almost everybody is. Stored
+// as what somebody covers rather than as what they do not, so a competition
+// added to `leagues` tomorrow is covered by them without anyone being re-ticked.
+export const userLeagues = sqliteTable("user_leagues", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id),
+  leagueId: integer("league_id")
+    .notNull()
+    .references(() => leagues.id),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

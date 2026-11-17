@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { games, players, plateAppearances, scorecards, teams, users } from "@/db/schema";
 import { getLeagues } from "@/db/queries";
 import { REGULATION_INNINGS } from "@/app/derive-box-score";
-import { describeRoles, requireRole } from "@/app/roles";
+import { covers, describeRoles, requireRole } from "@/app/roles";
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { deriveBoxScore } from "@/app/derive-box-score";
 import { formatInnings } from "@/app/formatStats";
@@ -45,10 +45,10 @@ export default async function HeadUmpirePage() {
   const userNameById = new Map(allUsers.map((user) => [user.id, user.displayName]));
   const playerNameById = new Map(allPlayers.map((player) => [player.id, player.displayName]));
 
-  // A head umpire tied to one competition reviews only that competition's
-  // cards; most are tied to neither, which means both. A card whose game or
-  // club has gone missing stays in the queue rather than vanishing from it -
-  // an unreviewable card should be visible, not silently dropped.
+  // A head umpire narrowed to some competitions reviews only those cards; most
+  // cover all of them. A card whose game or club has gone missing stays in the
+  // queue rather than vanishing from it - an unreviewable card should be
+  // visible, not silently dropped.
   const teamLeagueById = new Map(allTeams.map((team) => [team.id, team.leagueId]));
   // Six innings in the MBL, five in the MCBA. A box score on this screen is
   // derived, so it has to be derived over the right length of game.
@@ -56,12 +56,11 @@ export default async function HeadUmpirePage() {
     (await getLeagues()).map((league) => [league.id, league.inningsPerGame] as const),
   );
   const mine = (scorecard: { gameId: number }) => {
-    if (leagueUser.leagueId == null) return true;
     const game = gameById.get(scorecard.gameId);
     if (!game) return true;
     return (
-      teamLeagueById.get(game.awayTeamId) === leagueUser.leagueId ||
-      teamLeagueById.get(game.homeTeamId) === leagueUser.leagueId
+      covers(leagueUser, teamLeagueById.get(game.awayTeamId)) ||
+      covers(leagueUser, teamLeagueById.get(game.homeTeamId))
     );
   };
   const pending = allPending.filter(mine);

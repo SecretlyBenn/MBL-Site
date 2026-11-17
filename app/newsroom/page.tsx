@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getAllArticles, getArticlesByAuthor } from "@/db/news";
-import { describeRoles, hasRole, requireRole, writableLeagues } from "@/app/roles";
+import { coveredLeagues, describeRoles, hasRole, requireRole } from "@/app/roles";
 import { getLeagues } from "@/db/queries";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { NewArticleForm } from "./NewArticleForm";
@@ -20,7 +20,7 @@ export default async function NewsroomPage() {
   const articles = hasRole(user, "ADMIN") ? await getAllArticles() : await getArticlesByAuthor(user.id);
   // The competitions this writer covers. A writer scoped to one gets no
   // choice and no question; the API checks the answer either way.
-  const allowed = writableLeagues(user);
+  const allowed = coveredLeagues(user);
   const leagues = (await getLeagues()).filter(
     (league) => allowed === null || allowed.includes(league.id),
   );

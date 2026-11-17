@@ -19,23 +19,23 @@ const route = read("app/api/news/route.ts");
 const newsroom = read("app/newsroom/page.tsx");
 const form = read("app/newsroom/NewArticleForm.tsx");
 
-test("a writer's competitions come from the league their role covers", () => {
-  const fn = roles.slice(roles.indexOf("export function writableLeagues"));
+test("a writer's competitions come from the ones their role covers", () => {
+  const fn = roles.slice(roles.indexOf("export function coveredLeagues"));
   const body = fn.slice(0, fn.indexOf("\n}"));
 
-  // Null means all of them, so a competition added to the leagues table
+  // No rows means all of them, so a competition added to the leagues table
   // tomorrow is writable without anybody editing this.
   assert.ok(
-    body.includes('hasRole(user, "ADMIN")') && body.includes("user.leagueId === null"),
+    body.includes('hasRole(user, "ADMIN")') && body.includes("user.leagueIds.length === 0"),
     "an admin or an unscoped writer is no longer unrestricted",
   );
   assert.ok(body.includes("return null"), "all-competitions is no longer null");
-  assert.ok(body.includes("return [user.leagueId]"), "a scoped writer is not held to their own league");
+  assert.ok(body.includes("return user.leagueIds"), "a scoped writer is not held to their own competitions");
 });
 
 test("the article's competition is checked, not taken on trust", () => {
   // The form is not the only thing that can post here.
-  assert.ok(route.includes("mayWriteFor(user, leagueId)"), "the posted competition is not checked");
+  assert.ok(route.includes("covers(user, leagueId)"), "the posted competition is not checked");
   assert.ok(
     route.includes("leagues.some((league) => league.id === asked)"),
     "a competition that does not exist would be accepted",
@@ -51,7 +51,7 @@ test("the article's competition is checked, not taken on trust", () => {
 });
 
 test("a writer is only offered the competitions they cover", () => {
-  assert.ok(newsroom.includes("writableLeagues(user)"), "the newsroom offers every competition");
+  assert.ok(newsroom.includes("coveredLeagues(user)"), "the newsroom offers every competition");
   assert.ok(
     newsroom.includes("allowed === null || allowed.includes(league.id)"),
     "the picker is not filtered to what the writer covers",

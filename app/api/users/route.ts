@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { ROLES, leagues, userRoles, users, type Role } from "@/db/schema";
+import { ROLES, leagues, userLeagues, userRoles, users, type Role } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
 
 type UserPayload = {
@@ -15,7 +15,7 @@ type UserUpdate = {
   userId: number;
   roles: Role[];
   teamId?: number | null;
-  leagueId?: number | null;
+  leagueIds?: number[];
   displayName?: string;
 };
 
@@ -61,6 +61,35 @@ async function setRoles(userId: number, roles: Role[]) {
   const added = roles.filter((role) => !current.includes(role));
   if (added.length > 0) {
     await db.insert(userRoles).values(added.map((role) => ({ userId, role })));
+  }
+}
+
+/**
+ * Replaces the competitions an account covers with exactly this set.
+ *
+ * Same shape as `setRoles`, and for a sharper reason: no rows means every
+ * competition, so clearing the lot and putting it back would widen somebody's
+ * access for the moment in between rather than narrow it. A request arriving
+ * in that gap would be let into a competition they are not supposed to see.
+ */
+async function setLeagues(userId: number, leagueIds: number[]) {
+  const db = getDb();
+  const held = await db
+    .select({ leagueId: userLeagues.leagueId })
+    .from(userLeagues)
+    .where(eq(userLeagues.userId, userId));
+  const current = held.map((entry) => entry.leagueId);
+
+  const gone = current.filter((id) => !leagueIds.includes(id));
+  if (gone.length > 0) {
+    await db
+      .delete(userLeagues)
+      .where(and(eq(userLeagues.userId, userId), inArray(userLeagues.leagueId, gone)));
+  }
+
+  const added = leagueIds.filter((id) => !current.includes(id));
+  if (added.length > 0) {
+    await db.insert(userLeagues).values(added.map((leagueId) => ({ userId, leagueId })));
   }
 }
 
@@ -111,26 +140,33 @@ export async function PATCH(request: Request) {
     const teamId = roles.includes("GM") ? payload.teamId ?? null : null;
 
     // Only the roles with no club of their own are narrowed to a competition:
-    // a GM takes theirs from the club, and an admin runs both. Null is both,
-    // which is what an official is unless somebody says otherwise. Cleared
-    // when no such role is held, so a former umpire's league cannot linger.
+    // a GM takes theirs from the club, and an admin runs the lot. Cleared when
+    // no such role is held, so a former umpire's competitions cannot linger.
     const scopedByLeague = roles.some((role) =>
       ["UMPIRE", "HEAD_UMPIRE", "WRITER"].includes(role),
     );
-    const leagueId = scopedByLeague ? payload.leagueId ?? null : null;
-    if (leagueId !== null && !(await db.query.leagues.findFirst({ where: eq(leagues.id, leagueId) }))) {
-      return Response.json({ error: "That league does not exist." }, { status: 400 });
+    const all = (await db.select({ id: leagues.id }).from(leagues)).map((row) => row.id);
+    const asked = Array.isArray(payload.leagueIds) ? payload.leagueIds : [];
+    const picked = all.filter((id) => asked.includes(id));
+    if (scopedByLeague && picked.length === 0) {
+      return Response.json({ error: "Pick at least one competition." }, { status: 400 });
     }
+    // Every competition ticked is stored as none of them, because that is what
+    // "all of them" has to mean for it to still be true after a fourth
+    // competition is added. Refusing an empty set above is what keeps the two
+    // apart: an admin who unticks everything has said nothing, not everything.
+    const leagueIds = !scopedByLeague || picked.length === all.length ? [] : picked;
 
     // The name on the account is what the league calls this person; their
     // sessions carry the old one until they sign in again, which shows only in
     // the greeting, so there is nothing to invalidate here.
     await db
       .update(users)
-      .set({ teamId, leagueId, ...(displayName ? { displayName } : {}) })
+      .set({ teamId, ...(displayName ? { displayName } : {}) })
       .where(eq(users.id, payload.userId));
 
     await setRoles(payload.userId, roles);
+    await setLeagues(payload.userId, leagueIds);
 
     await logAudit({
       actingUserId: leagueUser.id,
@@ -140,6 +176,9 @@ export async function PATCH(request: Request) {
       detail: {
         roles,
         teamId,
+        // What was ticked, not what was stored: "all of them" read back as an
+        // empty list would look like a change that took everything away.
+        leagues: scopedByLeague ? picked : [],
         ...(displayName && displayName !== target.displayName
           ? { renamedFrom: target.displayName, displayName }
           : {}),

@@ -4,7 +4,7 @@ import { logAudit } from "@/db/audit";
 import { slugify } from "@/db/news";
 import { newsArticles, newsComments, newsImages, newsLikes } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
-import { hasRole, mayWriteFor, requireRoleForApi, writableLeagues, type LeagueUser } from "@/app/roles";
+import { covers, hasRole, requireRoleForApi, coveredLeagues, type LeagueUser } from "@/app/roles";
 import { getLeagues } from "@/db/queries";
 
 /**
@@ -40,14 +40,14 @@ export async function POST(request: Request) {
     // thing that can post to this route.
     const leagues = await getLeagues();
     const asked = Number(payload.leagueId);
-    const allowed = writableLeagues(user);
+    const allowed = coveredLeagues(user);
     const leagueId = leagues.some((league) => league.id === asked)
       ? asked
       : (allowed?.[0] ?? leagues[0]?.id);
     if (leagueId === undefined) {
       return Response.json({ error: "No competition to file this under." }, { status: 400 });
     }
-    if (!mayWriteFor(user, leagueId)) {
+    if (!covers(user, leagueId)) {
       return Response.json(
         { error: "You do not write for that competition." },
         { status: 403 },
