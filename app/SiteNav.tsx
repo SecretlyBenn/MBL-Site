@@ -12,6 +12,7 @@ const GROUPS = [
       { href: "standings", label: "Standings" },
       { href: "schedule", label: "Schedule & Scores" },
       { href: "rosters", label: "Rosters" },
+      { href: "draft", label: "Draft" },
       { href: "seasons", label: "Seasons" },
       { href: "news", label: "News" },
       { href: "rules", label: "Rules" },

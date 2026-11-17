@@ -943,3 +943,37 @@ export const newsLikes = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.articleId, table.discordId] })],
 );
+
+// The two modes live beside the function that is the whole difference between
+// them, which is kept free of imports so it can be tested on its own.
+export { DRAFT_MODES, type DraftMode } from "./draft-order";
+
+export const drafts = sqliteTable("drafts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  leagueId: integer("league_id")
+    .notNull()
+    .references(() => leagues.id),
+  name: text("name").notNull(),
+  rounds: integer("rounds").notNull(),
+  mode: text("mode").notNull().default("STRAIGHT"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+// Every pick exists from the moment the draft does, with nobody in it. The
+// order is these rows in `overall` order, with the snake already folded in, so
+// whose turn it is is the first one with no player rather than a sum done
+// again on every page that asks.
+export const draftPicks = sqliteTable("draft_picks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  draftId: integer("draft_id")
+    .notNull()
+    .references(() => drafts.id),
+  overall: integer("overall").notNull(),
+  round: integer("round").notNull(),
+  teamId: integer("team_id")
+    .notNull()
+    .references(() => teams.id),
+  playerId: integer("player_id").references(() => players.id),
+  madeByUserId: integer("made_by_user_id").references(() => users.id),
+  madeAt: text("made_at"),
+});
