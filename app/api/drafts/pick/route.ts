@@ -1,7 +1,7 @@
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { getRoundLeagues, placeDraftedPlayer, removeDraftedPlayer } from "@/db/draft";
+import { getRoundRules, placeDraftedPlayer, removeDraftedPlayer } from "@/db/draft";
 import { draftPicks, draftSignups, drafts, leagues, players, teams } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
 import { hasRole, requireRoleForApi } from "@/app/roles";
@@ -82,8 +82,8 @@ export async function POST(request: Request) {
     // A round tied to one competition takes only that competition's players.
     // Checked here and not only by what the picker offers, because the picker
     // is a convenience and this is the rule.
-    const roundLeague = (await getRoundLeagues(draftId)).get(pick.round);
-    if (roundLeague !== undefined && player.leagueId !== roundLeague) {
+    const roundLeague = (await getRoundRules(draftId)).get(pick.round)?.leagueId ?? null;
+    if (roundLeague !== null && player.leagueId !== roundLeague) {
       const only = await db.query.leagues.findFirst({ where: eq(leagues.id, roundLeague) });
       return Response.json(
         { error: `Round ${pick.round} takes ${only?.name ?? "another competition"}'s players.` },

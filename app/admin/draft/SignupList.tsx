@@ -9,6 +9,8 @@ type Signup = {
   typedName: string;
   playerId: number | null;
   playerName: string | null;
+  leagueId: number | null;
+  positions: string | null;
 };
 
 /**
@@ -25,7 +27,15 @@ type Signup = {
  * is reading a name off the sign-up and looking for it, which is a search, and
  * a dropdown of the whole pool costs more than the page's budget.
  */
-export function SignupList({ draftId, signups }: { draftId: number; signups: Signup[] }) {
+export function SignupList({
+  draftId,
+  signups,
+  leagues,
+}: {
+  draftId: number;
+  signups: Signup[];
+  leagues: { id: number; abbreviation: string }[];
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(0);
   const [error, setError] = useState("");
@@ -68,16 +78,45 @@ export function SignupList({ draftId, signups }: { draftId: number; signups: Sig
             className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-slate-800 bg-slate-900/50 px-3 py-1.5 text-xs"
           >
             <span className="min-w-[8rem] flex-1 font-semibold text-slate-200">{row.typedName}</span>
+            <span className="font-bold text-slate-400">
+              {leagues.find((option) => option.id === row.leagueId)?.abbreviation ?? "—"}
+            </span>
+            <span className="font-mono text-[11px] text-slate-500">
+              {row.positions?.replace(/,/g, " ") ?? ""}
+            </span>
             <span className="text-slate-500">Discord: {row.discordName}</span>
             {row.playerName ? (
               <span className="font-semibold text-emerald-300">{row.playerName}</span>
             ) : (
-              <MatchBox
-                busy={busy === row.id}
-                onMatch={(name) =>
-                  send("/api/drafts/signup", "PATCH", { signupId: row.id, name }, row.id)
-                }
-              />
+              <>
+                <MatchBox
+                  busy={busy === row.id}
+                  onMatch={(name) =>
+                    send("/api/drafts/signup", "PATCH", { signupId: row.id, name }, row.id)
+                  }
+                />
+                {/* For somebody who has genuinely never played here. It uses
+                    the name and competition off the sign-up rather than
+                    anything typed again, so the player that appears is the
+                    one who asked for it. */}
+                <button
+                  type="button"
+                  disabled={busy === row.id || !row.leagueId}
+                  title={row.leagueId ? undefined : "This sign-up did not say which competition"}
+                  onClick={() => {
+                    if (!confirm(`Add ${row.typedName} to the site as a new player?`)) return;
+                    void send(
+                      "/api/drafts/signup",
+                      "PATCH",
+                      { signupId: row.id, create: true },
+                      row.id,
+                    );
+                  }}
+                  className="ui-button !px-2 !py-0.5 text-[11px]"
+                >
+                  New player
+                </button>
+              </>
             )}
             <button
               type="button"

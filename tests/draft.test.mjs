@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { draftSlots } from "../db/draft-order.ts";
+import { draftSlots, repeatRounds } from "../db/draft-order.ts";
 
 /**
  * The order is written down once, when the draft is made, and read back as it
@@ -65,6 +65,7 @@ const draft = readFileSync("db/draft.ts", "utf8");
 const picks = readFileSync("app/api/drafts/pick/route.ts", "utf8");
 const setup = readFileSync("app/api/drafts/route.ts", "utf8");
 const migration = readFileSync("drizzle/0123_drafts.sql", "utf8");
+const migration2 = readFileSync("drizzle/0124_draft_signups_and_clock.sql", "utf8");
 
 test("changing a draft keeps the picks already made", () => {
   // The order gets corrected mid-draft - somebody is missing, two clubs are
@@ -162,7 +163,7 @@ test("picking asks a second time, with the name in the question", () => {
 });
 
 test("a round tied to a competition takes only its players", () => {
-  assert.ok(picks.includes("getRoundLeagues(draftId)"), "the round's competition is not checked");
+  assert.ok(picks.includes("getRoundRules(draftId)"), "the round's competition is not checked");
   assert.ok(
     picks.includes("player.leagueId !== roundLeague"),
     "a player from another competition is accepted",
@@ -192,8 +193,14 @@ test("signing up needs a Discord account and nothing else", () => {
 test("a sign-up that matches nobody is recorded rather than invented", () => {
   // A typo would otherwise open a second career for somebody who already has
   // one, which is the mistake the archive is hardest to undo.
-  assert.ok(signup.includes("playerId: player?.id ?? null"), "an unmatched name creates a player");
-  assert.ok(!signup.includes("insert(players)"), "signing up can create a player row");
+  const post = signup.slice(
+    signup.indexOf("export async function POST"),
+    signup.indexOf("export async function DELETE"),
+  );
+  assert.ok(post.includes("playerId: player?.id ?? null"), "an unmatched name creates a player");
+  // Adding somebody new is an admin pressing a button on the sign-up, never
+  // the sign-up itself: the name is typed by a stranger.
+  assert.ok(!post.includes("insert(players)"), "signing up can create a player row");
 });
 
 test("withdrawing takes your own name off, not somebody else's", () => {
@@ -211,4 +218,115 @@ test("the clock is worked out rather than stored", () => {
   const body = fn.slice(0, fn.indexOf("\n}"));
   assert.ok(body.includes("Math.max"), "the clock does not count from the later of the two");
   assert.ok(body.includes("!draft.pickSeconds || !draft.startedAt"), "a draft with no clock gets one");
+});
+
+const four = [10, 20, 30, 40];
+
+test("a round can run whichever way the league says, whatever the mode", () => {
+  // The pattern actually in use: forward, reversed, reversed, forward, and
+  // then the same four again. That is not a snake and it is not straight, so
+  // neither mode produces it and the rounds have to say it themselves.
+  const pattern = new Map([
+    [1, false],
+    [2, true],
+    [3, true],
+    [4, false],
+  ]);
+  const slots = draftSlots(four, 4, "STRAIGHT", pattern);
+  const inRound = (round) =>
+    slots.filter((slot) => slot.round === round).map((slot) => slot.teamId);
+  assert.deepEqual(inRound(1), [10, 20, 30, 40]);
+  assert.deepEqual(inRound(2), [40, 30, 20, 10]);
+  assert.deepEqual(inRound(3), [40, 30, 20, 10]);
+  assert.deepEqual(inRound(4), [10, 20, 30, 40]);
+});
+
+test("a round that says nothing still follows the mode", () => {
+  // Only round 3 is overruled; the rest snake as they always did.
+  const slots = draftSlots(four, 4, "SNAKE", new Map([[3, true]]));
+  const inRound = (round) =>
+    slots.filter((slot) => slot.round === round).map((slot) => slot.teamId);
+  assert.deepEqual(inRound(1), [10, 20, 30, 40]);
+  assert.deepEqual(inRound(2), [40, 30, 20, 10]);
+  assert.deepEqual(inRound(3), [40, 30, 20, 10], "the override was ignored");
+  assert.deepEqual(inRound(4), [40, 30, 20, 10], "round 4 stopped following the snake");
+});
+
+test("a null in the pattern is not the same as false", () => {
+  // Null means "whatever the mode says"; false means "as entered". A round
+  // explicitly set forward in a snake has to stay forward.
+  const asMode = draftSlots(four, 2, "SNAKE", new Map([[2, null]]));
+  const forced = draftSlots(four, 2, "SNAKE", new Map([[2, false]]));
+  assert.deepEqual(
+    asMode.filter((slot) => slot.round === 2).map((slot) => slot.teamId),
+    [40, 30, 20, 10],
+  );
+  assert.deepEqual(
+    forced.filter((slot) => slot.round === 2).map((slot) => slot.teamId),
+    [10, 20, 30, 40],
+  );
+});
+
+test("the first few rounds repeat across the rest", () => {
+  // Twenty dropdowns set by hand is twenty chances to set one wrong.
+  const cycle = repeatRounds(["F", "R", "R", "F"], 10);
+  assert.deepEqual(
+    [...cycle.values()],
+    ["F", "R", "R", "F", "F", "R", "R", "F", "F", "R"],
+  );
+  assert.equal(cycle.get(5), "F", "the cycle does not start again at round 5");
+  assert.deepEqual([...repeatRounds([], 5).values()], [], "repeating nothing is not nothing");
+});
+
+const signupForm = readFileSync("app/[league]/draft/SignUpForm.tsx", "utf8");
+const adminForm = readFileSync("app/admin/draft/DraftForm.tsx", "utf8");
+
+test("a tournament's players are never a round's pool", () => {
+  // It owns no players, so a round asking for them asks for a set that cannot
+  // have anybody in it - which looks like an empty pool, not a mistake.
+  assert.ok(
+    setup.includes("known.filter((row) => !row.isTournament)"),
+    "a round can be pointed at a competition that owns no players",
+  );
+  assert.ok(
+    // Loosely, because this file is CRLF on the machine it is written on.
+    /leagues[\s\S]{0,40}?[.]filter[(][(]option[)] => !option[.]isTournament[)]/.test(adminForm),
+    "the admin page offers the tournament as a round's competition",
+  );
+  // And the competition the draft itself is for is still offerable, because
+  // an expansion draft takes that competition's own players.
+  assert.ok(
+    !adminForm.includes("option.id !== leagueId"),
+    "a draft cannot take its own competition's players, which an expansion draft does",
+  );
+});
+
+test("signing up says which competition and what you play", () => {
+  assert.ok(signup.includes("competition.isTournament"), "somebody can sign up for the tournament");
+  assert.ok(signup.includes("POSITIONS.filter("), "positions are taken on trust");
+  assert.ok(signup.includes("played.length === 0"), "a sign-up with no position is accepted");
+  assert.ok(signupForm.includes("POSITIONS.map("), "the form does not offer the positions");
+});
+
+test("one sign-up each, found by the account rather than the form", () => {
+  // Nobody puts themselves in twice to be drafted twice.
+  assert.ok(
+    signup.includes("eq(draftSignups.discordId, session.discordId)"),
+    "a second sign-up is not found as the first one",
+  );
+  assert.ok(
+    migration2.includes("UNIQUE INDEX IF NOT EXISTS draft_signups_once ON draft_signups (draft_id, discord_id)"),
+    "the database allows two sign-ups from one account",
+  );
+});
+
+test("a player new to the site is made deliberately, from the sign-up", () => {
+  // Never by the sign-up itself: the name is typed by a stranger, and the
+  // archive is keyed by name.
+  assert.ok(signup.includes("if (create)"), "there is no way to add somebody new");
+  assert.ok(
+    signup.includes("lower(${players.displayName}) = lower(${row.typedName})"),
+    "a name already on the site would be created a second time",
+  );
+  assert.ok(signup.includes("leagueId: row.leagueId"), "the new player gets no competition");
 });

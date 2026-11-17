@@ -970,17 +970,18 @@ export const drafts = sqliteTable("drafts", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
-// A round that may only take one competition's players. A round with no row
-// here takes anybody, which is every round of a draft nobody has split.
+// What a single round does differently: whose players it may take, and which
+// way round it runs. A round with no row here takes anybody and follows the
+// draft's mode, which is every round of a draft nobody has split.
 export const draftRounds = sqliteTable("draft_rounds", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   draftId: integer("draft_id")
     .notNull()
     .references(() => drafts.id),
   round: integer("round").notNull(),
-  leagueId: integer("league_id")
-    .notNull()
-    .references(() => leagues.id),
+  leagueId: integer("league_id").references(() => leagues.id),
+  // Null follows the mode; set, it overrules it for this round alone.
+  reversed: integer("reversed", { mode: "boolean" }),
 });
 
 // Who has put their name down. A Discord account and nothing else: the people
@@ -996,6 +997,11 @@ export const draftSignups = sqliteTable("draft_signups", {
   discordName: text("discord_name").notNull(),
   typedName: text("typed_name").notNull(),
   playerId: integer("player_id").references(() => players.id),
+  // Which competition they are signing up out of. Asked because somebody who
+  // has never played here has no player row to read it off.
+  leagueId: integer("league_id").references(() => leagues.id),
+  // What they can play, comma separated, from the list a lineup uses.
+  positions: text("positions"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

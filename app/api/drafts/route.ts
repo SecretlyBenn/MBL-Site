@@ -1,7 +1,7 @@
 import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { clubsOf, layOutPicks, setRoundLeagues } from "@/db/draft";
+import { clubsOf, layOutPicks, setRoundRules, type RoundRule } from "@/db/draft";
 import {
   DRAFT_MODES,
   draftPicks,
@@ -38,8 +38,8 @@ type DraftPayload = {
   /** ALL draws on everybody the competition could draft; SIGNUPS on the list. */
   poolSource?: "ALL" | "SIGNUPS";
   signupsOpen?: boolean;
-  /** Round number to the competition it may take players from. */
-  roundLeagues?: Record<string, number>;
+  /** What each round does differently: whose players, and which way round. */
+  rounds_?: { round: number; leagueId: number | null; reversed: boolean | null }[];
 };
 
 /** Half an hour a pick is already generous; past that it is a typo. */
@@ -63,24 +63,28 @@ async function settingsOf(payload: DraftPayload, rounds: number) {
   }
 
   // A round tied to a competition that does not exist would quietly take
-  // nobody, which looks like an empty pool rather than a mistake.
-  const byRound = new Map<number, number>();
-  for (const [round, leagueId] of Object.entries(payload.roundLeagues ?? {})) {
-    const number = Number(round);
-    if (!Number.isInteger(number) || number < 1 || number > rounds) continue;
-    if (!Number.isInteger(leagueId)) continue;
-    byRound.set(number, leagueId);
-  }
-  if (byRound.size > 0) {
-    const db = getDb();
-    const known = await db.select({ id: leagues.id }).from(leagues);
-    const ids = new Set(known.map((row) => row.id));
-    for (const leagueId of byRound.values()) {
-      if (!ids.has(leagueId)) return { error: "A round names a competition that does not exist." };
+  // nobody, which looks like an empty pool rather than a mistake. The
+  // off-season tournament is never one of them: it owns no players, so a round
+  // asking for its players would ask for a set that cannot have anybody in it.
+  const db = getDb();
+  const known = await db
+    .select({ id: leagues.id, isTournament: leagues.isTournament })
+    .from(leagues);
+  const draftable = new Set(known.filter((row) => !row.isTournament).map((row) => row.id));
+
+  const rules: RoundRule[] = [];
+  for (const rule of payload.rounds_ ?? []) {
+    const round = Number(rule?.round);
+    if (!Number.isInteger(round) || round < 1 || round > rounds) continue;
+    const leagueId = rule.leagueId === null || rule.leagueId === undefined ? null : Number(rule.leagueId);
+    if (leagueId !== null && !draftable.has(leagueId)) {
+      return { error: "A round names a competition whose players cannot be drafted." };
     }
+    const reversed = rule.reversed === null || rule.reversed === undefined ? null : Boolean(rule.reversed);
+    rules.push({ round, leagueId, reversed });
   }
 
-  return { pickSeconds, poolSource, signupsOpen: Boolean(payload.signupsOpen), byRound };
+  return { pickSeconds, poolSource, signupsOpen: Boolean(payload.signupsOpen), rules };
 }
 
 /** Everything a draft's shape needs, checked once for create and for change. */
@@ -149,8 +153,9 @@ export async function POST(request: Request) {
       })
       .returning();
 
-    await layOutPicks(draft.id, shape.teamIds, shape.rounds, shape.mode);
-    await setRoundLeagues(draft.id, settings.byRound);
+    const reversedByRound = new Map(settings.rules.map((rule) => [rule.round, rule.reversed]));
+    await layOutPicks(draft.id, shape.teamIds, shape.rounds, shape.mode, reversedByRound);
+    await setRoundRules(draft.id, settings.rules);
 
     await logAudit({
       actingUserId: user.id,
@@ -212,8 +217,9 @@ export async function PATCH(request: Request) {
         signupsOpen: settings.signupsOpen,
       })
       .where(eq(drafts.id, draft.id));
-    await layOutPicks(draft.id, shape.teamIds, shape.rounds, shape.mode);
-    await setRoundLeagues(draft.id, settings.byRound);
+    const reversedByRound = new Map(settings.rules.map((rule) => [rule.round, rule.reversed]));
+    await layOutPicks(draft.id, shape.teamIds, shape.rounds, shape.mode, reversedByRound);
+    await setRoundRules(draft.id, settings.rules);
 
     await logAudit({
       actingUserId: user.id,

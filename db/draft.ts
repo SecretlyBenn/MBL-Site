@@ -77,6 +77,7 @@ export async function layOutPicks(
   teamIds: number[],
   rounds: number,
   mode: DraftMode,
+  reversedByRound?: Map<number, boolean | null>,
 ) {
   const db = getDb();
   const made = await db
@@ -89,7 +90,9 @@ export async function layOutPicks(
     .delete(draftPicks)
     .where(and(eq(draftPicks.draftId, draftId), isNull(draftPicks.playerId)));
 
-  const slots = draftSlots(teamIds, rounds, mode).filter((slot) => !taken.has(slot.overall));
+  const slots = draftSlots(teamIds, rounds, mode, reversedByRound).filter(
+    (slot) => !taken.has(slot.overall),
+  );
   // D1 allows a hundred bound parameters per statement and each row here binds
   // four, so the rows go in twenty at a time rather than all at once.
   for (let index = 0; index < slots.length; index += 20) {
@@ -168,29 +171,42 @@ export async function draftablePlayers(
   return rows.filter((row) => !taken.has(row.id)).slice(0, limit);
 }
 
-/** Which competition each round is restricted to, by round number. */
-export async function getRoundLeagues(draftId: number) {
+/** What each round does differently, by round number. */
+export async function getRoundRules(draftId: number) {
   const rows = await getDb()
-    .select({ round: draftRounds.round, leagueId: draftRounds.leagueId })
+    .select({
+      round: draftRounds.round,
+      leagueId: draftRounds.leagueId,
+      reversed: draftRounds.reversed,
+    })
     .from(draftRounds)
     .where(eq(draftRounds.draftId, draftId));
-  return new Map(rows.map((row) => [row.round, row.leagueId]));
+  return new Map(rows.map((row) => [row.round, row]));
 }
 
+export type RoundRule = { round: number; leagueId: number | null; reversed: boolean | null };
+
 /**
- * Replaces which competition each round is tied to.
+ * Replaces what every round does differently.
  *
- * A round left out of `byRound` goes back to taking anybody, so this is the
- * whole picture each time rather than a set of changes - the same shape the
- * roles and the competitions an account covers are written in.
+ * A round left out goes back to taking anybody and following the mode, so this
+ * is the whole picture each time rather than a set of changes - the same shape
+ * the roles and the competitions an account covers are written in.
  */
-export async function setRoundLeagues(draftId: number, byRound: Map<number, number>) {
+export async function setRoundRules(draftId: number, rules: RoundRule[]) {
   const db = getDb();
   await db.delete(draftRounds).where(eq(draftRounds.draftId, draftId));
-  const rows = [...byRound.entries()].map(([round, leagueId]) => ({ draftId, round, leagueId }));
-  // Three bound parameters a row against D1's hundred, so thirty at a time.
-  for (let index = 0; index < rows.length; index += 30) {
-    await db.insert(draftRounds).values(rows.slice(index, index + 30));
+  const rows = rules
+    .filter((rule) => rule.leagueId !== null || rule.reversed !== null)
+    .map((rule) => ({
+      draftId,
+      round: rule.round,
+      leagueId: rule.leagueId,
+      reversed: rule.reversed,
+    }));
+  // Four bound parameters a row against D1's hundred, so twenty at a time.
+  for (let index = 0; index < rows.length; index += 20) {
+    await db.insert(draftRounds).values(rows.slice(index, index + 20));
   }
 }
 
@@ -204,6 +220,8 @@ export async function getSignups(draftId: number) {
       typedName: draftSignups.typedName,
       playerId: draftSignups.playerId,
       playerName: players.displayName,
+      leagueId: draftSignups.leagueId,
+      positions: draftSignups.positions,
       createdAt: draftSignups.createdAt,
     })
     .from(draftSignups)

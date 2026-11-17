@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { asc, desc } from "drizzle-orm";
 import { getDb } from "@/db";
-import { getBoard, getRoundLeagues, getSignups, onTheClock } from "@/db/draft";
+import { getBoard, getRoundRules, getSignups, onTheClock } from "@/db/draft";
 import { drafts, teams } from "@/db/schema";
 import { getLeagues } from "@/db/queries";
 import { requireRole } from "@/app/roles";
@@ -39,7 +39,7 @@ export default async function AdminDraftPage() {
     held.map(async (draft) => ({
       draft,
       board: await getBoard(draft.id),
-      roundLeagues: await getRoundLeagues(draft.id),
+      roundRules: await getRoundRules(draft.id),
       signups: draft.poolSource === "SIGNUPS" || draft.signupsOpen ? await getSignups(draft.id) : [],
     })),
   );
@@ -57,7 +57,7 @@ export default async function AdminDraftPage() {
           <EmptyState>No drafts yet.</EmptyState>
         ) : (
           <ul className="flex flex-col gap-3">
-            {boards.map(({ draft, board, roundLeagues, signups }) => {
+            {boards.map(({ draft, board, roundRules, signups }) => {
               const clock = onTheClock(board);
               const made = board.filter((pick) => pick.playerId !== null);
               const league = allLeagues.find((row) => row.id === draft.leagueId);
@@ -82,7 +82,7 @@ export default async function AdminDraftPage() {
                       startedAt: draft.startedAt,
                       signupsOpen: draft.signupsOpen,
                       poolSource: draft.poolSource as "ALL" | "SIGNUPS",
-                      roundLeagues: Object.fromEntries(roundLeagues),
+                      rounds_: [...roundRules.values()],
                     }}
                     status={
                       clock
@@ -96,7 +96,9 @@ export default async function AdminDraftPage() {
                     }
                     boardHref={league ? `/${league.slug}/draft?draft=${draft.id}` : null}
                   />
-                  {signups.length > 0 && <SignupList draftId={draft.id} signups={signups} />}
+                  {signups.length > 0 && (
+                    <SignupList draftId={draft.id} signups={signups} leagues={allLeagues} />
+                  )}
                 </li>
               );
             })}

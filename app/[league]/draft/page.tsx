@@ -5,7 +5,7 @@ import {
   deadlineFor,
   draftablePlayers,
   getBoard,
-  getRoundLeagues,
+  getRoundRules,
   getSignups,
   onTheClock,
 } from "@/db/draft";
@@ -92,12 +92,12 @@ export default async function DraftPage({
     );
   }
 
-  const [board, overrides, user, session, roundLeagues, allLeagues] = await Promise.all([
+  const [board, overrides, user, session, roundRules, allLeagues] = await Promise.all([
     getBoard(draft.id),
     getLogoOverrides(),
     getLeagueUser(),
     getSession(),
-    getRoundLeagues(draft.id),
+    getRoundRules(draft.id),
     getLeagues(),
   ]);
   const clock = onTheClock(board);
@@ -125,14 +125,14 @@ export default async function DraftPage({
 
   // Which competition this round is for, if it is for one. The off-season
   // tournament borrows from both, and a round can be set aside for either.
-  const roundLeagueId = clock ? roundLeagues.get(clock.round) : undefined;
+  const roundLeagueId = clock ? roundRules.get(clock.round)?.leagueId ?? null : null;
   const roundLeague = allLeagues.find((row) => row.id === roundLeagueId);
 
   const pool = mayPick
     ? await draftablePlayers(
         draft,
         league,
-        { round: clock!.round, leagueId: roundLeagueId ?? null },
+        { round: clock!.round, leagueId: roundLeagueId },
         find,
       )
     : [];
@@ -337,8 +337,11 @@ export default async function DraftPage({
               <SignUpForm
                 draftId={draft.id}
                 discordName={session.displayName}
+                leagues={allLeagues.filter((row) => !row.isTournament)}
                 signedUpAs={mine?.typedName}
                 matchedAs={mine?.playerName ?? null}
+                signedUpLeague={mine?.leagueId ?? null}
+                signedUpPositions={mine?.positions ?? null}
               />
             ) : (
               <a
@@ -371,6 +374,11 @@ export default async function DraftPage({
                 >
                   <PlayerHead name={row.playerName ?? row.typedName} size={18} />
                   {row.playerName ?? row.typedName}
+                  {row.positions && (
+                    <span className="font-mono text-[10px] font-normal text-slate-500">
+                      {row.positions.replace(/,/g, " ")}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>

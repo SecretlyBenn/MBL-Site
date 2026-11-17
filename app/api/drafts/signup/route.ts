@@ -1,7 +1,8 @@
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
-import { draftSignups, drafts, players } from "@/db/schema";
+import { draftSignups, drafts, leagues, players } from "@/db/schema";
+import { POSITIONS } from "@/app/scoring";
 import { apiError } from "@/app/api-errors";
 import { getSession } from "@/app/session";
 import { getLeagueUser, hasRole } from "@/app/roles";
@@ -37,7 +38,12 @@ export async function POST(request: Request) {
       return Response.json({ error: "That is happening too often. Wait a moment." }, { status: 429 });
     }
 
-    const { draftId, name } = (await request.json()) as { draftId: number; name: string };
+    const { draftId, name, leagueId, positions } = (await request.json()) as {
+      draftId: number;
+      name: string;
+      leagueId?: number;
+      positions?: string[];
+    };
     if (!Number.isInteger(draftId)) {
       return Response.json({ error: "Which draft?" }, { status: 400 });
     }
@@ -52,6 +58,24 @@ export async function POST(request: Request) {
     if (!draft) return Response.json({ error: "No such draft." }, { status: 404 });
     if (!draft.signupsOpen) {
       return Response.json({ error: "Sign-ups for that draft are closed." }, { status: 409 });
+    }
+
+    // Which competition they play in. Asked rather than looked up because the
+    // people this matters for are the ones with no player row to look it up
+    // from, and a tournament is not an answer - it owns no players.
+    const competition = Number.isInteger(leagueId)
+      ? await db.query.leagues.findFirst({ where: eq(leagues.id, leagueId!) })
+      : null;
+    if (!competition || competition.isTournament) {
+      return Response.json({ error: "Say which competition you play in." }, { status: 400 });
+    }
+
+    // Kept to the list a lineup uses, in that order, so a club reading the
+    // sign-ups sees the same words in the same order every time.
+    const wanted = Array.isArray(positions) ? positions : [];
+    const played = POSITIONS.filter((position) => wanted.includes(position));
+    if (played.length === 0) {
+      return Response.json({ error: "Pick at least one position you can play." }, { status: 400 });
     }
 
     // Matched on the name as it stands, ignoring case, because that is the
@@ -77,7 +101,13 @@ export async function POST(request: Request) {
     if (already[0]) {
       await db
         .update(draftSignups)
-        .set({ typedName, playerId: player?.id ?? null, discordName: session.displayName })
+        .set({
+          typedName,
+          playerId: player?.id ?? null,
+          discordName: session.displayName,
+          leagueId: competition.id,
+          positions: played.join(","),
+        })
         .where(eq(draftSignups.id, already[0].id));
     } else {
       await db.insert(draftSignups).values({
@@ -86,6 +116,8 @@ export async function POST(request: Request) {
         discordName: session.displayName,
         typedName,
         playerId: player?.id ?? null,
+        leagueId: competition.id,
+        positions: played.join(","),
       });
     }
 
@@ -161,13 +193,61 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "Admins only." }, { status: 403 });
     }
 
-    const { signupId, playerId, name } = (await request.json()) as {
+    const { signupId, playerId, name, create } = (await request.json()) as {
       signupId: number;
       playerId?: number | null;
       name?: string;
+      /** Make a player row from the sign-up itself, for somebody new here. */
+      create?: boolean;
     };
     if (!Number.isInteger(signupId)) {
       return Response.json({ error: "Which sign-up?" }, { status: 400 });
+    }
+
+    const dbFirst = getDb();
+    if (create) {
+      const row = await dbFirst.query.draftSignups.findFirst({
+        where: eq(draftSignups.id, signupId),
+      });
+      if (!row) return Response.json({ error: "No such sign-up." }, { status: 404 });
+
+      // A name already on the site is a match, not a new player. Creating a
+      // second row under it would split one man's career in two, which is the
+      // repair the archive is hardest to make.
+      const clash = await dbFirst
+        .select({ id: players.id })
+        .from(players)
+        .where(sql`lower(${players.displayName}) = lower(${row.typedName})`)
+        .limit(1);
+      if (clash.length > 0) {
+        return Response.json(
+          { error: `${row.typedName} is already on the site. Match them instead.` },
+          { status: 409 },
+        );
+      }
+
+      // No club: they have not been drafted yet, and the pick is what gives
+      // them one. The competition is the one they said they play in, which is
+      // the whole reason the sign-up asks.
+      const [made] = await dbFirst
+        .insert(players)
+        .values({
+          displayName: row.typedName,
+          minecraftUsername: row.typedName,
+          status: "ACTIVE",
+          leagueId: row.leagueId,
+        })
+        .returning();
+
+      await dbFirst.update(draftSignups).set({ playerId: made.id }).where(eq(draftSignups.id, signupId));
+      await logAudit({
+        actingUserId: user!.id,
+        action: "draft.signup.create",
+        entityType: "player",
+        entityId: made.id,
+        detail: { typedName: row.typedName, leagueId: row.leagueId, fromSignup: signupId },
+      });
+      return Response.json({ ok: true, playerId: made.id });
     }
 
     // Given by name, because that is what an admin is reading off the sign-up

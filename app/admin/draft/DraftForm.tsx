@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-type League = { id: number; name: string; slug: string; abbreviation: string };
+type League = { id: number; name: string; slug: string; abbreviation: string; isTournament: boolean };
 type Team = { id: number; name: string; leagueId: number | null };
 type Draft = {
   id: number;
@@ -17,9 +17,11 @@ type Draft = {
   startedAt: string | null;
   signupsOpen: boolean;
   poolSource: "ALL" | "SIGNUPS";
-  /** Round number to the competition it may take players from. */
-  roundLeagues: Record<string, number>;
+  /** What each round does differently: whose players, and which way round. */
+  rounds_: Rule[];
 };
+
+type Rule = { round: number; leagueId: number | null; reversed: boolean | null };
 
 /**
  * A draft's shape: which competition, how many rounds, straight or a snake,
@@ -63,9 +65,10 @@ export function DraftForm({
   );
   const [poolSource, setPoolSource] = useState<"ALL" | "SIGNUPS">(draft?.poolSource ?? "ALL");
   const [signupsOpen, setSignupsOpen] = useState(draft?.signupsOpen ?? false);
-  const [roundLeagues, setRoundLeagues] = useState<Record<string, number>>(
-    draft?.roundLeagues ?? {},
+  const [rules, setRules] = useState<Map<number, Rule>>(
+    () => new Map((draft?.rounds_ ?? []).map((rule) => [rule.round, rule])),
   );
+  const [cycle, setCycle] = useState("4");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -79,6 +82,30 @@ export function DraftForm({
   function chooseLeague(id: number) {
     setLeagueId(id);
     setOrder([]);
+  }
+
+  const everyRound = Array.from({ length: Math.min(Number(rounds) || 0, 40) }, (_, i) => i + 1);
+
+  /** Changes one thing about one round, leaving the rest of it alone. */
+  function setRule(round: number, change: Partial<Rule>) {
+    const next = new Map(rules);
+    const now = next.get(round) ?? { round, leagueId: null, reversed: null };
+    const merged = { ...now, ...change };
+    if (merged.leagueId === null && merged.reversed === null) next.delete(round);
+    else next.set(round, merged);
+    setRules(next);
+  }
+
+  /** Lays the first few rounds over all of them, again and again. */
+  function repeat() {
+    const size = Math.max(1, Math.min(Number(cycle) || 1, everyRound.length));
+    const first = everyRound.slice(0, size).map((round) => rules.get(round) ?? null);
+    const next = new Map<number, Rule>();
+    for (const round of everyRound) {
+      const from = first[(round - 1) % size];
+      if (from) next.set(round, { ...from, round });
+    }
+    setRules(next);
   }
 
   function move(index: number, by: number) {
@@ -106,7 +133,7 @@ export function DraftForm({
           pickSeconds: clockMinutes.trim() === "" ? null : Math.round(Number(clockMinutes) * 60),
           poolSource,
           signupsOpen,
-          roundLeagues,
+          rounds_: [...rules.values()],
         }),
       });
       const body = (await response.json().catch(() => ({}))) as { error?: string };
@@ -301,44 +328,82 @@ export function DraftForm({
         </label>
       </div>
 
-      {/* A round can be set aside for one competition's players, which is what
-          an off-season tournament wants when it is drawing on two. Left as
-          anybody, a round takes whoever is in the pool. */}
+      {/* A round says whose players it takes and which way round it runs.
+          Both because neither mode describes what this league actually does -
+          four rounds of forward, reversed, reversed, forward, alternating
+          competitions, and then the same four again. Saying it round by round
+          covers that and covers whatever is used next; the repeat button is
+          what keeps it from being twenty dropdowns set by hand. */}
       <div className="flex flex-col gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Rounds
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Rounds
+          </span>
+          <span className="flex items-center gap-1 text-xs text-slate-500">
+            Set the first
+            <input
+              type="number"
+              min={1}
+              max={Math.max(1, Number(rounds) || 1)}
+              value={cycle}
+              onChange={(event) => setCycle(event.target.value)}
+              className="ui-input !w-16 !py-0.5 text-xs"
+              aria-label="How many rounds to repeat"
+            />
+            then
+            <button type="button" onClick={repeat} className="ui-button !px-2 !py-0.5 text-xs">
+              repeat them
+            </button>
+          </span>
+        </div>
         <div className="flex flex-wrap gap-1.5">
-          {Array.from({ length: Math.min(Number(rounds) || 0, 40) }, (_, index) => index + 1).map(
-            (round) => (
-              <label
+          {everyRound.map((round) => {
+            const rule = rules.get(round);
+            return (
+              <span
                 key={round}
                 className="flex items-center gap-1.5 rounded-md border border-slate-800 bg-slate-900/60 px-2 py-1 text-xs"
               >
-                <span className="font-bold text-slate-500">R{round}</span>
+                <span className="w-7 font-bold text-slate-500">R{round}</span>
+                <select
+                  aria-label={`Direction for round ${round}`}
+                  className="bg-transparent text-xs text-slate-200 outline-none"
+                  value={rule?.reversed === null || rule?.reversed === undefined ? "" : rule.reversed ? "R" : "F"}
+                  onChange={(event) =>
+                    setRule(round, {
+                      reversed:
+                        event.target.value === "" ? null : event.target.value === "R",
+                    })
+                  }
+                >
+                  <option value="">{mode === "SNAKE" ? "Snake" : "Straight"}</option>
+                  <option value="F">1 → {order.length || "n"}</option>
+                  <option value="R">{order.length || "n"} → 1</option>
+                </select>
                 <select
                   aria-label={`Competition for round ${round}`}
                   className="bg-transparent text-xs text-slate-200 outline-none"
-                  value={roundLeagues[round] ?? ""}
-                  onChange={(event) => {
-                    const next = { ...roundLeagues };
-                    if (event.target.value === "") delete next[round];
-                    else next[round] = Number(event.target.value);
-                    setRoundLeagues(next);
-                  }}
+                  value={rule?.leagueId ?? ""}
+                  onChange={(event) =>
+                    setRule(round, {
+                      leagueId: event.target.value === "" ? null : Number(event.target.value),
+                    })
+                  }
                 >
                   <option value="">Anybody</option>
+                  {/* The off-season tournament owns no players, so a round
+                      asking for its players would ask for nobody. */}
                   {leagues
-                    .filter((option) => option.id !== leagueId)
+                    .filter((option) => !option.isTournament)
                     .map((option) => (
                       <option key={option.id} value={option.id}>
                         {option.abbreviation}
                       </option>
                     ))}
                 </select>
-              </label>
-            ),
-          )}
+              </span>
+            );
+          })}
         </div>
       </div>
 
