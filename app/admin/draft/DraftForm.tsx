@@ -19,6 +19,8 @@ type Draft = {
   poolSource: "ALL" | "SIGNUPS";
   /** What each round does differently: whose players, and which way round. */
   rounds_: Rule[];
+  /** Whether its picks exist yet. A draft can be made before they do. */
+  laidOut: boolean;
 };
 
 type Rule = { round: number; leagueId: number | null; reversed: boolean | null };
@@ -55,7 +57,10 @@ export function DraftForm({
   const [open, setOpen] = useState(!draft);
   const [leagueId, setLeagueId] = useState<number>(draft?.leagueId ?? leagues[0]?.id ?? 0);
   const [name, setName] = useState(draft?.name ?? "");
-  const [rounds, setRounds] = useState(String(draft?.rounds ?? 10));
+  // Blank on a new draft, because how many rounds it runs usually depends on
+  // how many people sign up - the draft gets made and opened first, and this
+  // is filled in once the league knows what it is working with.
+  const [rounds, setRounds] = useState(draft?.rounds ? String(draft.rounds) : "");
   const [mode, setMode] = useState<"STRAIGHT" | "SNAKE">(draft?.mode ?? "STRAIGHT");
   const [order, setOrder] = useState<number[]>(draft?.teamIds ?? []);
   // Minutes on screen, seconds in the database: nobody sets a pick clock in
@@ -83,6 +88,10 @@ export function DraftForm({
     setLeagueId(id);
     setOrder([]);
   }
+
+  // Half a shape is a mistake rather than a stage: rounds with no clubs, or
+  // clubs with no rounds, is somebody who meant to give both.
+  const half = (Number(rounds) > 0) !== (order.length > 0);
 
   const everyRound = Array.from({ length: Math.min(Number(rounds) || 0, 40) }, (_, i) => i + 1);
 
@@ -186,7 +195,15 @@ export function DraftForm({
             {draft.poolSource === "SIGNUPS" ? " · sign-ups only" : ""}
             {draft.signupsOpen ? " · sign-ups open" : ""}
           </span>
-          {!draft.startedAt ? (
+          {!draft.laidOut ? (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="ui-button-primary !px-3 !py-1 text-xs"
+            >
+              Set the rounds and order
+            </button>
+          ) : !draft.startedAt ? (
             <button
               type="button"
               disabled={busy}
@@ -472,7 +489,7 @@ export function DraftForm({
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          disabled={busy || !name.trim() || order.length < 2}
+          disabled={busy || !name.trim() || (order.length > 0 && order.length < 2) || half}
           onClick={() => send(draft ? "PATCH" : "POST")}
           className="ui-button-primary"
         >
@@ -502,8 +519,17 @@ export function DraftForm({
       </div>
 
       {/* Said rather than left to a greyed-out button. */}
-      {order.length < 2 && (
-        <p className="text-xs text-amber-400">A draft needs at least two clubs in the order.</p>
+      {half && (
+        <p className="text-xs text-amber-400">
+          Give both the rounds and the order, or neither. Neither makes a draft that only
+          collects sign-ups, which you can arrange once you know who has put their name down.
+        </p>
+      )}
+      {!half && order.length === 0 && (
+        <p className="text-xs text-slate-400">
+          No rounds and no order yet: this will be a draft that collects sign-ups, and you can
+          set it up once you know how many people are in.
+        </p>
       )}
       {draft && (
         <p className="text-xs text-slate-500">

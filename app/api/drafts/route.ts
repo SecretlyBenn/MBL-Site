@@ -87,12 +87,20 @@ async function settingsOf(payload: DraftPayload, rounds: number) {
   return { pickSeconds, poolSource, signupsOpen: Boolean(payload.signupsOpen), rules };
 }
 
-/** Everything a draft's shape needs, checked once for create and for change. */
+/**
+ * Everything a draft's shape needs, checked once for create and for change.
+ *
+ * A draft may have no shape at all yet. How many rounds it runs and which
+ * clubs are in it both depend on how many people sign up, so a draft is
+ * allowed to exist as nothing but a name and an open sign-up sheet, and be
+ * filled in once the league knows what it is working with. Nothing can be
+ * drafted out of one: with no rounds there are no picks, and with no picks
+ * there is nobody on the clock and nothing to start.
+ *
+ * Half a shape is a mistake rather than a stage - rounds with no clubs, or
+ * clubs with no rounds, is somebody who meant to give both.
+ */
 async function shapeOf(payload: DraftPayload, leagueId: number) {
-  const rounds = Number(payload.rounds);
-  if (!Number.isInteger(rounds) || rounds < 1 || rounds > MAX_ROUNDS) {
-    return { error: `A draft runs between 1 and ${MAX_ROUNDS} rounds.` };
-  }
   const mode = payload.mode ?? "STRAIGHT";
   if (!DRAFT_MODES.includes(mode)) {
     return { error: "A draft is either straight or a snake." };
@@ -101,6 +109,15 @@ async function shapeOf(payload: DraftPayload, leagueId: number) {
   const teamIds = Array.isArray(payload.teamIds)
     ? payload.teamIds.filter((id) => Number.isInteger(id))
     : [];
+  const asked = Number(payload.rounds);
+  const rounds = Number.isInteger(asked) && asked > 0 ? asked : 0;
+
+  if (rounds === 0 && teamIds.length === 0) {
+    return { rounds: 0, mode, teamIds: [] };
+  }
+  if (rounds < 1 || rounds > MAX_ROUNDS) {
+    return { error: `A draft runs between 1 and ${MAX_ROUNDS} rounds.` };
+  }
   if (teamIds.length < 2) {
     return { error: "Put at least two clubs in the order." };
   }

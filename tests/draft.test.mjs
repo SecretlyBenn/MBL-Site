@@ -330,3 +330,28 @@ test("a player new to the site is made deliberately, from the sign-up", () => {
   );
   assert.ok(signup.includes("leagueId: row.leagueId"), "the new player gets no competition");
 });
+
+test("a draft can exist as nothing but a name and an open sign-up sheet", () => {
+  // How many rounds it runs and which clubs are in it both depend on how many
+  // people sign up, so the draft is made and opened first and arranged after.
+  const fn = setup.slice(setup.indexOf("async function shapeOf"));
+  const body = fn.slice(0, fn.indexOf("\n}"));
+  assert.ok(
+    body.includes("rounds === 0 && teamIds.length === 0"),
+    "a draft still has to be fully arranged to exist",
+  );
+  // Half a shape is a mistake rather than a stage.
+  assert.ok(body.includes("teamIds.length < 2"), "rounds with no clubs is accepted");
+  assert.ok(adminForm.includes("const half ="), "the form lets half a shape be saved");
+});
+
+test("an unarranged draft cannot be started", () => {
+  // There are no picks in it, so starting it would start nothing and close
+  // its sign-ups for no reason.
+  assert.ok(start.includes("laid.length === 0"), "a draft with no picks can be started");
+});
+
+test("a draft with no picks is not a finished one", () => {
+  assert.ok(board.includes("const laidOut = board.length > 0"), "the two are not told apart");
+  assert.ok(board.includes("Not arranged yet"), "an unarranged draft says the draft is over");
+});

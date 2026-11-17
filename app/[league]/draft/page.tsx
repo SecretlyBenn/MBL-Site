@@ -121,6 +121,9 @@ export default async function DraftPage({
   const isTheirClub = hasRole(user, "GM") && user?.teamId === clock?.teamId;
   const asAdmin = hasRole(user, "ADMIN") && !isTheirClub;
   const started = Boolean(draft.startedAt);
+  // No picks at all means the rounds and the order are still to be decided,
+  // which is a draft waiting on its sign-ups rather than a finished one.
+  const laidOut = board.length > 0;
   const mayPick = clock !== undefined && started && (isTheirClub || asAdmin);
 
   // Which competition this round is for, if it is for one. The off-season
@@ -151,7 +154,13 @@ export default async function DraftPage({
   return (
     <PageShell
       title={draft.name}
-      subtitle={`${league.name} · ${draft.mode === "SNAKE" ? "Snake" : "Straight"} · ${draft.rounds} rounds`}
+      // A draft nobody has arranged has no rounds and no mode worth printing:
+      // "Straight · 0 rounds" says something that is not true yet.
+      subtitle={
+        laidOut
+          ? `${league.name} · ${draft.mode === "SNAKE" ? "Snake" : "Straight"} · ${draft.rounds} rounds`
+          : league.name
+      }
     >
       <div className="flex flex-col gap-6">
         {/* Who everybody is waiting on. The biggest thing on the page,
@@ -211,13 +220,26 @@ export default async function DraftPage({
                   </div>
                 )}
               </>
-            ) : (
+            ) : laidOut ? (
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">
                   Finished
                 </p>
                 <p className="text-2xl font-black leading-tight text-emerald-300 sm:text-3xl">
                   Every pick has been made
+                </p>
+              </div>
+            ) : (
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-500">
+                  Being arranged
+                </p>
+                <p className="text-2xl font-black leading-tight text-slate-300 sm:text-3xl">
+                  {draft.signupsOpen ? "Sign-ups are open" : "Not arranged yet"}
+                </p>
+                <p className="text-sm font-semibold text-slate-500">
+                  How many rounds it runs and which clubs are in it are still to be
+                  decided{draft.signupsOpen ? " - put your name down below" : ""}.
                 </p>
               </div>
             )}
@@ -242,6 +264,7 @@ export default async function DraftPage({
             )}
           </div>
 
+          {laidOut && (
           <div className="flex items-center gap-3 border-t border-slate-800/80 px-4 py-2 sm:px-5">
             <span className="text-[11px] font-semibold text-slate-500">
               {made.length} of {board.length} picks made
@@ -253,6 +276,7 @@ export default async function DraftPage({
               />
             </span>
           </div>
+          )}
         </section>
 
         {mayPick && clock && (

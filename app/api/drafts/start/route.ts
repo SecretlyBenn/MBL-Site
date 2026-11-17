@@ -27,6 +27,20 @@ export async function POST(request: Request) {
       return Response.json({ error: "That draft has already started." }, { status: 409 });
     }
 
+    // A draft whose rounds and order are not set yet has no picks in it, so
+    // starting it would start nothing and close its sign-ups for no reason.
+    const laid = await db
+      .select({ id: draftPicks.id })
+      .from(draftPicks)
+      .where(eq(draftPicks.draftId, id))
+      .limit(1);
+    if (laid.length === 0) {
+      return Response.json(
+        { error: "Set the rounds and the order first - there are no picks to make." },
+        { status: 409 },
+      );
+    }
+
     const startedAt = new Date().toISOString();
     // Sign-ups close as it starts. The pool a draft is run from should not be
     // moving underneath it, and the alternative is an admin remembering to

@@ -83,11 +83,14 @@ export default async function AdminDraftPage() {
                       signupsOpen: draft.signupsOpen,
                       poolSource: draft.poolSource as "ALL" | "SIGNUPS",
                       rounds_: [...roundRules.values()],
+                      laidOut: board.length > 0,
                     }}
                     status={
-                      clock
-                        ? `${made.length} of ${board.length} picks made · ${clock.teamName} on the clock`
-                        : `All ${board.length} picks made`
+                      board.length === 0
+                        ? "Not arranged yet - no rounds, no order"
+                        : clock
+                          ? `${made.length} of ${board.length} picks made · ${clock.teamName} on the clock`
+                          : `All ${board.length} picks made`
                     }
                     lastPick={
                       made.length > 0
