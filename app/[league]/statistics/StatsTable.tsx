@@ -168,7 +168,8 @@ export function StatsTable({ rows, kind, leagueSlug, inningsPerGame, team = fals
   const nameKey = team ? "teamName" : "playerName";
   const [sortKey, setSortKey] = useState<string>(nameKey);
   const [direction, setDirection] = useState<"asc" | "desc">("asc");
-  const [minimum, setMinimum] = useState("0");
+  // Empty is no minimum: Number("") is 0, which the filter below reads as off.
+  const [minimum, setMinimum] = useState("");
   const [page, setPage] = useState(0);
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -248,7 +249,35 @@ export function StatsTable({ rows, kind, leagueSlug, inningsPerGame, team = fals
         table sit on the same line as each other rather than stacking. */}
     {(toolbar || !team) && <div className="mb-3 flex flex-wrap items-center gap-3">
       {toolbar}
-      {!team && <label className="ui-field-label sm:ml-auto">{kind === "batting" ? "Min PA" : "Min IP"}<select value={minimum} onChange={(e) => { setMinimum(e.target.value); setPage(0); }} className="ui-select">{(kind === "batting" ? [0, 10, 25, 50, 100] : [0, 5, 10, 25, 50]).map((value) => <option key={value} value={value}>{value === 0 ? "All" : value + "+"}</option>)}</select></label>}
+      {!team && (
+        <label className="ui-field-label sm:ml-auto">
+          {kind === "batting" ? "Min PA" : "Min IP"}
+          {/* Typed rather than picked. The old dropdown answered four
+              questions and refused every other one, and "why can't I put in
+              my own number" was the first thing anybody asked about it. The
+              four are still on the input as a list, so the common ones are
+              one click away and anything else is one keystroke. */}
+          <input
+            type="number"
+            min={0}
+            inputMode="numeric"
+            list={`minimum-${kind}`}
+            value={minimum}
+            placeholder="All"
+            aria-label={kind === "batting" ? "Minimum plate appearances" : "Minimum innings pitched"}
+            onChange={(event) => {
+              setMinimum(event.target.value);
+              setPage(0);
+            }}
+            className="ui-input !w-24"
+          />
+          <datalist id={`minimum-${kind}`}>
+            {(kind === "batting" ? [10, 25, 50, 100] : [5, 10, 25, 50]).map((value) => (
+              <option key={value} value={value} />
+            ))}
+          </datalist>
+        </label>
+      )}
       {!team && <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder="Search player username…" className="ui-select w-full sm:w-56" />}
     </div>}
     <div className="data-table-shell is-sticky max-w-full">
