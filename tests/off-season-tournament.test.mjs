@@ -56,11 +56,19 @@ test("a man plays for one club in a tournament", () => {
   assert.ok(body.includes("held.length === 0"), "picking the same player twice would give him two spots");
 });
 
-test("a GM picks for their own club and nobody else's", () => {
+test("a GM picks for their own club and nobody else's, but an admin picks for any", () => {
   const body = functionOf(moves, "tournamentMove");
   assert.ok(
-    body.includes('hasRole(leagueUser, "GM") && leagueUser.teamId !== team.id'),
+    body.includes("leagueUser.teamId !== team.id"),
     "a tournament GM can act on another club",
+  );
+  // The wider role wins where two disagree. Without this, an admin who also
+  // runs a club was refused every other club in the tournament - which is
+  // the opposite of what holding both roles is for, and left nobody able to
+  // tidy up a roster but its own GM.
+  assert.ok(
+    body.includes('!hasRole(leagueUser, "ADMIN")'),
+    "an admin who also holds GM is blocked from every other club",
   );
 });
 

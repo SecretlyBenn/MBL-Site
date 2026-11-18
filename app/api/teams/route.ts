@@ -4,6 +4,7 @@ import { logAudit } from "@/db/audit";
 import { logoKey } from "@/db/logos";
 import { games, historicalGames, historicalTeams, leagues, players, rosterMoves, teamLogos, teams, users } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
+import { renameClub } from "@/db/rename-club";
 import { requireRoleForApi } from "@/app/roles";
 
 type TeamPayload = {
@@ -99,31 +100,10 @@ export async function PATCH(request: Request) {
     const abbreviation = payload.abbreviation?.trim().toUpperCase() || team.abbreviation;
     const color = payload.color === undefined ? team.color : payload.color?.trim() || null;
 
-    await db.update(teams).set({ name, abbreviation, color }).where(eq(teams.id, team.id));
-
-    let openSeasonRows = 0;
-    if (name !== team.name) {
-      const openSeasons = db
-        .selectDistinct({ id: historicalGames.seasonId })
-        .from(historicalGames)
-        .where(
-          and(
-            isNull(historicalGames.homeScore),
-            or(isNull(historicalGames.status), sql`${historicalGames.status} <> 'NOT_NEEDED'`),
-          ),
-        );
-      const renamed = await db
-        .update(historicalTeams)
-        .set({ name, abbreviation })
-        .where(and(eq(historicalTeams.name, team.name), inArray(historicalTeams.seasonId, openSeasons)))
-        .returning({ id: historicalTeams.id });
-      openSeasonRows = renamed.length;
-
-      await db
-        .update(teamLogos)
-        .set({ teamName: logoKey(name) })
-        .where(eq(teamLogos.teamName, logoKey(team.name)));
-    }
+    // The colour is this page's alone; the name, the abbreviation, the
+    // archive's open seasons and the logo are shared with the bot's rename.
+    await db.update(teams).set({ color }).where(eq(teams.id, team.id));
+    const openSeasonRows = await renameClub(team, name, abbreviation);
 
     await logAudit({
       actingUserId: leagueUser.id,

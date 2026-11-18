@@ -367,3 +367,60 @@ test("nothing sits above the rounds deciding the order", () => {
     "the drafts table still carries a mode",
   );
 });
+
+test("a GM of an off-season club is put on its roster, and only ever added", () => {
+  // Nobody should have to draft their own manager. But a man already on
+  // another club in the tournament got there by being drafted, and moving
+  // him would lose a pick nobody could see had gone.
+  const fn = draft.slice(draft.indexOf("export async function seatGmOnOwnClub"));
+  const body = fn.slice(0, fn.indexOf("\n}\n"));
+  assert.ok(body.includes("league?.isTournament"), "it would seat a GM in a Discord-run league");
+  assert.ok(body.includes("insert(rosterSpots)"), "the GM is never actually seated");
+  assert.ok(!body.includes("delete(rosterSpots)"), "it takes a drafted player off a club");
+  assert.ok(body.includes("already on ${elsewhere.clubName}"), "a conflict is silent");
+  // Matched on the name, and no match creates nobody.
+  assert.ok(!body.includes("insert(players)"), "an unknown GM becomes an invented player");
+
+  const usersRoute = readFileSync("app/api/users/route.ts", "utf8");
+  assert.ok(usersRoute.includes("seatGmOnOwnClub"), "giving somebody a club does not seat them");
+});
+
+test("a drafted player lands on the tournament club that took him", () => {
+  // The thing a draft is for. A tournament borrows its players, so the club's
+  // claim is a roster spot and his own club is untouched.
+  const fn = draft.slice(draft.indexOf("export async function placeDraftedPlayer"));
+  const body = fn.slice(0, fn.indexOf("\n}\n"));
+  assert.ok(body.includes("insert(rosterSpots).values({ playerId, teamId: team.id })"));
+  assert.ok(picks.includes("placeDraftedPlayer("), "the pick route never places the player");
+});
+
+test("an admin who also runs a club may still edit any tournament roster", () => {
+  // The wider role wins where two disagree. Without the admin check, an
+  // admin who is also a GM was refused every club but his own.
+  const moves = readFileSync("app/api/roster-moves/route.ts", "utf8");
+  assert.ok(
+    moves.includes('hasRole(leagueUser, "GM") && !hasRole(leagueUser, "ADMIN") && leagueUser.teamId !== team.id'),
+    "an admin who holds GM is blocked from other clubs",
+  );
+});
+
+test("a club renamed in the bot is renamed here, last word only", () => {
+  const rename = readFileSync("db/rename-club.ts", "utf8");
+  const route = readFileSync("app/api/bot/club-rename/route.ts", "utf8");
+  // The bot files clubs under a nickname and this site under a city and a
+  // nickname, so only the last word is the bot's to change.
+  assert.ok(rename.includes("export function renamedTo"), "there is no rule for the new name");
+  assert.ok(route.includes("renamedTo(club.name, from, to)"), "the route does not use it");
+  // A rename that already happened here is not an error worth reporting.
+  assert.ok(route.includes("clubNamed(to, clubs)"), "a repeated rename is an error");
+  // teams.name is unique across the whole table, not per competition.
+  assert.ok(route.includes("Another club is already called"), "a clash fails on the constraint");
+  // One rename, shared with the admin page, so neither can forget the
+  // archive's open seasons or the logo.
+  assert.ok(rename.includes("historicalTeams"), "the archive is left behind");
+  assert.ok(rename.includes("teamLogos"), "the crest is left on the old name");
+  assert.ok(
+    readFileSync("app/api/teams/route.ts", "utf8").includes("renameClub(team, name, abbreviation)"),
+    "the admin page keeps its own copy of the rename",
+  );
+});

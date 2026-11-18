@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { ROLES, leagues, userLeagues, userRoles, users, type Role } from "@/db/schema";
 import { RoleError, requireRoleForApi } from "@/app/roles";
+import { seatGmOnOwnClub } from "@/db/draft";
 
 type UserPayload = {
   discordId: string;
@@ -168,6 +169,13 @@ export async function PATCH(request: Request) {
     await setRoles(payload.userId, roles);
     await setLeagues(payload.userId, leagueIds);
 
+    // A GM in the off-season plays for the club he runs, so giving somebody
+    // the club is enough to put him on its roster - nobody should have to
+    // draft their own manager. It only ever adds, and says why when it
+    // cannot, because the usual reason is that the site has never seen the
+    // name and that is something an admin needs telling about.
+    const seat = teamId ? await seatGmOnOwnClub(payload.userId) : null;
+
     await logAudit({
       actingUserId: leagueUser.id,
       action: "user.update",
@@ -185,7 +193,7 @@ export async function PATCH(request: Request) {
       },
     });
 
-    return Response.json({ ok: true });
+    return Response.json({ ok: true, roster: seat });
   } catch (error) {
     if (error instanceof RoleError) {
       return Response.json({ error: error.message }, { status: error.status });

@@ -1,4 +1,3 @@
-import { env } from "cloudflare:workers";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { adoptCurrentName } from "@/db/adopt-name";
@@ -6,6 +5,7 @@ import { logAudit } from "@/db/audit";
 import { lookupAccounts } from "@/db/minecraft";
 import { leagues, minecraftProfiles, players, rosterMoves, teams, users, ROSTER_MOVE_TYPES, type RosterMoveType } from "@/db/schema";
 import { apiError } from "@/app/api-errors";
+import { notTheBot } from "../secret";
 
 /**
  * Roster moves pushed from the Discord bot.
@@ -34,19 +34,6 @@ type BotMove = {
 const BOT_DISCORD_ID = "982120249006628866";
 
 /**
- * Compared character by character to the end, so a wrong secret takes the
- * same time as a right one whatever it starts with.
- */
-function sameSecret(given: string, expected: string): boolean {
-  if (given.length !== expected.length) return false;
-  let differences = 0;
-  for (let index = 0; index < given.length; index += 1) {
-    differences |= given.charCodeAt(index) ^ expected.charCodeAt(index);
-  }
-  return differences === 0;
-}
-
-/**
  * The club the bot means.
  *
  * The bot files clubs under a nickname (`panthers`) and this site under a
@@ -56,7 +43,9 @@ function sameSecret(given: string, expected: string): boolean {
  * rule covers. Matching on anything looser would one day put a player on the
  * wrong club, so an unrecognised name is refused rather than guessed at.
  */
-export function clubNamed(botName: string, clubs: { id: number; name: string; leagueId: number | null }[]) {
+// Generic over the row, so a caller that needs the abbreviation or the
+// colour back still gets it rather than the three columns this one reads.
+export function clubNamed<T extends { name: string }>(botName: string, clubs: T[]): T | undefined {
   const wanted = botName.trim().toLowerCase();
   return clubs.find((club) => {
     const name = club.name.toLowerCase();
@@ -69,17 +58,8 @@ export async function POST(request: Request) {
   // writes that answer into a Discord channel for somebody to act on.
   let ign: string | undefined;
   try {
-    const expected = (env as unknown as { BOT_SECRET?: string }).BOT_SECRET;
-    if (!expected) {
-      return Response.json(
-        { error: "BOT_SECRET is not set on this Worker." },
-        { status: 503 },
-      );
-    }
-    const given = request.headers.get("x-bot-secret") ?? "";
-    if (!sameSecret(given, expected)) {
-      return Response.json({ error: "Not authorised." }, { status: 401 });
-    }
+    const refusal = notTheBot(request);
+    if (refusal) return refusal;
 
     const payload = (await request.json()) as BotMove;
     ign = payload.ign?.trim();
@@ -363,15 +343,11 @@ function settle(
  */
 export async function GET(request: Request) {
   try {
-    // Told apart on purpose: "not set here" and "does not match" are
-    // different jobs to go and do, and the bot prints whichever it gets.
-    const expected = (env as unknown as { BOT_SECRET?: string }).BOT_SECRET;
-    if (!expected) {
-      return Response.json({ error: "BOT_SECRET is not set on this Worker." }, { status: 503 });
-    }
-    if (!sameSecret(request.headers.get("x-bot-secret") ?? "", expected)) {
-      return Response.json({ error: "Not authorised." }, { status: 401 });
-    }
+    // "Not set here" and "does not match" stay different answers, because
+    // they are different jobs to go and do and the bot prints whichever it
+    // gets - which is what `notTheBot` returns.
+    const refusal = notTheBot(request);
+    if (refusal) return refusal;
 
     const db = getDb();
     const rows = await db

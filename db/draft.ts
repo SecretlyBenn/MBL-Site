@@ -5,10 +5,13 @@ import {
   draftRounds,
   draftSignups,
   drafts,
+  leagues,
   players,
   rosterMoves,
   rosterSpots,
   teams,
+  userRoles,
+  users,
 } from "./schema";
 import { draftSlots } from "./draft-order";
 
@@ -358,4 +361,75 @@ export async function removeDraftedPlayer(
     actingUserId,
     note,
   });
+}
+
+/**
+ * Puts a general manager on his own club's roster, for a tournament.
+ *
+ * A GM in the off-season plays for the club he runs, so holding the role
+ * should be enough to be on the roster - nobody should have to draft their
+ * own manager or remember to sign him.
+ *
+ * Only ever adds. It will not take a man off a club he is already on in that
+ * tournament, because the way he got there is a draft pick, and undoing one
+ * of those quietly to seat him somewhere else would lose a pick nobody could
+ * see had gone. That case is reported instead.
+ *
+ * The account and the player are matched on the name, which is the only thing
+ * the two have in common - a league account is a Discord identity and a
+ * player is an in-game name. No match is not an error: it means the league
+ * has somebody running a club who has never played here, and an admin can add
+ * them as a player and run this again.
+ */
+export async function seatGmOnOwnClub(userId: number): Promise<
+  { seated: true; player: string } | { seated: false; reason: string }
+> {
+  const db = getDb();
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!user?.teamId) return { seated: false, reason: "no club" };
+
+  const held = await db
+    .select({ role: userRoles.role })
+    .from(userRoles)
+    .where(and(eq(userRoles.userId, userId), eq(userRoles.role, "GM")));
+  if (held.length === 0) return { seated: false, reason: "not a GM" };
+
+  const club = await db.query.teams.findFirst({ where: eq(teams.id, user.teamId) });
+  if (!club?.leagueId) return { seated: false, reason: "club has no competition" };
+  const league = await db.query.leagues.findFirst({ where: eq(leagues.id, club.leagueId) });
+  // Only a tournament. The MBL and the MCBA do their rosters in Discord, and
+  // seating anybody here would be overwritten by the bot's next push.
+  if (!league?.isTournament) return { seated: false, reason: "not a tournament club" };
+
+  const player = await db
+    .select({ id: players.id, displayName: players.displayName })
+    .from(players)
+    .where(sql`lower(${players.displayName}) = lower(${user.displayName})`)
+    .limit(1);
+  if (!player[0]) return { seated: false, reason: `no player called ${user.displayName}` };
+
+  // One club each in a tournament. Already on this one is nothing to do;
+  // already on another is a draft pick, and not ours to undo.
+  const spots = await db
+    .select({ teamId: rosterSpots.teamId, clubName: teams.name })
+    .from(rosterSpots)
+    .innerJoin(teams, eq(teams.id, rosterSpots.teamId))
+    .where(and(eq(rosterSpots.playerId, player[0].id), eq(teams.leagueId, club.leagueId)));
+
+  const here = spots.find((spot) => spot.teamId === club.id);
+  if (here) return { seated: true, player: player[0].displayName };
+  const elsewhere = spots.find((spot) => spot.teamId !== club.id);
+  if (elsewhere) {
+    return { seated: false, reason: `already on ${elsewhere.clubName} in this tournament` };
+  }
+
+  await db.insert(rosterSpots).values({ playerId: player[0].id, teamId: club.id });
+  await db.insert(rosterMoves).values({
+    playerId: player[0].id,
+    teamId: club.id,
+    moveType: "SIGN",
+    actingUserId: userId,
+    note: "Runs this club",
+  });
+  return { seated: true, player: player[0].displayName };
 }

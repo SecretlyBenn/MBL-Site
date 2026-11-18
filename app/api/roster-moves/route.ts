@@ -166,7 +166,12 @@ async function tournamentMove(
 
   // Same rule as the ordinary path: a GM acts on their own club and nobody
   // else's, and hiding the button is not what enforces it.
-  if (hasRole(leagueUser, "GM") && leagueUser.teamId !== team.id) {
+  // An admin may act on any club here, including one that is not theirs -
+  // the wider role wins where two disagree, the same rule `assertMayArrange`
+  // follows. Without the admin check an admin who also runs a club was
+  // refused every other club in the tournament, which is the opposite of what
+  // holding both is for.
+  if (hasRole(leagueUser, "GM") && !hasRole(leagueUser, "ADMIN") && leagueUser.teamId !== team.id) {
     return Response.json({ error: "You can only pick players for your own club." }, { status: 403 });
   }
 

@@ -31,7 +31,8 @@ const botUser = readFileSync("drizzle/0103_the_bot_is_an_account.sql", "utf8")
  * the body does not, so it runs as plain JavaScript.
  */
 const clubNamed = (() => {
-  const start = route.indexOf("export function clubNamed(");
+  // Generic now, so the name is the anchor rather than the open paren.
+  const start = route.indexOf("export function clubNamed");
   assert.ok(start > 0, "clubNamed is gone from the route");
   const open = route.indexOf("{", route.indexOf(")", start));
   return new Function("botName", "clubs", route.slice(open + 1, route.indexOf("\n}", open)));
@@ -86,8 +87,13 @@ test("the route refuses a push at the off-season tournament", () => {
   assert.match(guard.slice(0, 300), /status: 400/);
 });
 
+// The check moved out of the route: there is more than one /api/bot route
+// now, and a second copy of a constant-time compare is a second chance to
+// write one that is not.
+const secret = readFileSync("app/api/bot/secret.ts", "utf8");
+
 test("the secret is compared without giving away where it stops matching", () => {
-  const compare = route.slice(route.indexOf("function sameSecret"));
+  const compare = secret.slice(secret.indexOf("function sameSecret"));
   assert.match(compare.slice(0, 400), /\^=|\|=/, "should xor every character rather than ===");
   assert.doesNotMatch(
     compare.slice(0, 400),
@@ -97,18 +103,31 @@ test("the secret is compared without giving away where it stops matching", () =>
 });
 
 test("an unauthenticated push is refused before anything is read", () => {
-  const post = route.slice(route.indexOf("export async function POST"));
-  const auth = post.indexOf("Not authorised");
-  const body = post.indexOf("request.json()");
-  assert.ok(auth > 0 && body > 0 && auth < body, "the secret must be checked before the body is parsed");
+  // The refusal itself lives in `notTheBot` now, so the ordering to check is
+  // where the route calls it against where it reads the body.
+  for (const [what, source] of [
+    ["a roster move", route],
+    ["a club rename", readFileSync("app/api/bot/club-rename/route.ts", "utf8")],
+  ]) {
+    const post = source.slice(source.indexOf("export async function POST"));
+    const auth = post.indexOf("notTheBot(request)");
+    const body = post.indexOf("request.json()");
+    assert.ok(
+      auth > 0 && body > 0 && auth < body,
+      `${what} parses the body before checking the secret`,
+    );
+  }
 });
 
-test("both handlers require the secret", () => {
+test("every bot handler requires the secret", () => {
   for (const handler of ["export async function POST", "export async function GET"]) {
     const start = route.indexOf(handler);
     assert.ok(start > 0, `${handler} is missing`);
-    assert.match(route.slice(start, start + 900), /sameSecret/);
+    assert.match(route.slice(start, start + 900), /notTheBot\(request\)/);
   }
+  // Including the one added for club renames.
+  const rename = readFileSync("app/api/bot/club-rename/route.ts", "utf8");
+  assert.match(rename, /notTheBot\(request\)/, "a club can be renamed without the secret");
 });
 
 test("the bot's account is created idempotently and given no roles", () => {
