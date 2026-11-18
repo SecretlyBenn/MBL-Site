@@ -34,6 +34,26 @@ import path from "node:path";
 const DATABASE_ID = process.env.D1_DATABASE_ID ?? "6cbca09f-19d3-424f-8b5c-ae86a3ae5eee";
 const ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID ?? "38532e1647aeaa4803a5457a769f8087";
 
+/**
+ * The addresses the site answers on, stamped in for the same reason as the
+ * rest: the build writes this config fresh every time, so a route left only
+ * in the dashboard is a fact that lives in one place and a deploy that
+ * silently disagrees with it.
+ *
+ * `custom_domain` means Cloudflare owns the DNS record for the name as well
+ * as the route, which is what makes the apex work at all - an apex cannot be
+ * a CNAME. Both hostnames serve the site; `SITE.url` is the apex, so every
+ * canonical link, the sitemap and every social preview name that one, which
+ * is what keeps two addresses from reading as two sites.
+ *
+ * DOMAINS= with nothing after it deploys with no routes at all, which is how
+ * this goes back to the workers.dev address alone.
+ */
+const DOMAINS = (process.env.DOMAINS ?? "minecraftbaseball.com,www.minecraftbaseball.com")
+  .split(",")
+  .map((name) => name.trim())
+  .filter(Boolean);
+
 const configPath = path.join("dist", "server", "wrangler.json");
 if (!fs.existsSync(configPath)) {
   console.error(`${configPath} is missing - run \`npm run build\` first.`);
@@ -45,10 +65,19 @@ const bindings = config.d1_databases ?? [];
 
 for (const binding of bindings) binding.database_id = DATABASE_ID;
 config.account_id = ACCOUNT_ID;
+config.routes = DOMAINS.map((pattern) => ({ pattern, custom_domain: true }));
+// Keep the workers.dev address alive alongside them. Wrangler turns it off
+// by default the moment a config carries any route, and it took the whole
+// site down the first time these were added - that address is what the site
+// is reached on, what the roster bot pushes to and what the stadium boards
+// load. It costs nothing to serve both.
+config.workers_dev = true;
+config.preview_urls = true;
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 
 console.log(`Pointed ${bindings.length} D1 binding(s) at ${DATABASE_ID}.`);
 console.log(`Deploying to account ${ACCOUNT_ID}.`);
+console.log(DOMAINS.length ? `Serving ${DOMAINS.join(", ")}.` : "No custom domains.");
 if (bindings.length === 0) {
   console.error("No D1 binding in the built config - the Worker would have no database.");
   process.exit(1);
