@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { clubOf, getAvatarsFor, getLeagueClubGames, getLeagueSeasonTotals, type SeasonTotalRow } from "@/db/queries";
 import { REAL_SEASON_GAMES, minInningsPitched, minPlateAppearances, countsAsASeason } from "@/app/scoring";
-import { BATTING, FIELDING, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
+import { BATTING, FIELDING, MIN_CHANCES, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
 import { WorstToggle } from "../WorstToggle";
 import { LeaderBoard, type LeaderRow } from "../leaders/LeaderBoard";
 import { leagueFrom } from "../../league";
@@ -97,6 +97,12 @@ export default async function RecordsPage({
   const batters = totals.filter((row) => (row.atBats ?? 0) > 0);
   const pitchers = totals.filter((row) => (row.inningsPitched ?? 0) > 0);
   const fielders = totals.filter((row) => ((row.putouts ?? 0) + (row.errors ?? 0)) > 0);
+  // Fielding percentage needs enough chances to say anything - half the
+  // archive's fielding seasons are a clean 1.000 - so it reads off this
+  // narrower field while the putout and error boards read off everybody.
+  const qualifiedFielders = fielders.filter(
+    (row) => (row.putouts ?? 0) + (row.errors ?? 0) >= MIN_CHANCES,
+  );
 
   // Each club's own schedule sets the bar for its players: one and a half
   // plate appearances a game for a batter, an inning a game for a pitcher.
@@ -145,7 +151,7 @@ export default async function RecordsPage({
     {
       title: showWorst ? "Fielding, worst first" : "Fielding records",
       meta: "No assists are scored in this league, so these two are the whole of a fielder's record",
-      boards: group(facing(FIELDING), fielders, fielders),
+      boards: group(facing(FIELDING), fielders, qualifiedFielders),
     },
     // A heading over blank space is worse than no heading. Fielding has no
     // rate board, so it has nothing to show worst first.

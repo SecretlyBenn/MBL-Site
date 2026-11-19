@@ -9,7 +9,7 @@ import {
   getCareerClubGames,
   clubOf,
 } from "@/db/queries";
-import { BATTING, FIELDING, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
+import { BATTING, FIELDING, MIN_CHANCES, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
 import { WorstToggle } from "../WorstToggle";
 import { SeasonSelect } from "../SeasonSelect";
 import { LeaderBoard, type LeaderRow } from "./LeaderBoard";
@@ -109,6 +109,12 @@ export default async function LeadersPage({
   const batters = rows.filter((row) => (row.atBats ?? 0) > 0);
   const pitchers = rows.filter((row) => (row.inningsPitched ?? 0) > 0);
   const fielders = rows.filter((row) => ((row.putouts ?? 0) + (row.errors ?? 0)) > 0);
+  // Fielding percentage needs enough chances to say anything - half the
+  // archive's fielding seasons are a clean 1.000 - so it reads off this
+  // narrower field while the putout and error boards read off everybody.
+  const qualifiedFielders = fielders.filter(
+    (row) => (row.putouts ?? 0) + (row.errors ?? 0) >= MIN_CHANCES,
+  );
   // One and a half plate appearances for every game his own club played, and
   // an inning for every one of them for a pitcher.
   //
@@ -194,7 +200,7 @@ export default async function LeadersPage({
     {
       title: showWorst ? "Fielding, worst first" : "Fielding leaders",
       meta: "No assists are scored in this league, so these two are the whole of a fielder's record",
-      boards: group(FIELDING, fielders, fielders),
+      boards: group(FIELDING, fielders, qualifiedFielders),
     },
     // A section with nothing in it is a heading over blank space. Fielding has
     // no rate board, so it has nothing to show worst first.

@@ -92,3 +92,67 @@ test("a club that played ten games or fewer did not play a season", () => {
     "a seven-game season loses its own rate boards",
   );
 });
+
+/**
+ * The boards you want fewest of read lowest first.
+ *
+ * They used to read most-first like every other counting board, which put
+ * "Hits allowed" topped by the man who allowed the most among the records
+ * for wins and shutouts - a leaderboard of badness among leaderboards of
+ * goodness, and the first thing a reader said looked wrong.
+ */
+const allBoards = readFileSync("app/[league]/statistics/boards.ts", "utf8");
+
+test("the allowed boards count up from fewest, over a real innings load", () => {
+  const pitching = allBoards.slice(allBoards.indexOf("export const PITCHING"));
+  const body = pitching.slice(0, pitching.indexOf("\n];"));
+  for (const key of ["hitsAllowed", "runsAllowed", "earnedRuns", "homeRunsAllowed", "walksAllowed", "losses"]) {
+    const line = body.split("\n").find((l) => l.includes(`key: "${key}"`));
+    assert.ok(line, `${key} is gone from the pitching boards`);
+    assert.match(line, /ascending: true/, `${key} still reads most first`);
+    // Without the innings bar the fewest hits allowed is whoever threw one
+    // inning, which is why these were most-first to begin with.
+    assert.match(line, /qualified: true/, `${key} has no innings bar, so fewest means barely pitched`);
+    // The record for the most of each is not lost, it moves to Worst.
+    assert.match(line, /worstLabel: "Most /, `${key} has no worst end`);
+  }
+});
+
+test("the good counting boards still read most first", () => {
+  const pitching = allBoards.slice(allBoards.indexOf("export const PITCHING"));
+  const body = pitching.slice(0, pitching.indexOf("\n];"));
+  for (const key of ["wins", "saves", "shutouts", "strikeoutsPitched"]) {
+    const line = body.split("\n").find((l) => l.includes(`key: "${key}"`));
+    assert.doesNotMatch(line, /ascending: true/, `${key} was turned round too`);
+  }
+});
+
+test("fielding percentage needs chances, and the errors stay beside it", () => {
+  // Half the archive's fielding seasons are a clean 1.000, so unqualified
+  // this board was a thousand-way tie.
+  assert.ok(allBoards.includes("export const MIN_CHANCES"), "there is no chance minimum");
+  const fielding = allBoards.slice(allBoards.indexOf("export const FIELDING"));
+  const body = fielding.slice(0, fielding.indexOf("\n];"));
+  assert.ok(body.includes('key: "fieldingPct"'), "fielding percentage is still missing");
+  assert.match(body, /fieldingPct[\s\S]*?qualified: true/, "it is not held to a minimum");
+  assert.ok(body.includes('key: "errors"'), "the errors were replaced rather than joined");
+
+  for (const page of ["records", "leaders"]) {
+    const source = readFileSync(`app/[league]/statistics/${page}/page.tsx`, "utf8");
+    assert.ok(source.includes("qualifiedFielders"), `${page} reads the rate board off everybody`);
+    assert.ok(source.includes("MIN_CHANCES"), `${page} does not apply the chance minimum`);
+  }
+});
+
+test("a player page opens on the competition in the address", () => {
+  // Switching leagues in the header took you to a page still showing the
+  // other one, which looked like the switch had not worked.
+  const tabs = readFileSync("app/[league]/players/PlayerLeagues.tsx", "utf8");
+  assert.ok(tabs.includes("opensOn"), "the tabs ignore the address");
+  assert.ok(
+    tabs.includes("records.find((record) => record.slug === opensOn)?.slug ?? records[0]?.slug"),
+    "the address does not pick the tab, or there is no fallback",
+  );
+  const page = readFileSync("app/[league]/players/history/[playerName]/page.tsx", "utf8");
+  assert.ok(page.includes("opensOn={leagueSlug}"), "the page does not pass its own league down");
+});

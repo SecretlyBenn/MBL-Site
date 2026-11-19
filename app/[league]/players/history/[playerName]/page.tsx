@@ -28,7 +28,7 @@ export default async function HistoricalPlayerPage({
 }: {
   params: Promise<{ league: string; playerName: string }>;
 }) {
-  const { playerName } = await params;
+  const { league: leagueSlug, playerName } = await params;
   const name = decodeURIComponent(playerName);
 
   // Each competition files a player under the name they used there, so one
@@ -178,7 +178,7 @@ export default async function HistoricalPlayerPage({
           No games yet. Statistics appear here once a game they have played in is published.
         </EmptyState>
       ) : (
-        <PlayerLeagues records={records} />
+        <PlayerLeagues records={records} opensOn={leagueSlug} />
       )}
     </PageShell>
   );

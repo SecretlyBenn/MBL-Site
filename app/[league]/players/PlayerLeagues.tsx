@@ -37,8 +37,22 @@ export type LeagueRecord = {
  * so each tab says which name it is showing when that differs from the one in
  * the address.
  */
-export function PlayerLeagues({ records }: { records: LeagueRecord[] }) {
-  const [slug, setSlug] = useState(records[0]?.slug ?? "");
+export function PlayerLeagues({
+  records,
+  opensOn,
+}: {
+  records: LeagueRecord[];
+  /**
+   * The competition in the address. A player reached from /mcba should open
+   * on their college record, not on whichever competition happens to sort
+   * first - switching leagues in the header took you to a page that still
+   * said MBL, which looked like the switch had not worked.
+   */
+  opensOn?: string;
+}) {
+  const [slug, setSlug] = useState(
+    records.find((record) => record.slug === opensOn)?.slug ?? records[0]?.slug ?? "",
+  );
   const current = records.find((record) => record.slug === slug) ?? records[0];
   if (!current) return null;
 

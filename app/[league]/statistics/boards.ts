@@ -104,23 +104,47 @@ export const PITCHING: Board[] = [
   { key: "shutouts", label: "Shutouts", unit: "SHO" },
   { key: "pitchingGames", label: "Games pitched", unit: "G" },
   { key: "gamesStarted", label: "Games started", unit: "GS" },
-  { key: "hitsAllowed", label: "Hits allowed", unit: "H" },
-  { key: "runsAllowed", label: "Runs allowed", unit: "R" },
-  { key: "earnedRuns", label: "Earned runs", unit: "ER" },
-  { key: "homeRunsAllowed", label: "Home runs allowed", unit: "HR" },
-  { key: "walksAllowed", label: "Walks allowed", unit: "BB" },
-  { key: "losses", label: "Losses", unit: "L" },
+  // The ones you want fewest of. Read lowest first, like ERA and WHIP, and
+  // held to the same innings bar for the same reason: without it the fewest
+  // hits allowed in a season is whoever threw one inning, which is how these
+  // came to be sorted most-first in the first place. The record for the most
+  // of each is still there - it is the same board on the Worst tab, which is
+  // where a record of badness belongs.
+  { key: "hitsAllowed", label: "Fewest hits allowed", unit: "H", ascending: true, qualified: true, worstLabel: "Most hits allowed" },
+  { key: "runsAllowed", label: "Fewest runs allowed", unit: "R", ascending: true, qualified: true, worstLabel: "Most runs allowed" },
+  { key: "earnedRuns", label: "Fewest earned runs", unit: "ER", ascending: true, qualified: true, worstLabel: "Most earned runs" },
+  { key: "homeRunsAllowed", label: "Fewest home runs allowed", unit: "HR", ascending: true, qualified: true, worstLabel: "Most home runs allowed" },
+  { key: "walksAllowed", label: "Fewest walks allowed", unit: "BB", ascending: true, qualified: true, worstLabel: "Most walks allowed" },
+  { key: "losses", label: "Fewest losses", unit: "L", ascending: true, qualified: true, worstLabel: "Most losses" },
 ];
 
 /**
- * No fielding percentage. With no assists scored, a chance is a putout or an
- * error, and in one season almost everybody handles every chance - so the
- * board was thirty men tied on 1.000 and told you nothing about any of them.
- * The errors behind it are the part worth reading.
+ * Fielding percentage is here, but only over enough chances to mean anything.
+ *
+ * With no assists scored a chance is a putout or an error, and half of every
+ * fielding season in the archive is a clean 1.000 - 1,436 of the 2,898 with a
+ * chance in them. Unqualified, the board was that many men tied at the top
+ * saying nothing about any of them, which is why it was left out before.
+ *
+ * `MIN_CHANCES` cuts it to the seasons where somebody actually fielded: 156
+ * of them. Forty-four are still perfect, so the top of this board ties and
+ * the bottom is the half worth reading - which is what the Worst tab is for.
+ * The errors are kept beside it rather than replaced, because a raw error
+ * count is a record in its own right and does not need a minimum to be one.
  */
+export const MIN_CHANCES = 20;
+
 export const FIELDING: Board[] = [
   { key: "putouts", label: "Putouts", unit: "PO" },
   { key: "errors", label: "Errors", unit: "E" },
+  {
+    key: "fieldingPct",
+    label: "Fielding percentage",
+    unit: "FPCT",
+    rate: true,
+    qualified: true,
+    worstLabel: "Lowest fielding percentage",
+  },
 ];
 
 /**
