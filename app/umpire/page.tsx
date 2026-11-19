@@ -4,6 +4,11 @@ import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { games, historicalGames, historicalSeasons, scorecards, teams } from "@/db/schema";
 import { covers, describeRoles, requireRole } from "@/app/roles";
+import type { Role } from "@/db/schema";
+
+// Either umpiring role gets somebody onto this page, so either one's
+// competitions count towards what they are shown.
+const UMPIRING: Role[] = ["UMPIRE", "HEAD_UMPIRE"];
 import { PageShell, EmptyState } from "@/app/SiteNav";
 import { ScheduledGames, type Fixture } from "./ScheduledGames";
 import { seriesFor } from "@/app/season-series";
@@ -29,8 +34,8 @@ export default async function UmpirePage() {
   // two clubs somehow disagree shows up for both rather than for neither, so a
   // game can always be reached by somebody.
   const mine = (awayTeamId: number, homeTeamId: number) =>
-    covers(leagueUser, teamById.get(awayTeamId)?.leagueId) ||
-    covers(leagueUser, teamById.get(homeTeamId)?.leagueId);
+    covers(leagueUser, UMPIRING, teamById.get(awayTeamId)?.leagueId) ||
+    covers(leagueUser, UMPIRING, teamById.get(homeTeamId)?.leagueId);
 
   // Anything already being scored, so an umpire can pick up where they left off
   // - a dropped connection should not cost a game.

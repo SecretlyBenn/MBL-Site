@@ -261,7 +261,7 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const user = await requireRoleForApi(["ADMIN"]);
-    const { id } = (await request.json()) as { id: number };
+    const { id, withSignups } = (await request.json()) as { id: number; withSignups?: boolean };
     if (!Number.isInteger(id)) return Response.json({ error: "Which draft?" }, { status: 400 });
 
     const db = getDb();
@@ -273,6 +273,26 @@ export async function DELETE(request: Request) {
       .from(draftPicks)
       .where(and(eq(draftPicks.draftId, id), isNotNull(draftPicks.playerId)));
 
+    // The sign-ups are the one thing here that cannot be rebuilt: the picks
+    // and the order are a minute's work and the names were typed by however
+    // many people turned up. Nothing else about a draft needs it deleted -
+    // the rounds, the order, the directions, the clock and the pool are all
+    // changed in place and keep the sign-ups - so a delete that would take
+    // them is refused unless whoever asked says they mean it.
+    const signups = await db
+      .select({ id: draftSignups.id })
+      .from(draftSignups)
+      .where(eq(draftSignups.draftId, id));
+    if (signups.length > 0 && !withSignups) {
+      return Response.json(
+        {
+          error: `${draft.name} has ${signups.length} sign-up${signups.length === 1 ? "" : "s"}. Changing the rounds, the order or the pool keeps them - delete it only if you mean to lose them.`,
+          signups: signups.length,
+        },
+        { status: 409 },
+      );
+    }
+
     await db.delete(draftPicks).where(eq(draftPicks.draftId, id));
     await db.delete(draftRounds).where(eq(draftRounds.draftId, id));
     await db.delete(draftSignups).where(eq(draftSignups.draftId, id));
@@ -283,7 +303,7 @@ export async function DELETE(request: Request) {
       action: "draft.delete",
       entityType: "draft",
       entityId: id,
-      detail: { name: draft.name, picksMade: made.length },
+      detail: { name: draft.name, picksMade: made.length, signupsLost: signups.length },
     });
     return Response.json({ ok: true });
   } catch (error) {

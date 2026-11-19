@@ -78,18 +78,21 @@ export const userRoles = sqliteTable("user_roles", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
-// The competitions an account's roles cover, for the roles with no club of
-// their own - an umpire, a head umpire, a writer. A GM takes their competition
-// from the club they manage and has none of these rows.
+// The competitions one role covers, for the roles with no club of their own -
+// an umpire, a head umpire, a writer. A GM takes their competition from the
+// club they manage and has none of these rows, and an admin runs everything.
 //
-// No rows means every competition, which is what almost everybody is. Stored
-// as what somebody covers rather than as what they do not, so a competition
-// added to `leagues` tomorrow is covered by them without anyone being re-ticked.
+// A row is about one role rather than the whole account, because somebody can
+// umpire one competition and write for another. No rows for a role means that
+// role covers every competition, which is what almost everybody is - stored as
+// what somebody covers rather than what they do not, so a competition added to
+// `leagues` tomorrow is covered without anyone being re-ticked.
 export const userLeagues = sqliteTable("user_leagues", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id")
     .notNull()
     .references(() => users.id),
+  role: text("role").notNull(),
   leagueId: integer("league_id")
     .notNull()
     .references(() => leagues.id),

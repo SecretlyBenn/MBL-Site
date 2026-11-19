@@ -44,6 +44,7 @@ export function DraftForm({
   status,
   lastPick,
   boardHref,
+  signups = 0,
 }: {
   leagues: League[];
   teams: Team[];
@@ -51,6 +52,8 @@ export function DraftForm({
   status?: string;
   lastPick?: string | null;
   boardHref?: string | null;
+  /** How many names would go with the draft, so the confirm can say so. */
+  signups?: number;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(!draft);
@@ -483,8 +486,10 @@ export function DraftForm({
               onClick={() =>
                 act(
                   "/api/drafts",
-                  { id: draft.id },
-                  "Delete this draft and its picks? The players already drafted stay on the clubs that took them.",
+                  { id: draft.id, withSignups: true },
+                  signups > 0
+                    ? `Delete this draft, its picks and its ${signups} sign-up${signups === 1 ? "" : "s"}? The sign-ups cannot be got back - changing the rounds, the order or the pool keeps them instead. Players already drafted stay on the clubs that took them.`
+                    : "Delete this draft and its picks? The players already drafted stay on the clubs that took them.",
                 )
               }
               className="ui-button-danger ml-auto"

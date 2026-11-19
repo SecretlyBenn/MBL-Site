@@ -97,6 +97,7 @@ export default async function AdminDraftPage() {
                         : null
                     }
                     boardHref={league ? `/${league.slug}/draft?draft=${draft.id}` : null}
+                    signups={signups.length}
                   />
                   {signups.length > 0 && (
                     <SignupList draftId={draft.id} signups={signups} leagues={allLeagues} />

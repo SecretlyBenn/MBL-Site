@@ -40,14 +40,14 @@ export async function POST(request: Request) {
     // thing that can post to this route.
     const leagues = await getLeagues();
     const asked = Number(payload.leagueId);
-    const allowed = coveredLeagues(user);
+    const allowed = coveredLeagues(user, ["WRITER"]);
     const leagueId = leagues.some((league) => league.id === asked)
       ? asked
       : (allowed?.[0] ?? leagues[0]?.id);
     if (leagueId === undefined) {
       return Response.json({ error: "No competition to file this under." }, { status: 400 });
     }
-    if (!covers(user, leagueId)) {
+    if (!covers(user, ["WRITER"], leagueId)) {
       return Response.json(
         { error: "You do not write for that competition." },
         { status: 403 },

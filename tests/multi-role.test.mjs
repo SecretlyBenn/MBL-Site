@@ -91,8 +91,14 @@ test("a club and a league are cleared when the role that carried them goes", () 
     usersRoute.includes('roles.includes("GM") ? payload.teamId ?? null : null'),
     "a former GM keeps authority over a roster",
   );
+  // Each scoped role is written every save, and one that is no longer held
+  // is written as covering nothing.
   assert.ok(
-    usersRoute.includes('["UMPIRE", "HEAD_UMPIRE", "WRITER"].includes(role)'),
+    usersRoute.includes('const SCOPED_ROLES: Role[] = ["UMPIRE", "HEAD_UMPIRE", "WRITER"]'),
+    "the roles that carry a competition are no longer named",
+  );
+  assert.ok(
+    usersRoute.includes("if (!roles.includes(role))") && usersRoute.includes("leagueIds: []"),
     "a former umpire's league can linger",
   );
 });

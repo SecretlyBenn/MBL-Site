@@ -2,6 +2,9 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { logAudit } from "@/db/audit";
 import { ROLES, leagues, userLeagues, userRoles, users, type Role } from "@/db/schema";
+
+/** The roles narrowed to a competition; the others cover the lot. */
+const SCOPED_ROLES: Role[] = ["UMPIRE", "HEAD_UMPIRE", "WRITER"];
 import { RoleError, requireRoleForApi } from "@/app/roles";
 import { seatGmOnOwnClub } from "@/db/draft";
 
@@ -16,7 +19,8 @@ type UserUpdate = {
   userId: number;
   roles: Role[];
   teamId?: number | null;
-  leagueIds?: number[];
+  /** Which competitions each scoped role covers: { UMPIRE: [1], WRITER: [2] }. */
+  leaguesByRole?: Record<string, number[]>;
   displayName?: string;
 };
 
@@ -73,24 +77,35 @@ async function setRoles(userId: number, roles: Role[]) {
  * access for the moment in between rather than narrow it. A request arriving
  * in that gap would be let into a competition they are not supposed to see.
  */
-async function setLeagues(userId: number, leagueIds: number[]) {
+async function setLeagues(userId: number, scopes: { role: Role; leagueIds: number[] }[]) {
   const db = getDb();
   const held = await db
-    .select({ leagueId: userLeagues.leagueId })
+    .select({ role: userLeagues.role, leagueId: userLeagues.leagueId })
     .from(userLeagues)
     .where(eq(userLeagues.userId, userId));
-  const current = held.map((entry) => entry.leagueId);
 
-  const gone = current.filter((id) => !leagueIds.includes(id));
-  if (gone.length > 0) {
-    await db
-      .delete(userLeagues)
-      .where(and(eq(userLeagues.userId, userId), inArray(userLeagues.leagueId, gone)));
-  }
+  // A role at a time, so narrowing somebody's writing does not touch their
+  // umpiring. A role not mentioned keeps whatever it had.
+  for (const { role, leagueIds } of scopes) {
+    const current = held.filter((entry) => entry.role === role).map((entry) => entry.leagueId);
 
-  const added = leagueIds.filter((id) => !current.includes(id));
-  if (added.length > 0) {
-    await db.insert(userLeagues).values(added.map((leagueId) => ({ userId, leagueId })));
+    const gone = current.filter((id) => !leagueIds.includes(id));
+    if (gone.length > 0) {
+      await db
+        .delete(userLeagues)
+        .where(
+          and(
+            eq(userLeagues.userId, userId),
+            eq(userLeagues.role, role),
+            inArray(userLeagues.leagueId, gone),
+          ),
+        );
+    }
+
+    const added = leagueIds.filter((id) => !current.includes(id));
+    if (added.length > 0) {
+      await db.insert(userLeagues).values(added.map((leagueId) => ({ userId, role, leagueId })));
+    }
   }
 }
 
@@ -143,20 +158,33 @@ export async function PATCH(request: Request) {
     // Only the roles with no club of their own are narrowed to a competition:
     // a GM takes theirs from the club, and an admin runs the lot. Cleared when
     // no such role is held, so a former umpire's competitions cannot linger.
-    const scopedByLeague = roles.some((role) =>
-      ["UMPIRE", "HEAD_UMPIRE", "WRITER"].includes(role),
-    );
+    // Only the roles with no club of their own are narrowed to a competition:
+    // a GM takes theirs from the club, and an admin runs the lot. A role that
+    // is no longer held is cleared, so a former umpire's competitions cannot
+    // linger.
     const all = (await db.select({ id: leagues.id }).from(leagues)).map((row) => row.id);
-    const asked = Array.isArray(payload.leagueIds) ? payload.leagueIds : [];
-    const picked = all.filter((id) => asked.includes(id));
-    if (scopedByLeague && picked.length === 0) {
-      return Response.json({ error: "Pick at least one competition." }, { status: 400 });
+    const scopes: { role: Role; leagueIds: number[] }[] = [];
+    const ticked: Record<string, number[]> = {};
+    for (const role of SCOPED_ROLES) {
+      if (!roles.includes(role)) {
+        scopes.push({ role, leagueIds: [] });
+        continue;
+      }
+      const asked = payload.leaguesByRole?.[role];
+      const picked = all.filter((id) => Array.isArray(asked) && asked.includes(id));
+      if (picked.length === 0) {
+        return Response.json(
+          { error: `Pick at least one competition for ${role.replace(/_/g, " ").toLowerCase()}.` },
+          { status: 400 },
+        );
+      }
+      ticked[role] = picked;
+      // Every competition ticked is stored as none of them, because that is
+      // what "all of them" has to mean for it to still be true after a fourth
+      // competition is added. Refusing an empty set above keeps the two
+      // apart: unticking everything says nothing, not everything.
+      scopes.push({ role, leagueIds: picked.length === all.length ? [] : picked });
     }
-    // Every competition ticked is stored as none of them, because that is what
-    // "all of them" has to mean for it to still be true after a fourth
-    // competition is added. Refusing an empty set above is what keeps the two
-    // apart: an admin who unticks everything has said nothing, not everything.
-    const leagueIds = !scopedByLeague || picked.length === all.length ? [] : picked;
 
     // The name on the account is what the league calls this person; their
     // sessions carry the old one until they sign in again, which shows only in
@@ -167,7 +195,7 @@ export async function PATCH(request: Request) {
       .where(eq(users.id, payload.userId));
 
     await setRoles(payload.userId, roles);
-    await setLeagues(payload.userId, leagueIds);
+    await setLeagues(payload.userId, scopes);
 
     // A GM in the off-season plays for the club he runs, so giving somebody
     // the club is enough to put him on its roster - nobody should have to
@@ -186,7 +214,7 @@ export async function PATCH(request: Request) {
         teamId,
         // What was ticked, not what was stored: "all of them" read back as an
         // empty list would look like a change that took everything away.
-        leagues: scopedByLeague ? picked : [],
+        leagues: ticked,
         ...(displayName && displayName !== target.displayName
           ? { renamedFrom: target.displayName, displayName }
           : {}),

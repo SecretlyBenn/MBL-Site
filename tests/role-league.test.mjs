@@ -25,6 +25,9 @@ test("an account's competitions are a set, not one", () => {
   const body = table.slice(0, table.indexOf("});"));
   assert.ok(body.includes('integer("user_id")'), "the table does not say whose row it is");
   assert.ok(body.includes('integer("league_id")'), "the table does not say which competition");
+  // A row is about one role, because somebody can umpire one competition and
+  // write for another and one shared set could not say it.
+  assert.ok(body.includes('text("role")'), "a row covers every role at once again");
 
   // The old single column could say one competition or all of them and
   // nothing in between, which stopped being the whole truth at three.
@@ -39,7 +42,7 @@ test("an official with nothing stored covers every competition", () => {
   const fn = roles.slice(roles.indexOf("export function coveredLeagues"));
   const body = fn.slice(0, fn.indexOf("\n}"));
   assert.ok(
-    body.includes("user.leagueIds.length === 0") && body.includes("return null"),
+    body.includes("narrowed.length === 0") && body.includes("return null"),
     'covering nothing is no longer read as "all of them"',
   );
 
@@ -47,6 +50,9 @@ test("an official with nothing stored covers every competition", () => {
   // comparison, which is how the newsroom came to have none at all.
   for (const [name, source] of [["umpire", umpire], ["head umpire", headUmpire]]) {
     assert.ok(source.includes("covers(leagueUser,"), `the ${name} page checks the league itself`);
+    // Named roles, so an umpire narrowed to one competition is not also
+    // narrowing what they may write.
+    assert.match(source, /covers\(leagueUser, (UMPIRING|\["HEAD_UMPIRE"\])/, `the ${name} page asks about every role at once`);
     assert.ok(
       !source.includes("leagueUser.leagueId"),
       `the ${name} page still reads the single competition`,
@@ -74,12 +80,17 @@ test("the umpire's lists are filtered rather than just the page title", () => {
 
 test("a role with no use for a competition does not keep one", () => {
   const body = usersRoute.slice(usersRoute.indexOf("export async function PATCH"));
-  assert.ok(body.includes("scopedByLeague"), "the update does not decide who a league applies to");
+  // A role not held is written as covering nothing, so a former umpire's
+  // competitions cannot linger on an account that is no longer one.
   assert.ok(
-    body.includes('["UMPIRE", "HEAD_UMPIRE", "WRITER"]'),
-    "the roles a league applies to are no longer named",
+    body.includes("if (!roles.includes(role))") && body.includes("leagueIds: []"),
+    "a role that is no longer held keeps its competitions",
   );
-  assert.ok(body.includes("setLeagues(payload.userId, leagueIds)"), "the update never writes them");
+  assert.ok(
+    usersRoute.includes('const SCOPED_ROLES: Role[] = ["UMPIRE", "HEAD_UMPIRE", "WRITER"]'),
+    "the roles a competition applies to are no longer named",
+  );
+  assert.ok(body.includes("setLeagues(payload.userId, scopes)"), "the update never writes them");
 });
 
 test("every competition ticked is stored as none of them", () => {
@@ -93,7 +104,7 @@ test("every competition ticked is stored as none of them", () => {
   // And the two cannot be confused from the other direction: an admin who
   // unticks everything has said nothing, which is a mistake, not a grant.
   assert.ok(
-    body.includes("picked.length === 0") && body.includes("Pick at least one competition."),
+    body.includes("picked.length === 0") && body.includes("Pick at least one competition"),
     "an empty set is accepted and read back as everything",
   );
 });
@@ -104,7 +115,7 @@ test("the admin page offers boxes, and refuses an empty set before saving", () =
   assert.ok(!row.includes("Both leagues"), "the picker still counts two competitions");
   // Nothing stored shows as all ticked, because that is what it means.
   assert.ok(
-    row.includes("user.leagueIds.length === 0 ? everyLeague : user.leagueIds"),
+    row.includes("storedFor(role).length === 0 ? everyLeague : storedFor(role)"),
     "an official covering everything opens with nothing ticked",
   );
 });
@@ -116,5 +127,29 @@ test("the competitions a scoped official covers are set together with the roles"
   const fn = usersRoute.slice(usersRoute.indexOf("async function setLeagues"));
   const body = fn.slice(0, fn.indexOf("\n}"));
   assert.ok(body.includes("inArray(userLeagues.leagueId, gone)"), "the old rows are cleared wholesale");
+  // And a role at a time, so narrowing somebody's writing leaves their
+  // umpiring alone.
+  assert.ok(body.includes("eq(userLeagues.role, role)"), "one role's change rewrites the others");
   assert.ok(body.includes("added.length > 0"), "the new rows are not added");
+});
+
+test("one account can be narrowed differently for each role it holds", () => {
+  // Umpiring the MBL and writing for the MCBA is an ordinary thing to be,
+  // and one set per account could not say it: whichever competition you
+  // picked was wrong about the other role.
+  const fn = roles.slice(roles.indexOf("export function coveredLeagues"));
+  const body = fn.slice(0, fn.indexOf("\n}"));
+  assert.ok(body.includes("roles: Role[]"), "coverage is still asked per account");
+  assert.ok(body.includes("scope.role === role"), "every role's rows are read as one set");
+  // A role with nothing stored covers everything, and that wins over a
+  // narrowed one: an umpire for both who writes for one still sees every game.
+  assert.ok(body.includes("if (narrowed.length === 0) return null"), "a role covering all is narrowed");
+  // Holding none of the roles asked about is not the same as covering all.
+  assert.ok(body.includes("if (held.length === 0) return []"), "a role nobody holds covers everything");
+
+  assert.ok(row.includes("byRole"), "the admin page still has one set of boxes");
+  assert.ok(
+    row.includes("SCOPED.filter((role) => roles.includes(role)).map((role) => ("),
+    "the admin page does not offer a row per role held",
+  );
 });

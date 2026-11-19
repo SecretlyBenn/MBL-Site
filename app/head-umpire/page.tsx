@@ -59,8 +59,8 @@ export default async function HeadUmpirePage() {
     const game = gameById.get(scorecard.gameId);
     if (!game) return true;
     return (
-      covers(leagueUser, teamLeagueById.get(game.awayTeamId)) ||
-      covers(leagueUser, teamLeagueById.get(game.homeTeamId))
+      covers(leagueUser, ["HEAD_UMPIRE"], teamLeagueById.get(game.awayTeamId)) ||
+      covers(leagueUser, ["HEAD_UMPIRE"], teamLeagueById.get(game.homeTeamId))
     );
   };
   const pending = allPending.filter(mine);

@@ -45,7 +45,8 @@ export function UserRoleRow({
     discordId: string;
     roles: Role[];
     teamId: number | null;
-    leagueIds: number[];
+    /** Which competitions each scoped role covers; a role with none covers all. */
+    scopes: { role: Role; leagueId: number }[];
   };
   teams: { id: number; name: string }[];
   leagues: { id: number; name: string; abbreviation: string }[];
@@ -59,8 +60,14 @@ export function UserRoleRow({
   // No rows stored means every competition, so that is what the boxes show:
   // all of them ticked. Unticking one is how somebody gets narrowed, which
   // reads the same way round as the thing it is describing.
-  const [leagueIds, setLeagueIds] = useState<number[]>(
-    user.leagueIds.length === 0 ? everyLeague : user.leagueIds,
+  // A set per scoped role, because somebody can umpire one competition and
+  // write for another. A role with nothing stored covers everything, so that
+  // is what its boxes show: all of them ticked.
+  const storedFor = (role: Role) => user.scopes.filter((s) => s.role === role).map((s) => s.leagueId);
+  const [byRole, setByRole] = useState<Record<string, number[]>>(() =>
+    Object.fromEntries(
+      SCOPED.map((role) => [role, storedFor(role).length === 0 ? everyLeague : storedFor(role)]),
+    ),
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -75,10 +82,13 @@ export function UserRoleRow({
     roles.length === user.roles.length && roles.every((held) => user.roles.includes(held));
   // Compared as it will be stored, so ticking all three on somebody who
   // already covers everything does not look like a change.
-  const sameLeagues = same(
-    scopedByLeague && !same(leagueIds, everyLeague) ? leagueIds : [],
-    user.leagueIds,
-  );
+  // Compared as it will be stored, so ticking all three on somebody who
+  // already covers everything does not look like a change.
+  const sameLeagues = SCOPED.every((role) => {
+    const held = roles.includes(role) ? byRole[role] ?? [] : [];
+    const stored = same(held, everyLeague) || !roles.includes(role) ? [] : held;
+    return same(stored, storedFor(role));
+  });
 
   const name = displayName.trim();
   const changed =
@@ -89,7 +99,7 @@ export function UserRoleRow({
   const needsTeam = isGm && !teamId;
   // Nothing ticked is not "all of them" - that is all of them ticked. An
   // account that covers nothing would hold a role it can never use.
-  const needsLeague = scopedByLeague && leagueIds.length === 0;
+  const needsLeague = SCOPED.some((role) => roles.includes(role) && (byRole[role] ?? []).length === 0);
   // Nothing ticked would leave the account with no access at all. That is a
   // thing to do deliberately, by removing the account, not by mis-clicking here.
   const needsRole = roles.length === 0;
@@ -99,17 +109,25 @@ export function UserRoleRow({
       held.includes(role) ? held.filter((other) => other !== role) : [...held, role],
     );
 
-  const toggleLeague = (id: number) =>
-    setLeagueIds((held) =>
-      held.includes(id) ? held.filter((other) => other !== id) : [...held, id],
-    );
+  const toggleLeague = (role: Role, id: number) =>
+    setByRole((held) => {
+      const mine = held[role] ?? [];
+      return {
+        ...held,
+        [role]: mine.includes(id) ? mine.filter((other) => other !== id) : [...mine, id],
+      };
+    });
 
   /** Throws away whatever was staged and closes, so Cancel really does cancel. */
   function close() {
     setDisplayName(user.displayName);
     setRoles(user.roles);
     setTeamId(user.teamId ?? "");
-    setLeagueIds(user.leagueIds.length === 0 ? everyLeague : user.leagueIds);
+    setByRole(
+      Object.fromEntries(
+        SCOPED.map((role) => [role, storedFor(role).length === 0 ? everyLeague : storedFor(role)]),
+      ),
+    );
     setError("");
     setOpen(false);
   }
@@ -127,7 +145,9 @@ export function UserRoleRow({
           teamId: teamId || null,
           // What is ticked, every id and all. The route decides that all of
           // them means all of them, rather than this form deciding it twice.
-          leagueIds: scopedByLeague ? leagueIds : [],
+          leaguesByRole: Object.fromEntries(
+            SCOPED.filter((role) => roles.includes(role)).map((role) => [role, byRole[role] ?? []]),
+          ),
           displayName: name,
         }),
       });
@@ -177,13 +197,17 @@ export function UserRoleRow({
   const club = teams.find((team) => team.id === user.teamId)?.name;
   // Abbreviated, because this column is a few characters wide and the college
   // league's name is six words long.
-  const scope =
-    user.leagueIds.length === 0
-      ? "Every competition"
-      : leagues
-          .filter((option) => user.leagueIds.includes(option.id))
-          .map((option) => option.abbreviation)
-          .join(" · ");
+  const abbreviations = (ids: number[]) =>
+    leagues.filter((option) => ids.includes(option.id)).map((option) => option.abbreviation).join("·");
+  // One line per scoped role they hold, because the two can differ now:
+  // "umpire MBL · writer MCBA" is an ordinary thing to be.
+  const held = SCOPED.filter((role) => user.roles.includes(role));
+  const scope = held
+    .map((role) => {
+      const ids = user.scopes.filter((s) => s.role === role).map((s) => s.leagueId);
+      return `${roleLabel(role)} ${ids.length === 0 ? "all" : abbreviations(ids)}`;
+    })
+    .join(" · ");
 
   if (!open) {
     return (
@@ -269,32 +293,44 @@ export function UserRoleRow({
             An umpire who calls MBL games and the off-season tournament but not
             the college league is a sentence the old control could not write.
             Same chips as the roles above, which is the same kind of choice. */}
-        {scopedByLeague && (
-          <span className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
-            Covers
+        {/* A row of boxes per scoped role, because the two can be narrowed
+            differently: umpiring the MBL and writing for the MCBA is an
+            ordinary thing to be, and one shared set could not say it. Chips
+            rather than a picker, because a role can cover more than one
+            competition and all of them ticked is how somebody covers
+            everything - including a competition added tomorrow. */}
+        {SCOPED.filter((role) => roles.includes(role)).map((role) => (
+          <span
+            key={role}
+            className="flex flex-wrap items-center gap-2 text-xs text-slate-400"
+          >
+            {roleLabel(role)} covers
             <span className="flex flex-wrap items-center gap-1.5">
-              {leagues.map((option) => (
-                <label
-                  key={option.id}
-                  title={option.name}
-                  className={`cursor-pointer select-none rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
-                    leagueIds.includes(option.id)
-                      ? "border-sky-500 bg-sky-600/20 text-sky-200"
-                      : "border-slate-700 text-slate-500 hover:border-slate-600"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={leagueIds.includes(option.id)}
-                    onChange={() => toggleLeague(option.id)}
-                    className="sr-only"
-                  />
-                  {option.abbreviation}
-                </label>
-              ))}
+              {leagues.map((option) => {
+                const on = (byRole[role] ?? []).includes(option.id);
+                return (
+                  <label
+                    key={option.id}
+                    title={`${option.name} — ${roleLabel(role)}`}
+                    className={`cursor-pointer select-none rounded-md border px-2 py-1 text-xs font-semibold transition-colors ${
+                      on
+                        ? "border-sky-500 bg-sky-600/20 text-sky-200"
+                        : "border-slate-700 text-slate-500 hover:border-slate-600"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => toggleLeague(role, option.id)}
+                      className="sr-only"
+                    />
+                    {option.abbreviation}
+                  </label>
+                );
+              })}
             </span>
           </span>
-        )}
+        ))}
 
         {/* Only a GM has a club, so the picker appears only when that is held. */}
         {isGm && (

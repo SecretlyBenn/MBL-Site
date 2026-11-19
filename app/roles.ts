@@ -16,11 +16,11 @@ export type LeagueUser = {
   roles: Role[];
   teamId: number | null;
   /**
-   * The competitions this account's roles cover. Empty means every one of
-   * them, which is what most officials are - read it through `coveredLeagues`
-   * rather than testing it here.
+   * Which competitions each scoped role covers, a row per pair. A role with
+   * no row here covers every competition, which is what most officials are -
+   * read it through `coveredLeagues` rather than testing it here.
    */
-  leagueIds: number[];
+  scopes: { role: Role; leagueId: number }[];
 };
 
 /** Whether an account holds a role. Safe on a null user, which most callers have. */
@@ -34,38 +34,55 @@ export function hasAnyRole(user: { roles: Role[] } | null | undefined, roles: Ro
 }
 
 /**
- * The competitions an account's roles cover, or null for all of them.
+ * The competitions these roles cover, or null for all of them.
  *
- * This is the one answer behind three questions: which games an umpire is
- * shown, which cards a head umpire reviews, and which competitions a writer
- * may file an article under. They were three copies of the same comparison,
- * and the one in the newsroom was missing entirely - it stamped every article
- * with whichever competition happened to be first in the table.
+ * Asked a role at a time, because one account can hold two that are narrowed
+ * differently: umpiring the MBL and writing for the MCBA is an ordinary thing
+ * to be, and a single set per account could not say it. Pass the roles that
+ * let somebody onto the page you are guarding - `/umpire` is for either
+ * umpiring role, the newsroom is for WRITER - and the answer is their union.
  *
- * An admin covers all of them, because the wider role wins where two disagree
- * - the same rule `assertMayArrange` follows for a head umpire who also runs a
- * club.
+ * A role with nothing stored covers everything, so null wins over a list:
+ * somebody who umpires both competitions and writes for one still sees every
+ * game. An admin covers all of them, because the wider role wins where two
+ * disagree - the same rule `assertMayArrange` follows for a head umpire who
+ * also runs a club.
  *
  * Null rather than a list of every competition, so one added to the table
  * tomorrow is covered without anybody remembering this function exists.
  */
-export function coveredLeagues(user: { roles: Role[]; leagueIds: number[] }): number[] | null {
-  if (hasRole(user, "ADMIN") || user.leagueIds.length === 0) return null;
-  return user.leagueIds;
+export function coveredLeagues(
+  user: { roles: Role[]; scopes: { role: Role; leagueId: number }[] },
+  roles: Role[],
+): number[] | null {
+  if (hasRole(user, "ADMIN")) return null;
+  const held = roles.filter((role) => user.roles.includes(role));
+  // None of these roles at all: nothing is covered, which is not the same as
+  // everything. The page guard has usually refused them already.
+  if (held.length === 0) return [];
+
+  const ids = new Set<number>();
+  for (const role of held) {
+    const narrowed = user.scopes.filter((scope) => scope.role === role);
+    if (narrowed.length === 0) return null;
+    for (const scope of narrowed) ids.add(scope.leagueId);
+  }
+  return [...ids];
 }
 
 /**
- * Whether this account's roles reach this competition.
+ * Whether these roles reach this competition.
  *
- * A club with no competition at all reaches nobody who is narrowed to one,
- * which is the same answer the three separate checks gave: an unfiled club
- * should not turn up in an MCBA umpire's list by default.
+ * A club with no competition at all reaches nobody who is narrowed to one:
+ * the point of narrowing somebody is that each competition is somebody's, and
+ * an unfiled club is nobody's.
  */
 export function covers(
-  user: { roles: Role[]; leagueIds: number[] },
+  user: { roles: Role[]; scopes: { role: Role; leagueId: number }[] },
+  roles: Role[],
   leagueId: number | null | undefined,
 ): boolean {
-  const allowed = coveredLeagues(user);
+  const allowed = coveredLeagues(user, roles);
   if (allowed === null) return true;
   return leagueId != null && allowed.includes(leagueId);
 }
@@ -115,7 +132,7 @@ export async function getLeagueUser(): Promise<LeagueUser | null> {
   const [held, covered] = await Promise.all([
     db.select({ role: userRoles.role }).from(userRoles).where(eq(userRoles.userId, row.id)),
     db
-      .select({ leagueId: userLeagues.leagueId })
+      .select({ role: userLeagues.role, leagueId: userLeagues.leagueId })
       .from(userLeagues)
       .where(eq(userLeagues.userId, row.id)),
   ]);
@@ -126,7 +143,7 @@ export async function getLeagueUser(): Promise<LeagueUser | null> {
     displayName: row.displayName,
     roles: held.map((entry) => entry.role as Role),
     teamId: row.teamId,
-    leagueIds: covered.map((entry) => entry.leagueId),
+    scopes: covered.map((entry) => ({ role: entry.role as Role, leagueId: entry.leagueId })),
   };
 }
 

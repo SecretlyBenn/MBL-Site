@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { asc } from "drizzle-orm";
 import { getDb } from "@/db";
-import { ROLES, teams, userLeagues, userRoles, users } from "@/db/schema";
+import { ROLES, teams, userLeagues, userRoles, users, type Role } from "@/db/schema";
 import { getLeagues } from "@/db/queries";
 import { requireRole } from "@/app/roles";
 import { EmptyState, SectionHeader } from "@/app/SiteNav";
@@ -22,7 +22,9 @@ export default async function AdminAccountsPage() {
     // are a handful of accounts and at most a handful of roles each.
     db.select({ userId: userRoles.userId, role: userRoles.role }).from(userRoles),
     // And the competitions they cover, the same way and for the same reason.
-    db.select({ userId: userLeagues.userId, leagueId: userLeagues.leagueId }).from(userLeagues),
+    db
+      .select({ userId: userLeagues.userId, role: userLeagues.role, leagueId: userLeagues.leagueId })
+      .from(userLeagues),
   ]);
 
   const rolesOf = (userId: number) =>
@@ -32,10 +34,11 @@ export default async function AdminAccountsPage() {
 
   // In the order the competitions themselves are in, so two accounts covering
   // the same pair read the same way.
-  const leaguesOf = (userId: number) =>
-    allLeagues
-      .filter((league) => covered.some((entry) => entry.userId === userId && entry.leagueId === league.id))
-      .map((league) => league.id);
+  const scopesOf = (userId: number) =>
+    covered
+      .filter((entry) => entry.userId === userId)
+      .map((entry) => ({ role: entry.role as Role, leagueId: entry.leagueId }))
+      .sort((a, b) => a.role.localeCompare(b.role) || a.leagueId - b.leagueId);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_22rem]">
@@ -48,7 +51,7 @@ export default async function AdminAccountsPage() {
             accounts={allUsers.map((user) => ({
               ...user,
               roles: rolesOf(user.id),
-              leagueIds: leaguesOf(user.id),
+              scopes: scopesOf(user.id),
             }))}
             teams={allTeams}
             leagues={allLeagues}

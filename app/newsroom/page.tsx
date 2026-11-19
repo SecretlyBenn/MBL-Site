@@ -20,7 +20,7 @@ export default async function NewsroomPage() {
   const articles = hasRole(user, "ADMIN") ? await getAllArticles() : await getArticlesByAuthor(user.id);
   // The competitions this writer covers. A writer scoped to one gets no
   // choice and no question; the API checks the answer either way.
-  const allowed = coveredLeagues(user);
+  const allowed = coveredLeagues(user, ["WRITER"]);
   const leagues = (await getLeagues()).filter(
     (league) => allowed === null || allowed.includes(league.id),
   );

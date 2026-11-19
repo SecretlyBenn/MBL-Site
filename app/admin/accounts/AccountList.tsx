@@ -10,7 +10,7 @@ type Account = {
   discordId: string;
   roles: Role[];
   teamId: number | null;
-  leagueIds: number[];
+  scopes: { role: Role; leagueId: number }[];
 };
 
 /**

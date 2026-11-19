@@ -77,7 +77,19 @@ export function SignupList({
             key={row.id}
             className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-slate-800 bg-slate-900/50 px-3 py-1.5 text-xs"
           >
-            <span className="min-w-[8rem] flex-1 font-semibold text-slate-200">{row.typedName}</span>
+            {/* Once an admin has matched a sign-up, the player's real name is
+                what matters - the typed one was wrong, which is why it needed
+                matching, and leading with it made a corrected sign-up look
+                uncorrected. It stays beside it so the correction is visible
+                rather than silent. */}
+            <span className="min-w-[8rem] flex-1 font-semibold text-slate-200">
+              {row.playerName ?? row.typedName}
+              {row.playerName && row.playerName !== row.typedName && (
+                <span className="ml-2 font-normal text-slate-500">
+                  signed up as {row.typedName}
+                </span>
+              )}
+            </span>
             <span className="font-bold text-slate-400">
               {leagues.find((option) => option.id === row.leagueId)?.abbreviation ?? "—"}
             </span>
@@ -86,7 +98,7 @@ export function SignupList({
             </span>
             <span className="text-slate-500">Discord: {row.discordName}</span>
             {row.playerName ? (
-              <span className="font-semibold text-emerald-300">{row.playerName}</span>
+              <span className="font-semibold text-emerald-300">matched</span>
             ) : (
               <>
                 <MatchBox

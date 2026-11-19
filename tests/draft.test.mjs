@@ -424,3 +424,32 @@ test("a club renamed in the bot is renamed here, last word only", () => {
     "the admin page keeps its own copy of the rename",
   );
 });
+
+test("deleting a draft will not quietly take its sign-ups", () => {
+  // The sign-ups are the one thing about a draft that cannot be rebuilt: the
+  // picks and the order are a minute's work, the names were typed by however
+  // many people turned up. And nothing needs the draft deleted - the rounds,
+  // the order, the directions, the clock and the pool all change in place.
+  const fn = setup.slice(setup.indexOf("export async function DELETE"));
+  assert.ok(fn.includes("signups.length > 0 && !withSignups"), "a delete takes the sign-ups silently");
+  assert.ok(/status: 409/.test(fn), "it is not refused");
+  const form = readFileSync("app/admin/draft/DraftForm.tsx", "utf8");
+  assert.ok(form.includes("sign-up${signups === 1"), "the confirmation does not count them");
+});
+
+test("changing a draft leaves its sign-ups alone", () => {
+  // The whole point: sign-ups open first, the shape is decided after.
+  const patch = setup.slice(
+    setup.indexOf("export async function PATCH"),
+    setup.indexOf("export async function DELETE"),
+  );
+  assert.ok(!patch.includes("draftSignups"), "reconfiguring a draft touches its sign-ups");
+});
+
+test("a matched sign-up is shown under the player's real name", () => {
+  // The typed name was wrong - that is why it needed matching - so leading
+  // with it made a corrected sign-up look uncorrected.
+  const list = readFileSync("app/admin/draft/SignupList.tsx", "utf8");
+  assert.ok(list.includes("row.playerName ?? row.typedName"), "the wrong name still leads");
+  assert.ok(list.includes("signed up as {row.typedName}"), "the correction is now invisible");
+});
