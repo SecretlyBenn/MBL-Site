@@ -30,13 +30,17 @@ function BoxScoreName({ name, uuid, leagueSlug }: { name: string; uuid?: string;
 }
 
 /*
- * The nine batting columns want about 430px and a phone has 340. The card they
- * sit in is `overflow-hidden`, for its rounded corners, so what did not fit
- * was simply cut off and could not be reached by any means - a reader on a
- * phone could not see a run batted in. They scroll sideways inside the card
- * instead.
+ * The batting columns want more than a phone's 340px and the card they sit in
+ * is `overflow-hidden`, for its rounded corners, so what did not fit was
+ * simply cut off and could not be reached by any means - a reader on a phone
+ * could not see a run batted in. They scroll sideways inside the card instead.
  */
 function BattingTable({ rows, avatars, leagueSlug }: { rows: Stat[]; avatars: Record<string, string>; leagueSlug: string }) {
+  // Only about half the archive's box scores carry fielding at all, and two
+  // columns of dashes over a game that never recorded any is worse than not
+  // asking. A game that recorded it for anybody shows it for everybody, so a
+  // man who really did handle nothing reads 0 rather than going missing.
+  const fielded = rows.some((row) => row.putouts !== null || row.errors !== null);
   return (
     <div className="overflow-x-auto">
       <table className="data-table w-full table-auto">
@@ -51,6 +55,8 @@ function BattingTable({ rows, avatars, leagueSlug }: { rows: Stat[]; avatars: Re
             <th>RBI</th>
             <th>BB</th>
             <th>SO</th>
+            {fielded && <th>PO</th>}
+            {fielded && <th>E</th>}
           </tr>
         </thead>
         <tbody>
@@ -65,6 +71,11 @@ function BattingTable({ rows, avatars, leagueSlug }: { rows: Stat[]; avatars: Re
               <td>{row.rbis ?? 0}</td>
               <td>{row.walks ?? 0}</td>
               <td>{row.strikeouts ?? 0}</td>
+              {/* A dash, not a nought: nothing recorded is not the same as
+                  nothing handled, and the line score below says the same
+                  thing the same way. */}
+              {fielded && <td>{row.putouts ?? "-"}</td>}
+              {fielded && <td>{row.errors ?? "-"}</td>}
             </tr>
           ))}
         </tbody>

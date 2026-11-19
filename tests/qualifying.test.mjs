@@ -165,3 +165,21 @@ test("a player page opens on the competition in the address", () => {
   const page = readFileSync("app/[league]/players/history/[playerName]/page.tsx", "utf8");
   assert.ok(page.includes("opensOn={leagueSlug}"), "the page does not pass its own league down");
 });
+
+test("a box score shows putouts and errors when the game recorded them", () => {
+  const box = readFileSync("app/[league]/games/[gameId]/page.tsx", "utf8");
+  const batting = box.slice(box.indexOf("function BattingTable"), box.indexOf("function PitchingTable"));
+  assert.ok(batting.includes("<th>PO</th>"), "the box score has no putouts column");
+  assert.ok(batting.includes("<th>E</th>"), "the box score has no errors column");
+  // Half the archive's box scores carry no fielding at all, and two columns
+  // of dashes over a game that never recorded any is worse than not asking.
+  assert.ok(batting.includes("const fielded = rows.some("), "the columns are drawn whatever the game has");
+  // Nothing recorded is not the same as nothing handled.
+  assert.ok(batting.includes('row.putouts ?? "-"'), "an unrecorded putout reads as a nought");
+  assert.ok(batting.includes('row.errors ?? "-"'), "an unrecorded error reads as a nought");
+
+  // The pitching table is the pitching line and gains nothing from them: a
+  // pitcher who bats is already in the batting table above.
+  const pitching = box.slice(box.indexOf("function PitchingTable"));
+  assert.ok(!pitching.slice(0, pitching.indexOf("</table>")).includes("<th>PO</th>"));
+});
