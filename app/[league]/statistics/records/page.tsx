@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { EmptyState, PageShell, SectionHeader } from "@/app/SiteNav";
 import { clubOf, getAvatarsFor, getLeagueClubGames, getLeagueSeasonTotals, type SeasonTotalRow } from "@/db/queries";
 import { REAL_SEASON_GAMES, minInningsPitched, minPlateAppearances, countsAsASeason } from "@/app/scoring";
-import { BATTING, FIELDING, MIN_CHANCES, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
+import { BATTING, FIELDING, MIN_CHANCES, PITCHING, format, perGameLabels, bestFirst, reversible, worst, type Board } from "../boards";
 import { WorstToggle } from "../WorstToggle";
 import { LeaderBoard, type LeaderRow } from "../leaders/LeaderBoard";
 import { leagueFrom } from "../../league";
@@ -135,7 +135,8 @@ export default async function RecordsPage({
       board,
       rows: build(board, board.qualified ? qualified : all, `${league.abbreviation} `),
     }));
-  const facing = (boards: Board[]) => (showWorst ? boards.filter(reversible).map(worst) : boards);
+  const facing = (boards: Board[]) =>
+    showWorst ? boards.filter(reversible).map(worst) : bestFirst(boards);
 
   const sections = [
     {

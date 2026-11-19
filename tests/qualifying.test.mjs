@@ -137,6 +137,15 @@ test("fielding percentage needs chances, and the errors stay beside it", () => {
   assert.match(body, /fieldingPct[\s\S]*?qualified: true/, "it is not held to a minimum");
   assert.ok(body.includes('key: "errors"'), "the errors were replaced rather than joined");
 
+  // Worst only: even over twenty chances the top of it is two dozen men all
+  // reading 1.000, which is what kept it off the site in the first place.
+  assert.match(body, /fieldingPct[\s\S]*?worstOnly: true/, "the Best tab shows a board of ties");
+  assert.ok(allBoards.includes("export function bestFirst"), "there is no way to leave a board off Best");
+  for (const page of ["records", "leaders"]) {
+    const source = readFileSync(`app/[league]/statistics/${page}/page.tsx`, "utf8");
+    assert.ok(source.includes("bestFirst(boards)"), `${page} still shows every board on Best`);
+  }
+
   for (const page of ["records", "leaders"]) {
     const source = readFileSync(`app/[league]/statistics/${page}/page.tsx`, "utf8");
     assert.ok(source.includes("qualifiedFielders"), `${page} reads the rate board off everybody`);

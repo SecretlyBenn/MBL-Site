@@ -9,7 +9,7 @@ import {
   getCareerClubGames,
   clubOf,
 } from "@/db/queries";
-import { BATTING, FIELDING, MIN_CHANCES, PITCHING, format, perGameLabels, reversible, worst, type Board } from "../boards";
+import { BATTING, FIELDING, MIN_CHANCES, PITCHING, format, perGameLabels, bestFirst, reversible, worst, type Board } from "../boards";
 import { WorstToggle } from "../WorstToggle";
 import { SeasonSelect } from "../SeasonSelect";
 import { LeaderBoard, type LeaderRow } from "./LeaderBoard";
@@ -177,7 +177,7 @@ export default async function LeadersPage({
   const teamIds = Object.fromEntries(standings.map((team) => [team.name, team.id]));
 
   const group = (boards: Board[], all: Row[], qualified: Row[]) =>
-    (showWorst ? boards.filter(reversible).map(worst) : boards).map((board) => ({
+    (showWorst ? boards.filter(reversible).map(worst) : bestFirst(boards)).map((board) => ({
       board,
       rows: build(board, board.qualified ? qualified : all, teamIds, avatars),
     }));

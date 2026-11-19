@@ -41,11 +41,23 @@ export type Board = {
    * thing that stays meaningful when you read it from the wrong end.
    */
   worstLabel?: string;
+  /**
+   * Shown only on the Worst tab, because the top of it is a tie that says
+   * nothing. Fielding percentage is the one: half the archive's fielding
+   * seasons are a clean 1.000, so a board of the highest is two dozen men
+   * all reading the same number, while the lowest is a real list.
+   */
+  worstOnly?: boolean;
 };
 
 /** Whether this board is worth reading from the bottom. */
 export function reversible(board: Board): boolean {
   return board.worstLabel !== undefined;
+}
+
+/** The boards worth reading from the top - everything but the tied ones. */
+export function bestFirst(boards: Board[]): Board[] {
+  return boards.filter((board) => !board.worstOnly);
 }
 
 /**
@@ -119,18 +131,19 @@ export const PITCHING: Board[] = [
 ];
 
 /**
- * Fielding percentage is here, but only over enough chances to mean anything.
+ * Fielding percentage, on the Worst tab only.
  *
  * With no assists scored a chance is a putout or an error, and half of every
  * fielding season in the archive is a clean 1.000 - 1,436 of the 2,898 with a
- * chance in them. Unqualified, the board was that many men tied at the top
- * saying nothing about any of them, which is why it was left out before.
+ * chance in them. `MIN_CHANCES` cuts it to the 156 seasons where somebody
+ * actually fielded, and forty-four of those are still perfect, so a board of
+ * the highest is two dozen men all reading 1.000 and telling you nothing
+ * about any of them. That is why it was left out entirely before.
  *
- * `MIN_CHANCES` cuts it to the seasons where somebody actually fielded: 156
- * of them. Forty-four are still perfect, so the top of this board ties and
- * the bottom is the half worth reading - which is what the Worst tab is for.
- * The errors are kept beside it rather than replaced, because a raw error
- * count is a record in its own right and does not need a minimum to be one.
+ * Read from the bottom it is a real list, and one nothing else on the site
+ * gives you - so it is `worstOnly` rather than absent. The errors stay beside
+ * it on both tabs, because a raw error count is a record in its own right and
+ * needs no minimum to be one.
  */
 export const MIN_CHANCES = 20;
 
@@ -144,6 +157,7 @@ export const FIELDING: Board[] = [
     rate: true,
     qualified: true,
     worstLabel: "Lowest fielding percentage",
+    worstOnly: true,
   },
 ];
 
